@@ -12,6 +12,11 @@
 #define new DEBUG_NEW
 #endif
 
+#include <string_view>
+
+constexpr const CHAR* DEVICE_NAME = "\\\\.\\IDPS Sniffer Device";
+// Global Handle for now
+HANDLE deviceHandle = NULL;
 
 // CAboutDlg dialog used for App About
 
@@ -159,10 +164,22 @@ HCURSOR CGUIDlg::OnQueryDragIcon()
 
 void CGUIDlg::OnBnClickedButton2()
 {
-	// TODO: Add your control notification handler code here
+	// Try to open sniffer device, notify status to user
+	CloseHandle(deviceHandle); // No need to validate handle before closing
 }
 
 
 void CGUIDlg::OnBnClickedButton1()
 {
+	// Try to open sniffer device, notify status to user
+
+	deviceHandle = CreateFileA(DEVICE_NAME, GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
+	
+	if (deviceHandle == INVALID_HANDLE_VALUE) {
+		MessageBoxW(L"Unable to find sniffer device!", L"Error", MB_ICONERROR);
+		MessageBeep(MB_ICONERROR);
+		return;
+	}
+
+	MessageBoxW(L"Found sniffer device successfully", L"Yay!", MB_ICONASTERISK);
 }
