@@ -26,7 +26,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, [[maybe_unused]] PU
     status = IoCreateDevice(DriverObject, sizeof(NDIS_HANDLE), &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
     if (!NT_SUCCESS(status))
     {
-        KdPrint(("FAILED to create device!\r\n"));
+        KdPrint(("FAILED to create device!\n"));
         return status;
     }
 
@@ -34,12 +34,12 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, [[maybe_unused]] PU
     status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
     if (!NT_SUCCESS(status))
     {
-        KdPrint(("FAILED to create symlink!\r\n"));
+        KdPrint(("FAILED to create symlink!\n"));
         IoDeleteDevice(deviceObject);
         return status;
     }
 
-    KdPrint(("Creation successful!\r\n"));
+    KdPrint(("Creation successful!\n"));
 
     // Set up the driver object
     //DriverObject->MajorFunction[IRP_MJ_CREATE] = DriverCreateClose;
@@ -55,7 +55,7 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     IoDeleteSymbolicLink(&SYMLINK_NAME);
     IoDeleteDevice(DriverObject->DeviceObject);
-    KdPrint(("Driver unloaded!\r\n"));
+    KdPrint(("Driver unloaded!\n"));
 }
 
 // Create/Close routine
