@@ -1,4 +1,3 @@
-//#define _AMD64_
 #include <ntddk.h>
 #include <ndis.h>
 
@@ -11,15 +10,15 @@ typedef struct _DEVICE_EXTENSION {
 } DEVICE_EXTENSION, * PDEVICE_EXTENSION;
 
 // Function declarations
-DRIVER_INITIALIZE DriverEntry;
+extern "C" DRIVER_INITIALIZE DriverEntry;
 DRIVER_UNLOAD DriverUnload;
 NTSTATUS DriverCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS DriverDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 
 // Entry point
-NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
-    UNICODE_STRING deviceName = RTL_CONSTANT_STRING(L"\\Device\\RawPacketDriver");
-    UNICODE_STRING symbolicLink = RTL_CONSTANT_STRING(L"\\??\\RawPacketDriver");
+extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject,[[maybe_unused]] PUNICODE_STRING RegistryPath) {
+    UNICODE_STRING deviceName = RTL_CONSTANT_STRING(L"\\Device\\MagshimimNetworkDriver");
+    UNICODE_STRING symbolicLink = RTL_CONSTANT_STRING(L"\\??\\MagshimimNetworkDriver");
     PDEVICE_OBJECT deviceObject;
     NTSTATUS status;
 
@@ -62,7 +61,7 @@ void DriverUnload(PDRIVER_OBJECT DriverObject) {
 }
 
 // Create/Close routine
-NTSTATUS DriverCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
+NTSTATUS DriverCreateClose([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp) {
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
@@ -70,7 +69,7 @@ NTSTATUS DriverCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
 }
 
 // Device control routine
-NTSTATUS DriverDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
+NTSTATUS DriverDeviceControl([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp) {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
 

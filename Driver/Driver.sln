@@ -3,24 +3,28 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35506.116 d17.12
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Driver", "Driver.vcxproj", "{D2EB7259-D913-487A-B910-6E15E5A43C17}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Driver", "Driver.vcxproj", "{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM64 = Debug|ARM64
 		Debug|x64 = Debug|x64
-		Debug|x86 = Debug|x86
+		Release|ARM64 = Release|ARM64
 		Release|x64 = Release|x64
-		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Debug|x64.ActiveCfg = Debug|x64
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Debug|x64.Build.0 = Debug|x64
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Debug|x86.ActiveCfg = Debug|Win32
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Debug|x86.Build.0 = Debug|Win32
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Release|x64.ActiveCfg = Release|x64
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Release|x64.Build.0 = Release|x64
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Release|x86.ActiveCfg = Release|Win32
-		{D2EB7259-D913-487A-B910-6E15E5A43C17}.Release|x86.Build.0 = Release|Win32
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Debug|ARM64.Build.0 = Debug|ARM64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Debug|ARM64.Deploy.0 = Debug|ARM64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Debug|x64.ActiveCfg = Debug|x64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Debug|x64.Build.0 = Debug|x64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Debug|x64.Deploy.0 = Debug|x64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Release|ARM64.ActiveCfg = Release|ARM64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Release|ARM64.Build.0 = Release|ARM64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Release|ARM64.Deploy.0 = Release|ARM64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Release|x64.ActiveCfg = Release|x64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Release|x64.Build.0 = Release|x64
+		{CEDEAE7D-E25E-4BC8-86C4-9337ABBE5B58}.Release|x64.Deploy.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
