@@ -90,6 +90,9 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, [[maybe_unused]] PU
 
     DriverObject->DriverUnload = DriverUnload;
 
+    KdPrint(("Initializing WFP\r\n"));
+    InitializeWfp();
+
     return STATUS_SUCCESS;
 }
 
