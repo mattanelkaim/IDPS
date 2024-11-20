@@ -1,7 +1,7 @@
 #include <fwpsk.h>
 #include <fwpmk.h>
 #include <ntddk.h>
-//#define INITGUID
+#define INITGUID
 #include <guiddef.h> 
 #include <fwpmu.h>
 //#include <Windows.h>
@@ -40,7 +40,7 @@ VOID UnInitWfp();
 NTSTATUS InitializeWfp();
 NTSTATUS WfpAddFilter();
 NTSTATUS WfpRegisterCallout();
-VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, PVOID layerData, __IGNORE const PVOID context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
+VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const GUID* filterKey, __IGNORE FWPS_FILTER* filter);
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 
@@ -63,7 +63,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, [[maybe_unused]] PU
         {
             KdPrint(("FAILED to create device:\n"));
             char num_str[sizeof(LONG) + 2] = {0};
-            sprintf(num_str, "%ld\n", status);
+            //sprintf(num_str, "%ld\n", status);
             KdPrint((num_str));
         }
 
@@ -181,7 +181,8 @@ NTSTATUS WfpOpenEngine()
 
 NTSTATUS WfpAddCallout()
 {
-    wchar_t* displayName = wcsdup(L"EstablishedCalloutName");
+    //wchar_t* displayName = wcsdup(L"EstablishedCalloutName");
+    wchar_t* displayName = NULL;
     FWPM_CALLOUT callout = { 0 };
     callout.flags = 0;
     callout.displayData.name = displayName;
@@ -194,7 +195,8 @@ NTSTATUS WfpAddCallout()
 
 NTSTATUS WfpAddSublayer()
 {
-    wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
+    //wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
+    wchar_t* displayName = NULL;
     FWPM_SUBLAYER sublayer = { 0 };
     sublayer.displayData.name = displayName;
     sublayer.displayData.description = displayName;
@@ -245,7 +247,8 @@ NTSTATUS InitializeWfp()
 
 NTSTATUS WfpAddFilter()
 {
-    wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
+    //wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
+    wchar_t* displayName = NULL;
     FWPM_FILTER filter = { 0 };
     FWPM_FILTER_CONDITION condition[1] = {0};
 
@@ -280,7 +283,7 @@ NTSTATUS WfpRegisterCallout()
     return FwpsCalloutRegister(deviceObject, &callout, &RegCalloutId);
 }
 
-VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, PVOID layerData, __IGNORE const PVOID context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
+VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
     FWPS_STREAM_CALLOUT_IO_PACKET* packet;
     KdPrint(("data is here\r\n"));
