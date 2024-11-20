@@ -88,7 +88,7 @@
       <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
     </DriverSign>
     <ClCompile>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <ClCompile>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>

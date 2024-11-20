@@ -17,6 +17,7 @@ UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 
 // Global variables
 #define __IGNORE [[maybe_unused]]
+//#define __IGNORE
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
 UINT32 RegCalloutId = 0;
@@ -31,8 +32,8 @@ DEFINE_GUID(WFP_SAMPLE_SUB_LAYER_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0
 // Function declarations
 extern "C" VOID DriverUnload(PDRIVER_OBJECT DriverObject);
 //extern "C" NTSTATUS DriverCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);
-extern "C" NTSTATUS DriverDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
-extern "C" NTSTATUS DriverPassThru(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+extern "C" NTSTATUS DriverDeviceControl(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp);
+extern "C" NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS WfpOpenEngine();
 NTSTATUS WfpAddCallout();
 NTSTATUS WfpAddSublayer();
@@ -46,7 +47,7 @@ VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IG
 
 
 // Entry point
-extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, [[maybe_unused]] PUNICODE_STRING RegistryPath)
+extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
 {
     KdPrint(("Entry!\n"));
     NTSTATUS status; // Re-used to check each API function
@@ -104,7 +105,7 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 }
 
 // Create/Close routine
-//NTSTATUS DriverCreateClose([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
+//NTSTATUS DriverCreateClose(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 //{
 //    Irp->IoStatus.Status = STATUS_SUCCESS;
 //    Irp->IoStatus.Information = 0;
@@ -113,7 +114,7 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 //}
 
 // Handling function
-NTSTATUS DriverPassThru([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
+NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_SUCCESS;
@@ -140,7 +141,7 @@ NTSTATUS DriverPassThru([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
 }
 
 // Device control routine
-NTSTATUS DriverDeviceControl([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
+NTSTATUS DriverDeviceControl(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status;
