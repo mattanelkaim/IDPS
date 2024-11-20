@@ -1,10 +1,10 @@
-#define INITGUID
-#include <guiddef.h> 
 #include <fwpsk.h>
 #include <fwpmk.h>
+#include <ntddk.h>
+//#define INITGUID
+#include <guiddef.h> 
 #include <fwpmu.h>
 //#include <Windows.h>
-//#include <ntddk.h>
 //#include <ndis.h>
 //#include <ntdef.h>
 //#include <stdio.h> // sprintf()
@@ -29,10 +29,10 @@ DEFINE_GUID(WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID, 0xd969fc67, 0x6fb2, 0x4504, 
 DEFINE_GUID(WFP_SAMPLE_SUB_LAYER_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0xac, 0xeb, 0x4c, 0x4, 0xc2, 0x1c);
 
 // Function declarations
-DRIVER_UNLOAD DriverUnload;
+extern "C" VOID DriverUnload(PDRIVER_OBJECT DriverObject);
 //extern "C" NTSTATUS DriverCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);
-NTSTATUS DriverDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
-NTSTATUS DriverPassThru(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+extern "C" NTSTATUS DriverDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+extern "C" NTSTATUS DriverPassThru(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS WfpOpenEngine();
 NTSTATUS WfpAddCallout();
 NTSTATUS WfpAddSublayer();
@@ -93,7 +93,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, [[maybe_unused]] PU
     return STATUS_SUCCESS;
 }
 
-extern "C" void DriverUnload(PDRIVER_OBJECT DriverObject)
+VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     IoDeleteSymbolicLink(&SYMLINK_NAME);
     IoDeleteDevice(DriverObject->DeviceObject);
@@ -110,7 +110,7 @@ extern "C" void DriverUnload(PDRIVER_OBJECT DriverObject)
 //}
 
 // Handling function
-extern "C" NTSTATUS DriverPassThru([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
+NTSTATUS DriverPassThru([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_SUCCESS;
@@ -137,7 +137,7 @@ extern "C" NTSTATUS DriverPassThru([[maybe_unused]] PDEVICE_OBJECT DeviceObject,
 }
 
 // Device control routine
-extern "C" NTSTATUS DriverDeviceControl([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
+NTSTATUS DriverDeviceControl([[maybe_unused]] PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status;
