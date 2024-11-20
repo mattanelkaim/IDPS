@@ -185,8 +185,7 @@ NTSTATUS WfpOpenEngine()
 NTSTATUS WfpAddCallout()
 {
     KdPrint(("Adding callout...\n"));
-    //wchar_t* displayName = wcsdup(L"EstablishedCalloutName");
-    wchar_t* displayName = NULL;
+    wchar_t* displayName = L"EstablishedCalloutName";
     FWPM_CALLOUT callout = { 0 };
     callout.flags = 0;
     callout.displayData.name = displayName;
@@ -207,8 +206,7 @@ NTSTATUS WfpAddCallout()
 NTSTATUS WfpAddSublayer()
 {
     KdPrint(("Adding sublayer...\n"));
-    //wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
-    wchar_t* displayName = NULL;
+    wchar_t* displayName = L"EstablishedSublayerName";
     FWPM_SUBLAYER sublayer = { 0 };
     sublayer.displayData.name = displayName;
     sublayer.displayData.description = displayName;
@@ -262,8 +260,7 @@ NTSTATUS InitializeWfp()
 NTSTATUS WfpAddFilter()
 {
     KdPrint(("Adding filter...\n"));
-    //wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
-    wchar_t* displayName = NULL;
+    wchar_t* displayName = L"EstablishedSublayerName";
     FWPM_FILTER filter = { 0 };
     FWPM_FILTER_CONDITION condition[1] = {0};
 
@@ -288,13 +285,12 @@ NTSTATUS WfpAddFilter()
 NTSTATUS WfpRegisterCallout()
 {
     KdPrint(("Registering callout...\n"));
-    FWPS_CALLOUT callout = {
-        .calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID,
-        .flags = 0,
-        .classifyFn = FilterCallback,
-        .notifyFn = NotifyCallback,
-        .flowDeleteFn = FlowDeleteCallback
-    };
+    FWPS_CALLOUT callout = { 0 };
+    callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
+    callout.flags = 0;
+    callout.classifyFn = FilterCallback;
+    callout.notifyFn = NotifyCallback;
+    callout.flowDeleteFn = FlowDeleteCallback;
 
     return FwpsCalloutRegister(deviceObject, &callout, &RegCalloutId);
 }
