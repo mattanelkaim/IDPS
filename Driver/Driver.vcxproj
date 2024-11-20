@@ -92,8 +92,14 @@
     </ClCompile>
     <ClCompile>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <PreprocessorDefinitions>NDIS_SUPPORT_NDIS6;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CompileAs>
+      </CompileAs>
     </ClCompile>
     <Inf />
+    <Link>
+      <AdditionalDependencies>$(DDK_LIB_PATH)fwpkclnt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DriverSign>
