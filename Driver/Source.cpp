@@ -4,10 +4,10 @@
 #define INITGUID
 #include <guiddef.h> 
 #include <fwpmu.h>
+#include <stdio.h>
 //#include <Windows.h>
 //#include <ndis.h>
 //#include <ntdef.h>
-//#include <stdio.h> // sprintf()
 //#include <wchar.h>
 
 
@@ -184,6 +184,7 @@ NTSTATUS WfpOpenEngine()
 
 NTSTATUS WfpAddCallout()
 {
+    KdPrint(("Adding callout...\n"));
     //wchar_t* displayName = wcsdup(L"EstablishedCalloutName");
     wchar_t* displayName = NULL;
     FWPM_CALLOUT callout = { 0 };
@@ -193,11 +194,19 @@ NTSTATUS WfpAddCallout()
     callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
     callout.applicableLayer = FWPM_LAYER_STREAM_V4;
 
-    return FwpmCalloutAdd(engineHandle, &callout, NULL, &AddCalloutId);
+    KdPrint(("Almost done adding callout...\n"));
+
+    NTSTATUS status = FwpmCalloutAdd(engineHandle, &callout, NULL, &AddCalloutId);
+    // Debug print
+    char str[20 + sizeof(char)];
+    sprintf(str, "%lu", status);
+    KdPrint((str));
+    return status;
 }
 
 NTSTATUS WfpAddSublayer()
 {
+    KdPrint(("Adding sublayer...\n"));
     //wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
     wchar_t* displayName = NULL;
     FWPM_SUBLAYER sublayer = { 0 };
@@ -235,21 +244,24 @@ VOID UnInitWfp()
 
 NTSTATUS InitializeWfp()
 {
-    if (NT_SUCCESS(FwpmEngineOpen(NULL, RPC_C_AUTHN_WINNT, NULL, NULL, &engineHandle)) &&
+    if (NT_SUCCESS(WfpOpenEngine()) &&
         NT_SUCCESS(WfpRegisterCallout()) &&
         NT_SUCCESS(WfpAddCallout()) &&
         NT_SUCCESS(WfpAddSublayer()) &&
         NT_SUCCESS(WfpAddFilter()))
     {
+        KdPrint(("Initialized successfully\n"));
         return STATUS_SUCCESS;
     }
 
+    KdPrint(("Error initializing!\n"));
     UnInitWfp();
     return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS WfpAddFilter()
 {
+    KdPrint(("Adding filter...\n"));
     //wchar_t* displayName = wcsdup(L"EstablishedSublayerName");
     wchar_t* displayName = NULL;
     FWPM_FILTER filter = { 0 };
@@ -275,6 +287,7 @@ NTSTATUS WfpAddFilter()
 
 NTSTATUS WfpRegisterCallout()
 {
+    KdPrint(("Registering callout...\n"));
     FWPS_CALLOUT callout = {
         .calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID,
         .flags = 0,
