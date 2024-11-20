@@ -4,11 +4,6 @@
 #define INITGUID
 #include <guiddef.h> 
 #include <fwpmu.h>
-#include <stdio.h>
-//#include <Windows.h>
-//#include <ndis.h>
-//#include <ntdef.h>
-//#include <wchar.h>
 
 
 // These cannot be const nor constexpr!
@@ -17,7 +12,6 @@ UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 
 // Global variables
 #define __IGNORE [[maybe_unused]]
-//#define __IGNORE
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
 UINT32 RegCalloutId = 0;
@@ -30,20 +24,18 @@ DEFINE_GUID(WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID, 0xd969fc67, 0x6fb2, 0x4504, 
 DEFINE_GUID(WFP_SAMPLE_SUB_LAYER_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0xac, 0xeb, 0x4c, 0x4, 0xc2, 0x1c);
 
 // Function declarations
-extern "C" VOID DriverUnload(PDRIVER_OBJECT DriverObject);
-//extern "C" NTSTATUS DriverCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);
-extern "C" NTSTATUS DriverDeviceControl(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp);
-extern "C" NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp);
+VOID DriverUnload(PDRIVER_OBJECT DriverObject);
+NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS InitializeWfp();
 NTSTATUS WfpOpenEngine();
 NTSTATUS WfpAddCallout();
 NTSTATUS WfpAddSublayer();
-VOID UnInitWfp();
-NTSTATUS InitializeWfp();
 NTSTATUS WfpAddFilter();
 NTSTATUS WfpRegisterCallout();
 VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const GUID* filterKey, __IGNORE FWPS_FILTER* filter);
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
+VOID UnInitWfp();
 
 
 // Entry point
@@ -52,8 +44,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
     KdPrint(("Entry!\n"));
     NTSTATUS status; // Re-used to check each API function
 
-
-    // Create the device                                                   TODO: IS TYPE CORRECT??
+    // Create the device
     status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
     if (!NT_SUCCESS(status))
     {
@@ -61,14 +52,9 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
         if (status == STATUS_OBJECT_NAME_COLLISION)
             KdPrint(("FAILED to create device: NAME_COLLISION\n"));
         else
-        {
-            KdPrint(("FAILED to create device:\n"));
-            char num_str[sizeof(LONG) + 2] = {0};
-            //sprintf(num_str, "%ld\n", status);
-            KdPrint((num_str));
-        }
+            KdPrint(("FAILED to create device\n"));
 
-        return status;
+        return status; // Error code
     }
 
     // Create the symbolic link
@@ -80,19 +66,22 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
         return status;
     }
 
-    KdPrint(("Creation successful!\n"));
-
-    // Set up the driver object
-    //DriverObject->MajorFunction[IRP_MJ_CREATE] = DriverCreateClose;
-    //DriverObject->MajorFunction[IRP_MJ_CLOSE] = DriverCreateClose;
-    //DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DriverDeviceControl;
+    // Bind functions to handling function
     for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; ++i)
         DriverObject->MajorFunction[i] = DriverPassThru;
 
     DriverObject->DriverUnload = DriverUnload;
 
-    KdPrint(("Initializing WFP\r\n"));
-    InitializeWfp();
+    KdPrint(("Creation successful!\n"));
+    KdPrint(("Initializing WFP...\n"));
+    
+    status = InitializeWfp();
+    if (!NT_SUCCESS(status))
+    {
+        // InitializeWfp() already prints err and calls UnInitWfp()
+        IoDeleteDevice(deviceObject);
+        return status;
+    }
 
     return STATUS_SUCCESS;
 }
@@ -104,21 +93,13 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
     KdPrint(("Driver unloaded!\n"));
 }
 
-// Create/Close routine
-//NTSTATUS DriverCreateClose(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
-//{
-//    Irp->IoStatus.Status = STATUS_SUCCESS;
-//    Irp->IoStatus.Information = 0;
-//    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-//    return STATUS_SUCCESS;
-//}
-
 // Handling function
 NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_SUCCESS;
 
+    // Match request and handle properly
     switch (irpSp->MajorFunction)
     {
     case IRP_MJ_CREATE:
@@ -140,43 +121,26 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
     return status;
 }
 
-// Device control routine
-NTSTATUS DriverDeviceControl(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
-{
-    PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
-    NTSTATUS status;
-
-    if (irpSp->Parameters.DeviceIoControl.IoControlCode == IOCTL_READ_RAW_PACKET)
-    {
-        // Simulated packet read for demonstration purposes
-        UCHAR dummyPacket[128] = { /* Simulated packet data */ };
-        const size_t packetSize = sizeof(dummyPacket);
-
-        if (irpSp->Parameters.DeviceIoControl.OutputBufferLength < packetSize)
-        {
-            status = STATUS_BUFFER_TOO_SMALL;
-        }
-        else
-        {
-            // Copy raw packet to buffer to the IRP, as the response
-            RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, dummyPacket, packetSize);
-            Irp->IoStatus.Information = packetSize; // Useful to know how much to read from buffer
-            status = STATUS_SUCCESS;
-        }
-    }
-    else
-    {
-        status = STATUS_INVALID_DEVICE_REQUEST;
-    }
-
-    // Finish request and send back handled IRP
-    Irp->IoStatus.Status = status;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return status;
-}
-
 
 // ######## NETWORK RELATED ########
+
+
+NTSTATUS InitializeWfp()
+{
+    if (NT_SUCCESS(WfpOpenEngine()) &&
+        NT_SUCCESS(WfpRegisterCallout()) &&
+        NT_SUCCESS(WfpAddCallout()) &&
+        NT_SUCCESS(WfpAddSublayer()) &&
+        NT_SUCCESS(WfpAddFilter()))
+    {
+        KdPrint(("Initialized WFP successfully\n"));
+        return STATUS_SUCCESS;
+    }
+
+    KdPrint(("Error initializing WFP!\n"));
+    UnInitWfp();
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS WfpOpenEngine()
 {
@@ -194,14 +158,7 @@ NTSTATUS WfpAddCallout()
     callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
     callout.applicableLayer = FWPM_LAYER_STREAM_V4;
 
-    KdPrint(("Almost done adding callout...\n"));
-
-    NTSTATUS status = FwpmCalloutAdd(engineHandle, &callout, NULL, &AddCalloutId);
-    // Debug print
-    char str[20 + sizeof(char)];
-    sprintf(str, "%lu", status);
-    KdPrint((str));
-    return status;
+    return FwpmCalloutAdd(engineHandle, &callout, NULL, &AddCalloutId);
 }
 
 NTSTATUS WfpAddSublayer()
@@ -214,48 +171,6 @@ NTSTATUS WfpAddSublayer()
     sublayer.subLayerKey = WFP_SAMPLE_SUB_LAYER_GUID;
     sublayer.weight = 65500;
     return FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
-}
-
-VOID UnInitWfp()
-{
-    if (!engineHandle)
-        return;
-
-    if (FilterId != 0)
-    {
-        FwpmFilterDeleteById(engineHandle, FilterId);
-        FwpmSubLayerDeleteByKey(engineHandle, &WFP_SAMPLE_SUB_LAYER_GUID);
-    }
-
-    if (AddCalloutId != 0)
-    {
-        FwpmCalloutDeleteById(engineHandle, AddCalloutId);
-    }
-
-    if (RegCalloutId != 0)
-    {
-        FwpsCalloutUnregisterById(RegCalloutId);
-    }
-
-    FwpmEngineClose(engineHandle);
-    engineHandle = NULL;
-}
-
-NTSTATUS InitializeWfp()
-{
-    if (NT_SUCCESS(WfpOpenEngine()) &&
-        NT_SUCCESS(WfpRegisterCallout()) &&
-        NT_SUCCESS(WfpAddCallout()) &&
-        NT_SUCCESS(WfpAddSublayer()) &&
-        NT_SUCCESS(WfpAddFilter()))
-    {
-        KdPrint(("Initialized successfully\n"));
-        return STATUS_SUCCESS;
-    }
-
-    KdPrint(("Error initializing!\n"));
-    UnInitWfp();
-    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS WfpAddFilter()
@@ -298,10 +213,9 @@ NTSTATUS WfpRegisterCallout()
 
 VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    FWPS_STREAM_CALLOUT_IO_PACKET* packet;
-    KdPrint(("data is here\r\n"));
+    KdPrint(("data is here\n"));
 
-    packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
 
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
 
@@ -325,3 +239,27 @@ VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IG
     // Noting here!
 }
 
+VOID UnInitWfp()
+{
+    if (!engineHandle)
+        return;
+
+    if (FilterId != 0)
+    {
+        FwpmFilterDeleteById(engineHandle, FilterId);
+        FwpmSubLayerDeleteByKey(engineHandle, &WFP_SAMPLE_SUB_LAYER_GUID);
+    }
+
+    if (AddCalloutId != 0)
+    {
+        FwpmCalloutDeleteById(engineHandle, AddCalloutId);
+    }
+
+    if (RegCalloutId != 0)
+    {
+        FwpsCalloutUnregisterById(RegCalloutId);
+    }
+
+    FwpmEngineClose(engineHandle);
+    engineHandle = NULL;
+}
