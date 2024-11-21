@@ -32,6 +32,18 @@ IP_REGEX_PATTERN_STRING: str = r'^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.' \
 IP_REGEX_MATCHER: re.Pattern = re.compile(IP_REGEX_PATTERN_STRING)
 
 
+def resolve_target(target: str) -> str:
+    if not IP_REGEX_MATCHER.match(target):
+        try:
+            # Returns: (family, type, proto, canonname, sockaddr)
+            return socket.getaddrinfo(target, None)[0][-1][0]  # Extract IP
+        except socket.gaierror:
+            print("Invalid target! Specify a valid IP address or a domain")
+            return ""
+    else:
+        return target  # Target is IP
+
+
 def get_command() -> str:
     user_command = input("\n> ").lower()
     return user_command
@@ -55,14 +67,9 @@ def handle_attack(args: list[str]):
 
 
 def commit_ddos(target: str):
-    # Determine target and resolve if needed
-    if not IP_REGEX_MATCHER.match(target):
-        try:
-            # Returns: (family, type, proto, canonname, sockaddr)
-            target = socket.getaddrinfo(target, None)[0][-1][0]  # Extract IP
-            print(f"Resolved to {target}")
-        except socket.gaierror:
-            print("Invalid target! Specify a valid IP address or a domain")
+    target = resolve_target(target)
+    if target == "":
+        return  # Already prints an error message
 
     print('Committing DoS, press CTRL+C at any moment to stop.')
     try:
