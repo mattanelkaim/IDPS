@@ -95,10 +95,11 @@
       <PreprocessorDefinitions>NDIS_SUPPORT_NDIS6;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CompileAs>
       </CompileAs>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km\ndis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Inf />
     <Link>
-      <AdditionalDependencies>$(DDK_LIB_PATH)fwpkclnt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(DDK_LIB_PATH)fwpkclnt.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ndis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
