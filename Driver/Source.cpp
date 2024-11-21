@@ -12,6 +12,8 @@ UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 
 // Global variables
 #define __IGNORE [[maybe_unused]]
+#define SIGNATURE "##-IDPS_SNIFFER-##: "
+#define IDPS_PRINT(x) KdPrint((SIGNATURE x)) // x has to be a literal string
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
 UINT32 RegCalloutId = 0;
@@ -41,7 +43,7 @@ VOID UnInitWfp();
 // Entry point
 extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
 {
-    KdPrint(("Entry!\n"));
+    IDPS_PRINT("Entry!\n");
     NTSTATUS status; // Re-used to check each API function
 
     // Create the device
@@ -50,9 +52,9 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
     {
         // Print error with status code
         if (status == STATUS_OBJECT_NAME_COLLISION)
-            KdPrint(("FAILED to create device: NAME_COLLISION\n"));
+            IDPS_PRINT("FAILED to create device: NAME_COLLISION\n");
         else
-            KdPrint(("FAILED to create device\n"));
+            IDPS_PRINT("FAILED to create device\n");
 
         return status; // Error code
     }
@@ -61,7 +63,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
     status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
     if (!NT_SUCCESS(status))
     {
-        KdPrint(("FAILED to create symlink!\n"));
+        IDPS_PRINT("FAILED to create symlink!\n");
         IoDeleteDevice(deviceObject);
         return status;
     }
@@ -72,8 +74,8 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
 
     DriverObject->DriverUnload = DriverUnload;
 
-    KdPrint(("Creation successful!\n"));
-    KdPrint(("Initializing WFP...\n"));
+    IDPS_PRINT("Creation successful!\n");
+    IDPS_PRINT("Initializing WFP...\n");
     
     status = InitializeWfp();
     if (!NT_SUCCESS(status))
@@ -90,7 +92,7 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     IoDeleteSymbolicLink(&SYMLINK_NAME);
     IoDeleteDevice(DriverObject->DeviceObject);
-    KdPrint(("Driver unloaded!\n"));
+    IDPS_PRINT("Driver unloaded!\n");
 }
 
 // Handling function
@@ -103,13 +105,13 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
     switch (irpSp->MajorFunction)
     {
     case IRP_MJ_CREATE:
-        KdPrint(("Create request!\n"));
+        IDPS_PRINT("Create request!\n");
         break;
     case IRP_MJ_CLOSE:
-        KdPrint(("Close request!\n"));
+        IDPS_PRINT("Close request!\n");
         break;
     case IRP_MJ_READ:
-        KdPrint(("Read request!\n"));
+        IDPS_PRINT("Read request!\n");
         break;
     default:
         break;
@@ -133,11 +135,11 @@ NTSTATUS InitializeWfp()
         NT_SUCCESS(WfpAddSublayer()) &&
         NT_SUCCESS(WfpAddFilter()))
     {
-        KdPrint(("Initialized WFP successfully\n"));
+        IDPS_PRINT("Initialized WFP successfully\n");
         return STATUS_SUCCESS;
     }
 
-    KdPrint(("Error initializing WFP!\n"));
+    IDPS_PRINT("Error initializing WFP!\n");
     UnInitWfp();
     return STATUS_UNSUCCESSFUL;
 }
@@ -149,7 +151,7 @@ NTSTATUS WfpOpenEngine()
 
 NTSTATUS WfpAddCallout()
 {
-    KdPrint(("Adding callout...\n"));
+    IDPS_PRINT("Adding callout...\n");
     wchar_t* displayName = L"EstablishedCalloutName";
     FWPM_CALLOUT callout = { 0 };
     callout.flags = 0;
@@ -163,7 +165,7 @@ NTSTATUS WfpAddCallout()
 
 NTSTATUS WfpAddSublayer()
 {
-    KdPrint(("Adding sublayer...\n"));
+    IDPS_PRINT("Adding sublayer...\n");
     wchar_t* displayName = L"EstablishedSublayerName";
     FWPM_SUBLAYER sublayer = { 0 };
     sublayer.displayData.name = displayName;
@@ -175,7 +177,7 @@ NTSTATUS WfpAddSublayer()
 
 NTSTATUS WfpAddFilter()
 {
-    KdPrint(("Adding filter...\n"));
+    IDPS_PRINT("Adding filter...\n");
     wchar_t* displayName = L"EstablishedSublayerName";
     FWPM_FILTER filter = { 0 };
     FWPM_FILTER_CONDITION condition[1] = {0};
@@ -200,7 +202,7 @@ NTSTATUS WfpAddFilter()
 
 NTSTATUS WfpRegisterCallout()
 {
-    KdPrint(("Registering callout...\n"));
+    IDPS_PRINT("Registering callout...\n");
     FWPS_CALLOUT callout = { 0 };
     callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
     callout.flags = 0;
@@ -213,7 +215,7 @@ NTSTATUS WfpRegisterCallout()
 
 VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    KdPrint(("data is here\n"));
+    IDPS_PRINT("data is here\n");
 
     FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
 
