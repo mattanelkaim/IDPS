@@ -159,7 +159,7 @@ NTSTATUS WfpAddCallout()
     callout.displayData.name = displayName;
     callout.displayData.description = displayName;
     callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
-    callout.applicableLayer = FWPM_LAYER_STREAM_V4;
+    callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // receive full inbound raw packets
 
     return FwpmCalloutAdd(engineHandle, &callout, NULL, &AddCalloutId);
 }
@@ -185,7 +185,7 @@ NTSTATUS WfpAddFilter()
 
     filter.displayData.name = displayName;
     filter.displayData.description = displayName;
-    filter.layerKey = FWPM_LAYER_STREAM_V4;
+    filter.layerKey = FWPM_LAYER_INBOUND_IPPACKET_V4; // recieve full inbound raw packets
     filter.subLayerKey = WFP_SAMPLE_SUB_LAYER_GUID;
     filter.weight.type = FWP_EMPTY;
     filter.numFilterConditions = 1;
@@ -216,29 +216,55 @@ NTSTATUS WfpRegisterCallout()
 
 VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
-    FWPS_STREAM_DATA0* streamData = packet->streamData;
-    UCHAR string[1024] = { 0 };
-    ULONG length = 0;
-    SIZE_T bytes;
+    //FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+    //FWPS_STREAM_DATA0* streamData = packet->streamData;
+    //UCHAR string[1024] = { 0 };
+    //ULONG length = 0;
+    //SIZE_T bytes;
 
-    IDPS_PRINT("data is here\n");
+    //IDPS_PRINT("data is here\n");
 
+    //RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+
+    //if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
+    //{
+    //    length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
+    //    FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
+    //    IDPS_PRINT2("data is %s\r\n", string);
+    //}
+
+    //packet->streamAction = FWPS_STREAM_ACTION_NONE;
+    //classifyOut->actionType = FWP_ACTION_PERMIT;
+    //if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+    //{
+    //    classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+    //}
+
+    ////////////////////////////////
+
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    UCHAR* packetData = NULL;
+    ULONG packetLength = 0;
+
+    // Ensure classifyOut is initialized
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+    classifyOut->actionType = FWP_ACTION_PERMIT; // Default action
 
-    if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
-    {
-        length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
-        FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
-        IDPS_PRINT2("data is %s\r\n", string);
-    }
+    if (!nb)
+        return;
 
-    packet->streamAction = FWPS_STREAM_ACTION_NONE;
-    classifyOut->actionType = FWP_ACTION_PERMIT;
-    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+    packetLength = NET_BUFFER_DATA_LENGTH(nb);
+    packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
+
+    if (packetData)
     {
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+        // Log or process the raw packet data
+        IDPS_PRINT2("Received raw packet of length %u\n", packetLength);
+        // Perform actions with packetData here...
     }
+    else
+        IDPS_PRINT("Failed to access raw packet data.\n");
 }
 
 // Boilerplate function without any use for now
