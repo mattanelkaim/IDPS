@@ -62,6 +62,12 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
 
     // Create the symbolic link
     status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
+    if (STATUS_OBJECT_NAME_COLLISION == status)
+    {
+        // replacing the existing symlink
+        IoDeleteSymbolicLink(&SYMLINK_NAME);
+        status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
+    }
     if (!NT_SUCCESS(status))
     {
         IDPS_PRINT("FAILED to create symlink!\n");
@@ -83,6 +89,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
     {
         // InitializeWfp() already prints err and calls UnInitWfp()
         IoDeleteDevice(deviceObject);
+        IoDeleteSymbolicLink(&SYMLINK_NAME);
         return status;
     }
 
@@ -130,17 +137,19 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 NTSTATUS InitializeWfp()
 {
-    if (NT_SUCCESS(WfpOpenEngine()) &&
-        NT_SUCCESS(WfpRegisterCallout()) &&
-        NT_SUCCESS(WfpAddCallout()) &&
-        NT_SUCCESS(WfpAddSublayer()) &&
-        NT_SUCCESS(WfpAddFilter()))
+    NTSTATUS status;
+    if (NT_SUCCESS(status = WfpOpenEngine()) &&
+        NT_SUCCESS(status = WfpRegisterCallout()) &&
+        NT_SUCCESS(status = WfpAddCallout()) &&
+        NT_SUCCESS(status = WfpAddSublayer()) &&
+        NT_SUCCESS(status = WfpAddFilter()))
     {
         IDPS_PRINT("Initialized WFP successfully\n");
         return STATUS_SUCCESS;
     }
 
     IDPS_PRINT("Error initializing WFP!\n");
+    IDPS_PRINT2("Error code: %x", status);
     UnInitWfp();
     return STATUS_UNSUCCESSFUL;
 }
@@ -285,8 +294,8 @@ VOID UnInitWfp()
     if (FilterId != 0)
     {
         FwpmFilterDeleteById(engineHandle, FilterId);
-        FwpmSubLayerDeleteByKey(engineHandle, &WFP_SAMPLE_SUB_LAYER_GUID);
     }
+    FwpmSubLayerDeleteByKey(engineHandle, &WFP_SAMPLE_SUB_LAYER_GUID);
 
     if (AddCalloutId != 0)
     {
