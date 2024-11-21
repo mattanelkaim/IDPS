@@ -13,7 +13,8 @@ UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 // Global variables
 #define __IGNORE [[maybe_unused]]
 #define SIGNATURE "##-IDPS_SNIFFER-##: "
-#define IDPS_PRINT(x) KdPrint((SIGNATURE x)) // x has to be a literal string
+#define IDPS_PRINT(x) KdPrint((SIGNATURE x)) // x is a literal string
+#define IDPS_PRINT2(x1, x2) KdPrint((SIGNATURE x1, x2)) // x1 is a literal string, x2 is a char buffer
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
 UINT32 RegCalloutId = 0;
@@ -215,17 +216,28 @@ NTSTATUS WfpRegisterCallout()
 
 VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+    FWPS_STREAM_DATA0* streamData = packet->streamData;
+    UCHAR string[1024] = { 0 };
+    ULONG length = 0;
+    SIZE_T bytes;
+
     IDPS_PRINT("data is here\n");
 
-    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
-
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+
+    if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
+    {
+        length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
+        FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
+        IDPS_PRINT2("data is %s\r\n", string);
+    }
 
     packet->streamAction = FWPS_STREAM_ACTION_NONE;
     classifyOut->actionType = FWP_ACTION_PERMIT;
     if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
     {
-        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
     }
 }
 
