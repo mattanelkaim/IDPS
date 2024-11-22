@@ -14,7 +14,9 @@ UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 #define __IGNORE [[maybe_unused]]
 #define SIGNATURE "##-IDPS_SNIFFER-##: "
 #define IDPS_PRINT(x) KdPrint((SIGNATURE x)) // x is a literal string
-#define IDPS_PRINT2(x1, x2) KdPrint((SIGNATURE x1, x2)) // x1 is a literal string, x2 is a char buffer
+#define IDPS_PRINT2(x1, x2) KdPrint((SIGNATURE x1, x2)) // x1 is a literal string, x2 is a string (char*)
+#define IDPS_PRINT3(x1, x2, x3) KdPrint((SIGNATURE x1, x2, x3)) // x1 is a literal string, x2 is the buffer length, x3 is the char buffer
+#define IDPS_PRINT4(x1, x2, x3, x4) KdPrint((SIGNATURE x1, x2, x3, x4)) // 4 params
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
 UINT32 RegCalloutId = 0;
@@ -168,8 +170,8 @@ NTSTATUS WfpAddCallout()
     callout.displayData.name = displayName;
     callout.displayData.description = displayName;
     callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // receive full inbound raw packets
 
+    callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
     return FwpmCalloutAdd(engineHandle, &callout, NULL, &AddCalloutId);
 }
 
@@ -190,23 +192,15 @@ NTSTATUS WfpAddFilter()
     IDPS_PRINT("Adding filter...\n");
     wchar_t* displayName = L"EstablishedSublayerName";
     FWPM_FILTER filter = { 0 };
-    FWPM_FILTER_CONDITION condition[1] = {0};
-
     filter.displayData.name = displayName;
     filter.displayData.description = displayName;
-    filter.layerKey = FWPM_LAYER_INBOUND_IPPACKET_V4; // recieve full inbound raw packets
     filter.subLayerKey = WFP_SAMPLE_SUB_LAYER_GUID;
     filter.weight.type = FWP_EMPTY;
-    filter.numFilterConditions = 1;
-    filter.filterCondition = condition;
+    filter.numFilterConditions = 0; // no condition in order to receive all protocols
+    filter.filterCondition = NULL; // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     filter.action.type = FWP_ACTION_CALLOUT_TERMINATING;
     filter.action.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
-
-    condition[0].fieldKey = FWPM_CONDITION_IP_LOCAL_PORT;
-    condition[0].matchType = FWP_MATCH_LESS_OR_EQUAL;
-    condition[0].conditionValue.type = FWP_UINT16;
-    condition[0].conditionValue.uint16 = 65000;
-
+    filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
     return FwpmFilterAdd(engineHandle, &filter, NULL, &FilterId);
 }
 
@@ -251,27 +245,79 @@ VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
 
     ////////////////////////////////
 
-    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    UCHAR* packetData = NULL;
-    ULONG packetLength = 0;
-
     // Ensure classifyOut is initialized
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
     classifyOut->actionType = FWP_ACTION_PERMIT; // Default action
 
-    if (!nb)
+    // Check if layerData is not null
+    if (layerData == NULL) {
+        IDPS_PRINT("No data available to process.\n");
         return;
-
-    packetLength = NET_BUFFER_DATA_LENGTH(nb);
-    packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
-
-    if (packetData)
-    {
-        IDPS_PRINT2("Received raw packet of length %u\n", packetLength);
     }
-    else
-        IDPS_PRINT("Failed to access raw packet data.\n");
+
+    // NET_BUFFER_LIST to access packet data
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    UCHAR* packetData = NULL;
+    ULONG packetLength = 0;
+    SIZE_T totalLength = 0;  // Total length of all layers
+
+    // Allocate memory dynamically for the raw packet buffer
+    UCHAR* rawPacketBuffer = NULL;
+
+    // First, calculate the total length of the raw packet data
+    while (nb) {
+        packetLength = NET_BUFFER_DATA_LENGTH(nb);
+        totalLength += packetLength;
+        nb = NET_BUFFER_NEXT_NB(nb);
+    }
+
+    if (totalLength == 0) {
+        IDPS_PRINT("No data in packet.\n");
+        return;
+    }
+
+    // Allocate memory for the entire raw packet
+    rawPacketBuffer = (UCHAR*)ExAllocatePool2(NonPagedPool, totalLength, 'RawP');
+    if (rawPacketBuffer == NULL) {
+        IDPS_PRINT("Failed to allocate memory for raw packet buffer.\n");
+        return;
+    }
+
+    // Reset the buffer pointer and copy data from each NET_BUFFER
+    nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    unsigned int bytesCopied = 0;
+
+    while (nb) {
+        packetLength = NET_BUFFER_DATA_LENGTH(nb);
+        packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
+
+        if (packetData) {
+            RtlCopyMemory(rawPacketBuffer + bytesCopied, packetData, packetLength);
+            bytesCopied += packetLength;
+        }
+        else {
+            IDPS_PRINT("Failed to access raw packet data.\n");
+            break;
+        }
+
+        nb = NET_BUFFER_NEXT_NB(nb);
+    }
+
+    // At this point, rawPacketBuffer contains the entire raw packet
+    // Log or process the raw packet as needed
+    IDPS_PRINT2("Raw packet captured: %X bytes\n", (int)bytesCopied);
+
+    // Optionally print the raw packet data (truncated for readability)
+    for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
+        IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
+    }
+    IDPS_PRINT("\n");
+
+    // If needed, you can do additional processing with the raw packet data here
+
+    // Free the allocated memory after processing
+    ExFreePoolWithTag(rawPacketBuffer, 'RawP');
 }
 
 // Boilerplate function without any use for now
