@@ -117,12 +117,12 @@ def commit_null_tcp_scan(target: str):
     print('Committing DoS, press CTRL+C at any moment to stop.')
     try:
         for port in range(1, 1025):  # Scan first 1024 ports
-            resp = sr1(IP(src=get_if_addr(conf.iface), dst=target) / TCP(dport=port, flags="S"), timeout=1)
+            resp = sr1(IP(src=get_if_addr(conf.iface), dst=target) / TCP(dport=port, flags=""), timeout=1)
             if resp:
-                if resp[TCP].flags == 0x12:  # SYN+ACK
-                    print(f"Port {port} is open")
-                elif resp[TCP].flags == 0x14:  # RST
+                if resp[TCP].flags == 0x14:  # RST
                     print(f"Port {port} is closed")
+                else:
+                    print(f"**Port {port} is open")
             else:
                 print(f"Port {port} is filtered or closed")
     except (KeyboardInterrupt, InterruptedError):
