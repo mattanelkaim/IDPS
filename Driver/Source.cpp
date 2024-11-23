@@ -100,8 +100,9 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
 
 VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
-    IoDeleteSymbolicLink(&SYMLINK_NAME);
+    UnInitWfp();
     IoDeleteDevice(DriverObject->DeviceObject);
+    IoDeleteSymbolicLink(&SYMLINK_NAME);
     IDPS_PRINT("Driver unloaded!\n");
 }
 
@@ -268,9 +269,11 @@ VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
     // First, calculate the total length of the raw packet data
     while (nb) {
         packetLength = NET_BUFFER_DATA_LENGTH(nb);
+        IDPS_PRINT2("length: %d", packetLength);
         totalLength += packetLength;
         nb = NET_BUFFER_NEXT_NB(nb);
     }
+    IDPS_PRINT2("total length: %d", packetLength);
 
     if (totalLength == 0) {
         IDPS_PRINT("No data in packet.\n");
@@ -278,7 +281,7 @@ VOID FilterCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
     }
 
     // Allocate memory for the entire raw packet
-    rawPacketBuffer = (UCHAR*)ExAllocatePool2(NonPagedPool, totalLength, 'RawP');
+    rawPacketBuffer = (UCHAR*)ExAllocatePool2(NonPagedPool, 1, 'RawP');
     if (rawPacketBuffer == NULL) {
         IDPS_PRINT("Failed to allocate memory for raw packet buffer.\n");
         return;
