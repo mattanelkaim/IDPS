@@ -4,6 +4,7 @@ from scapy.layers.l2 import ARP
 from scapy.layers.inet import TCP, IP
 
 from helper import *
+from banner_generator import print_banner
 
 
 def handle_attack(args: list[str]):
@@ -27,7 +28,7 @@ def handle_attack(args: list[str]):
                 print('Invalid usage, see "help"')
                 return
             commit_arp_spoofing(target)
-        case "tcp" | "null":
+        case "tcp" | "portscan":
             if not 2 <= args_num <= 4:
                 print('Invalid usage, see "help"')
                 return
@@ -70,7 +71,7 @@ def commit_arp_spoofing(target: str):
     sniff(prn=packet_handler, promisc=True, store=False, filter='arp')
 
 
-def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = False):
+def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True):
     try:
         port_list = extract_ports(ports)
     except ValueError:
@@ -82,21 +83,31 @@ def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = Fals
         port_list = range(20, 81)
 
     print(f'Committing NULL TCP port scanning for {target}')
+    print("┌──────┬─────────┐\n"
+          "│ PORT │  STATE  │\n"
+          "├──────┼─────────┤")
+
     try:
         for port in port_list:  # Scan first 1024 ports
+            print(f"\r│ {port:<5}│ ....... │", end="")  # Displays in case port is taking time
+
             to_send = IP(src=LOCAL_IP, dst=target) / TCP(dport=port)
             # to_send.show()
             resp = sr1(to_send, verbose=0, timeout=1)
+
             if resp:
-                print(f"flags={resp[TCP].flags} | ", end="")
+                # print(f"flags={resp[TCP].flags} | ", end="")
                 if resp[TCP].flags == 0x14:  # RST
                     if print_closed:
-                        print(f"Port {port} is closed")
+                        print(f"\r│ {port:<5}│ closed  │")
                 else:
-                    print(f"**Port {port} is open")
+                    print(f"\r│ {port:<5}│ open    │")
             else:
-                print(f"Port {port} is filtered or closed")
+                print(f"\r│ {port:<5}│ unknown │")
+
+        print("└──────┴─────────┘")
     except (KeyboardInterrupt, InterruptedError):
+        print("└──────┴─────────┘")
         print("\nAttack Terminated.")
 
 
@@ -120,7 +131,7 @@ def handle_command(cmd: list[str]) -> bool:
 
 
 def main():
-    print(BANNER)
+    print_banner()
     print(HELP)
 
     try:
