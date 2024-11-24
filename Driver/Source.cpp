@@ -16,11 +16,15 @@
 
 // IOCTL code for user-mode communication
 #define IOCTL_READ_RAW_PACKET CTL_CODE(FILE_DEVICE_NETWORK, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-//DEFINE_GUID(WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
-//DEFINE_GUID(WFP_SAMPLE_SUB_LAYER_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0xac, 0xeb, 0x4c, 0x4, 0xc2, 0x1c);
+DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
+DEFINE_GUID(IP_CALLOUT_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0xac, 0xeb, 0x4c, 0x4, 0xc2, 0x1c);
+DEFINE_GUID(TRANSPORT_CALLOUT_GUID, 0x12345678, 0x9abc, 0xde0f, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0);
+DEFINE_GUID(GUID_YOUR_FUNCTION_2, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
+DEFINE_GUID(IP_SUBLAYER_GUID, 0x55555555, 0xaaaa, 0xaaaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa);
+DEFINE_GUID(TRANSPORT_SUBLAYER_GUID, 0xbbbbbbbb, 0xbbbb, 0xbbbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb);
 
-UUID ETHERNET_CALLOUT_GUID, IP_CALLOUT_GUID, TRANSPORT_CALLOUT_GUID;
-UUID ETHERNET_SUBLAYER_GUID, IP_SUBLAYER_GUID, TRANSPORT_SUBLAYER_GUID;
+//UUID ETHERNET_CALLOUT_GUID, IP_CALLOUT_GUID, TRANSPORT_CALLOUT_GUID;
+//UUID ETHERNET_SUBLAYER_GUID, IP_SUBLAYER_GUID, TRANSPORT_SUBLAYER_GUID;
 
 // These cannot be const nor constexpr!
 UNICODE_STRING DEVICE_NAME = RTL_CONSTANT_STRING(L"\\Device\\IDPS Sniffer Device");
@@ -58,11 +62,11 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
     NTSTATUS status; // Re-used to check each API function
 
     IDPS_PRINT("Generatin GUID's");  // Didn't know he was chill like dat 😜
-    if ((status = generateGUIDS()) != RPC_S_OK)
-    {
-        IDPS_PRINT("Generating GUID's failed!");
-        return status;
-    }
+    //if ((status = generateGUIDS()) != RPC_S_OK)
+    //{
+    //    IDPS_PRINT("Generating GUID's failed!");
+    //    return status;
+    //}
 
     // Create the device
     status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
@@ -575,18 +579,18 @@ VOID UnInitWfp()
     engineHandle = NULL;
 }
 
-RPC_STATUS generateGUIDS()
-{
-    RPC_STATUS status;
-    if ((status = UuidCreate(&ETHERNET_CALLOUT_GUID)) != RPC_S_OK ||
-        (status = UuidCreate(&IP_CALLOUT_GUID)) != RPC_S_OK ||
-        (status = UuidCreate(&TRANSPORT_CALLOUT_GUID)) != RPC_S_OK ||
-        (status = UuidCreate(&ETHERNET_SUBLAYER_GUID)) != RPC_S_OK ||
-        (status = UuidCreate(&IP_SUBLAYER_GUID)) != RPC_S_OK ||
-        (status = UuidCreate(&TRANSPORT_SUBLAYER_GUID)) != RPC_S_OK)
-    {
-        return status;
-    }
-    return RPC_S_OK;
-
-}
+//RPC_STATUS generateGUIDS()
+//{
+//    RPC_STATUS status;
+//    if ((status = UuidCreate(&ETHERNET_CALLOUT_GUID)) != RPC_S_OK ||
+//        (status = UuidCreate(&IP_CALLOUT_GUID)) != RPC_S_OK ||
+//        (status = UuidCreate(&TRANSPORT_CALLOUT_GUID)) != RPC_S_OK ||
+//        (status = UuidCreate(&ETHERNET_SUBLAYER_GUID)) != RPC_S_OK ||
+//        (status = UuidCreate(&IP_SUBLAYER_GUID)) != RPC_S_OK ||
+//        (status = UuidCreate(&TRANSPORT_SUBLAYER_GUID)) != RPC_S_OK)
+//    {
+//        return status;
+//    }
+//    return RPC_S_OK;
+//
+//}
