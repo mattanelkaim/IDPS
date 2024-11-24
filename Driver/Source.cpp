@@ -4,6 +4,7 @@
 #define INITGUID
 #include <guiddef.h> 
 #include <fwpmu.h>
+#include <rpc.h>
 
 // Helper Defenitions
 #define __IGNORE [[maybe_unused]]
@@ -15,7 +16,7 @@
 
 // IOCTL code for user-mode communication
 #define IOCTL_READ_RAW_PACKET CTL_CODE(FILE_DEVICE_NETWORK, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-DEFINE_GUID(WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
+//DEFINE_GUID(WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
 //DEFINE_GUID(WFP_SAMPLE_SUB_LAYER_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0xac, 0xeb, 0x4c, 0x4, 0xc2, 0x1c);
 
 UUID ETHERNET_CALLOUT_GUID, IP_CALLOUT_GUID, TRANSPORT_CALLOUT_GUID;
@@ -55,6 +56,13 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
 {
     IDPS_PRINT("Entry!\n");
     NTSTATUS status; // Re-used to check each API function
+
+    IDPS_PRINT("Generatin GUID's");
+    if ((status = generateGUIDS()) != RPC_S_OK)
+    {
+        IDPS_PRINT("Generating GUID's failed!");
+        return status;
+    }
 
     // Create the device
     status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
@@ -179,18 +187,20 @@ NTSTATUS WfpAddCallout()
     callout.flags = 0;
     callout.displayData.name = displayName;
     callout.displayData.description = displayName;
-    callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
 
+    callout.calloutKey = ETHERNET_CALLOUT_GUID;
     callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
     status = FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
     if (!NT_SUCCESS(status))
         return status;
 
+    callout.calloutKey = IP_CALLOUT_GUID;
     callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // Ethernet Layer
     status = FwpmCalloutAdd(engineHandle, &callout, NULL, &IpAddCalloutId);
     if (!NT_SUCCESS(status))
         return status;
 
+    callout.calloutKey = TRANSPORT_CALLOUT_GUID;
     callout.applicableLayer = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Ethernet Layer
     return FwpmCalloutAdd(engineHandle, &callout, NULL, &TransportAddCalloutId);
 }
@@ -265,10 +275,14 @@ NTSTATUS WfpRegisterCallout()
     callout.calloutKey = ETHERNET_CALLOUT_GUID;
     callout.classifyFn = EthernetCallback;
     status =  FwpsCalloutRegister(deviceObject, &callout, &EthernetRegCalloutId);
+    if (!NT_SUCCESS(status))
+        return status;
 
     callout.calloutKey = IP_CALLOUT_GUID;
     callout.classifyFn = IpCallback;
     status = FwpsCalloutRegister(deviceObject, &callout, &IpRegCalloutId);
+    if (!NT_SUCCESS(status))
+        return status;
 
     callout.calloutKey = TRANSPORT_CALLOUT_GUID;
     callout.classifyFn = TransportCallback;
