@@ -19,7 +19,7 @@
 DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
 DEFINE_GUID(IP_CALLOUT_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0xac, 0xeb, 0x4c, 0x4, 0xc2, 0x1c);
 DEFINE_GUID(TRANSPORT_CALLOUT_GUID, 0x12345678, 0x9abc, 0xde0f, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0);
-DEFINE_GUID(GUID_YOUR_FUNCTION_2, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
+DEFINE_GUID(ETHERNET_SUBLAYER_GUID, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
 DEFINE_GUID(IP_SUBLAYER_GUID, 0x55555555, 0xaaaa, 0xaaaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa);
 DEFINE_GUID(TRANSPORT_SUBLAYER_GUID, 0xbbbbbbbb, 0xbbbb, 0xbbbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb);
 
@@ -52,7 +52,7 @@ VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IG
 NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const GUID* filterKey, __IGNORE FWPS_FILTER* filter);
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
-RPC_STATUS generateGUIDS();
+//RPC_STATUS generateGUIDS();
 
 
 // Entry point
@@ -339,7 +339,7 @@ VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGN
     SIZE_T totalLength = 0;  // Total length of all layers
 
     // Allocate memory dynamically for the raw packet buffer
-    UCHAR* rawPacketBuffer = NULL;
+    // UCHAR* rawPacketBuffer = NULL;
 
     // First, calculate the total length of the raw packet data
     while (nb) {
@@ -366,32 +366,34 @@ VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGN
     nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     unsigned int bytesCopied = 0;
 
+    IDPS_PRINT("printing ethernet\n");
     while (nb) {
         packetLength = NET_BUFFER_DATA_LENGTH(nb);
         packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
-
-        if (packetData) {
+        IDPS_PRINT3("%.*s ", packetLength, packetData);
+        /*if (packetData && rawPacketBuffer + bytesCopied) {
             RtlCopyMemory(rawPacketBuffer + bytesCopied, packetData, packetLength);
             bytesCopied += packetLength;
         }
         else {
             IDPS_PRINT("Failed to access raw packet data.\n");
             break;
-        }
+        }*/
 
         nb = NET_BUFFER_NEXT_NB(nb);
     }
+    IDPS_PRINT("finished ethernet\n");
 
     // At this point, rawPacketBuffer contains the entire raw packet
     // Log or process the raw packet as needed
     IDPS_PRINT2("Raw packet captured: %X bytes\n", (int)bytesCopied);
 
-    IDPS_PRINT("printing ethernet\n");
-    // Optionally print the raw packet data (truncated for readability)
-    for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
-        IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
-    }
-    IDPS_PRINT("finished ethernet\n");
+    //IDPS_PRINT("printing ethernet\n");
+    //// Optionally print the raw packet data (truncated for readability)
+    //for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
+    //    IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
+    //}
+    //IDPS_PRINT("finished ethernet\n");
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
@@ -412,7 +414,7 @@ VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE co
     SIZE_T totalLength = 0;  // Total length of all layers
 
     // Allocate memory dynamically for the raw packet buffer
-    UCHAR* rawPacketBuffer = NULL;
+    //UCHAR* rawPacketBuffer = NULL;
 
     // First, calculate the total length of the raw packet data
     while (nb) {
@@ -439,32 +441,34 @@ VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE co
     nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     unsigned int bytesCopied = 0;
 
+    IDPS_PRINT("finished ip\n");
     while (nb) {
         packetLength = NET_BUFFER_DATA_LENGTH(nb);
         packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
-
-        if (packetData) {
+        IDPS_PRINT3("%.*s ", packetLength, packetData);
+        /*if (packetData && rawPacketBuffer + bytesCopied) {
             RtlCopyMemory(rawPacketBuffer + bytesCopied, packetData, packetLength);
             bytesCopied += packetLength;
         }
         else {
             IDPS_PRINT("Failed to access raw packet data.\n");
             break;
-        }
+        }*/
 
         nb = NET_BUFFER_NEXT_NB(nb);
     }
+    IDPS_PRINT("finished ip\n");
 
     // At this point, rawPacketBuffer contains the entire raw packet
     // Log or process the raw packet as needed
     IDPS_PRINT2("Raw packet captured: %X bytes\n", (int)bytesCopied);
 
-    IDPS_PRINT("printing ip\n");
-    // Optionally print the raw packet data (truncated for readability)
-    for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
-        IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
-    }
-    IDPS_PRINT("finished ip\n");
+    //IDPS_PRINT("printing ip\n");
+    //// Optionally print the raw packet data (truncated for readability)
+    //for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
+    //    IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
+    //}
+    //IDPS_PRINT("finished ip\n");
 }
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
@@ -485,7 +489,7 @@ VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IG
     SIZE_T totalLength = 0;  // Total length of all layers
 
     // Allocate memory dynamically for the raw packet buffer
-    UCHAR* rawPacketBuffer = NULL;
+    // UCHAR* rawPacketBuffer = NULL;
 
     // First, calculate the total length of the raw packet data
     while (nb) {
@@ -512,32 +516,36 @@ VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IG
     nb = NET_BUFFER_LIST_FIRST_NB(nbl);
     unsigned int bytesCopied = 0;
 
+    IDPS_PRINT("printing transport\n");
     while (nb) {
         packetLength = NET_BUFFER_DATA_LENGTH(nb);
         packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
 
-        if (packetData) {
+        IDPS_PRINT3("%.*s ", packetLength, packetData);
+
+        /*if (packetData && rawPacketBuffer + bytesCopied) {
             RtlCopyMemory(rawPacketBuffer + bytesCopied, packetData, packetLength);
             bytesCopied += packetLength;
         }
         else {
             IDPS_PRINT("Failed to access raw packet data.\n");
             break;
-        }
+        }*/
 
         nb = NET_BUFFER_NEXT_NB(nb);
     }
+    IDPS_PRINT("finished transport\n");
 
     // At this point, rawPacketBuffer contains the entire raw packet
     // Log or process the raw packet as needed
     IDPS_PRINT2("Raw packet captured: %X bytes\n", (int)bytesCopied);
 
-    IDPS_PRINT("printing transport\n");
+    //IDPS_PRINT("printing transport\n");
     // Optionally print the raw packet data (truncated for readability)
-    for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
+    /*for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
         IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
-    }
-    IDPS_PRINT("finished transport\n");
+    }*/
+    //IDPS_PRINT("finished transport\n");
 }
 
 // Boilerplate function without any use for now
