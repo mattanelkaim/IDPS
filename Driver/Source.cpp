@@ -1,4 +1,4 @@
-#include <fwpsk.h>
+﻿#include <fwpsk.h>
 #include <fwpmk.h>
 #include <ntddk.h>
 #define INITGUID
@@ -57,7 +57,7 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_S
     IDPS_PRINT("Entry!\n");
     NTSTATUS status; // Re-used to check each API function
 
-    IDPS_PRINT("Generatin GUID's");
+    IDPS_PRINT("Generatin GUID's");  // Didn't know he was chill like dat 😜
     if ((status = generateGUIDS()) != RPC_S_OK)
     {
         IDPS_PRINT("Generating GUID's failed!");
