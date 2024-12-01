@@ -4,7 +4,7 @@
 #define INITGUID
 #include <guiddef.h> 
 #include <fwpmu.h>
-#include <rpc.h>
+#include <ntifs.h>
 
 // Helper Defenitions
 #define __IGNORE [[maybe_unused]]
@@ -19,22 +19,35 @@
 DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
 DEFINE_GUID(IP_CALLOUT_GUID, 0xed6a516a, 0x36d1, 0x4881, 0xbc, 0xf0, 0xac, 0xeb, 0x4c, 0x4, 0xc2, 0x1c);
 DEFINE_GUID(TRANSPORT_CALLOUT_GUID, 0x12345678, 0x9abc, 0xde0f, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0);
+DEFINE_GUID(APPLICATION_CALLOUT_GUID, 0x13579bdf, 0x2468, 0xace0, 0x13, 0x57, 0x9b, 0xdf, 0x24, 0x68, 0xac, 0xe0);
 DEFINE_GUID(ETHERNET_SUBLAYER_GUID, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
 DEFINE_GUID(IP_SUBLAYER_GUID, 0x55555555, 0xaaaa, 0xaaaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa);
 DEFINE_GUID(TRANSPORT_SUBLAYER_GUID, 0xbbbbbbbb, 0xbbbb, 0xbbbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb);
-
-//UUID ETHERNET_CALLOUT_GUID, IP_CALLOUT_GUID, TRANSPORT_CALLOUT_GUID;
-//UUID ETHERNET_SUBLAYER_GUID, IP_SUBLAYER_GUID, TRANSPORT_SUBLAYER_GUID;
+DEFINE_GUID(APPLICATION_SUBLAYER_GUID, 0xabcdef12, 0x3456, 0x7890, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90);
 
 // These cannot be const nor constexpr!
 UNICODE_STRING DEVICE_NAME = RTL_CONSTANT_STRING(L"\\Device\\IDPS Sniffer Device");
 UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 
+#define BASE_FILE_DIRECTORY L"\\??\\C:\\IDPS_shared_files\\"
+#define ETHERNET_FILE_PATH (BASE_FILE_DIRECTORY L"ethernet")
+#define INTERNET_FILE_PATH (BASE_FILE_DIRECTORY L"internet")
+#define TRANSPORT_FILE_PATH (BASE_FILE_DIRECTORY L"transport")
+#define APPLICATION_FILE_PATH (BASE_FILE_DIRECTORY L"application")
+#define BASE_MUTEX_DIRECTORY L"\\BaseNamedObjects\\"
+#define ETHERNET_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"ethernetMutex")
+#define INTERNET_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"internetMutex")
+#define TRANSPORT_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"transportMutex")
+#define APPLICATION_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"applicationMutex")
+
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
-UINT32 EthernetRegCalloutId = 0, IpRegCalloutId = 0, TransportRegCalloutId = 0;
-UINT32 EthernetAddCalloutId = 0, IpAddCalloutId = 0, TransportAddCalloutId = 0;
-UINT64 EthernetFilterId = 0, IpFilterId = 0, TransportFilterId = 0;
+UINT32 EthernetRegCalloutId = 0, IpRegCalloutId = 0, TransportRegCalloutId = 0, ApplicationRegCalloutId = 0;
+UINT32 EthernetAddCalloutId = 0, IpAddCalloutId = 0, TransportAddCalloutId = 0, ApplicationAddCalloutId = 0;
+UINT64 EthernetFilterId = 0, IpFilterId = 0, TransportFilterId = 0, ApplicationFilterId = 0;
+KMUTEX ethernetMutex, internetMutex, transportMutex, applicationMutex;
+UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
+UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
 
 
 // Function declarations
@@ -49,10 +62,13 @@ NTSTATUS WfpRegisterCallout();
 VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
+VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const GUID* filterKey, __IGNORE FWPS_FILTER* filter);
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
-//RPC_STATUS generateGUIDS();
+void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, const char* Filepath, const char* mutexName);
+NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PKMUTEX mutex);
+NTSTATUS InitMutexesAndFiles();
 
 
 // Entry point
@@ -199,14 +215,20 @@ NTSTATUS WfpAddCallout()
         return status;
 
     callout.calloutKey = IP_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // Ethernet Layer
+    callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // Ip Layer
     status = FwpmCalloutAdd(engineHandle, &callout, NULL, &IpAddCalloutId);
     if (!NT_SUCCESS(status))
         return status;
 
     callout.calloutKey = TRANSPORT_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Ethernet Layer
-    return FwpmCalloutAdd(engineHandle, &callout, NULL, &TransportAddCalloutId);
+    callout.applicableLayer = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Transport Layer
+    status = FwpmCalloutAdd(engineHandle, &callout, NULL, &TransportAddCalloutId);
+    if (!NT_SUCCESS(status))
+        return status;
+
+    callout.calloutKey = APPLICATION_CALLOUT_GUID;
+    callout.applicableLayer = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4; // Application Layer
+    return FwpmCalloutAdd(engineHandle, &callout, NULL, &ApplicationAddCalloutId);
 }
 
 NTSTATUS WfpAddSublayer()
@@ -230,6 +252,11 @@ NTSTATUS WfpAddSublayer()
         return status;
 
     sublayer.subLayerKey = TRANSPORT_SUBLAYER_GUID;
+    status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
+    if (!NT_SUCCESS(status))
+        return status;
+
+    sublayer.subLayerKey = APPLICATION_SUBLAYER_GUID;
     return FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
 }
 
@@ -264,7 +291,14 @@ NTSTATUS WfpAddFilter()
     filter.subLayerKey = TRANSPORT_SUBLAYER_GUID;
     filter.action.calloutKey = TRANSPORT_CALLOUT_GUID;
     filter.layerKey = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Transport Layer
-    return FwpmFilterAdd(engineHandle, &filter, NULL, &TransportFilterId);
+    status = FwpmFilterAdd(engineHandle, &filter, NULL, &TransportFilterId);
+    if (!NT_SUCCESS(status))
+        return status;
+
+    filter.subLayerKey = APPLICATION_SUBLAYER_GUID;
+    filter.action.calloutKey = APPLICATION_CALLOUT_GUID;
+    filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4; // Application Layer
+    return FwpmFilterAdd(engineHandle, &filter, NULL, &ApplicationFilterId);
 }
 
 NTSTATUS WfpRegisterCallout()
@@ -290,110 +324,18 @@ NTSTATUS WfpRegisterCallout()
 
     callout.calloutKey = TRANSPORT_CALLOUT_GUID;
     callout.classifyFn = TransportCallback;
-    return FwpsCalloutRegister(deviceObject, &callout, &TransportRegCalloutId);
+    status = FwpsCalloutRegister(deviceObject, &callout, &TransportRegCalloutId);
+    if (!NT_SUCCESS(status))
+        return status;
+
+    callout.calloutKey = APPLICATION_CALLOUT_GUID;
+    callout.classifyFn = ApplicationCallback;
+    return FwpsCalloutRegister(deviceObject, &callout, &ApplicationRegCalloutId);
 }
 
 VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    //FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
-    //FWPS_STREAM_DATA0* streamData = packet->streamData;
-    //UCHAR string[1024] = { 0 };
-    //ULONG length = 0;
-    //SIZE_T bytes;
-
-    //IDPS_PRINT("data is here\n");
-
-    //RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-
-    //if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
-    //{
-    //    length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
-    //    FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
-    //    IDPS_PRINT2("data is %s\r\n", string);
-    //}
-
-    //packet->streamAction = FWPS_STREAM_ACTION_NONE;
-    //classifyOut->actionType = FWP_ACTION_PERMIT;
-    //if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
-    //{
-    //    classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-    //}
-
-    ////////////////////////////////
-
-    // Ensure classifyOut is initialized
-    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-    classifyOut->actionType = FWP_ACTION_PERMIT; // Default action
-
-    // Check if layerData is not null
-    if (layerData == NULL) {
-        IDPS_PRINT("No data available to process.\n");
-        return;
-    }
-
-    // NET_BUFFER_LIST to access packet data
-    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    UCHAR* packetData = NULL;
-    ULONG packetLength = 0;
-    SIZE_T totalLength = 0;  // Total length of all layers
-
-    // Allocate memory dynamically for the raw packet buffer
-    // UCHAR* rawPacketBuffer = NULL;
-
-    // First, calculate the total length of the raw packet data
-    while (nb) {
-        packetLength = NET_BUFFER_DATA_LENGTH(nb);
-        IDPS_PRINT2("length: %d", packetLength);
-        totalLength += packetLength;
-        nb = NET_BUFFER_NEXT_NB(nb);
-    }
-    IDPS_PRINT2("total length: %d", packetLength);
-
-    if (totalLength == 0) {
-        IDPS_PRINT("No data in packet.\n");
-        return;
-    }
-
-    //// Allocate memory for the entire raw packet
-    //rawPacketBuffer = (UCHAR*)ExAllocatePool2(NonPagedPool, 1, 'RawP');
-    //if (rawPacketBuffer == NULL) {
-    //    IDPS_PRINT("Failed to allocate memory for raw packet buffer.\n");
-    //    return;
-    //}
-
-    // Reset the buffer pointer and copy data from each NET_BUFFER
-    nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    unsigned int bytesCopied = 0;
-
-    IDPS_PRINT("printing ethernet\n");
-    while (nb) {
-        packetLength = NET_BUFFER_DATA_LENGTH(nb);
-        packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
-        IDPS_PRINT3("%.*s ", packetLength, packetData);
-        /*if (packetData && rawPacketBuffer + bytesCopied) {
-            RtlCopyMemory(rawPacketBuffer + bytesCopied, packetData, packetLength);
-            bytesCopied += packetLength;
-        }
-        else {
-            IDPS_PRINT("Failed to access raw packet data.\n");
-            break;
-        }*/
-
-        nb = NET_BUFFER_NEXT_NB(nb);
-    }
-    IDPS_PRINT("finished ethernet\n");
-
-    // At this point, rawPacketBuffer contains the entire raw packet
-    // Log or process the raw packet as needed
-    IDPS_PRINT2("Raw packet captured: %X bytes\n", (int)bytesCopied);
-
-    //IDPS_PRINT("printing ethernet\n");
-    //// Optionally print the raw packet data (truncated for readability)
-    //for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
-    //    IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
-    //}
-    //IDPS_PRINT("finished ethernet\n");
+    
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
@@ -472,80 +414,9 @@ VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE co
 }
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-    classifyOut->actionType = FWP_ACTION_PERMIT; // Default action
-
-    // Check if layerData is not null
-    if (layerData == NULL) {
-        IDPS_PRINT("No data available to process.\n");
-        return;
-    }
-
-    // NET_BUFFER_LIST to access packet data
-    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    UCHAR* packetData = NULL;
-    ULONG packetLength = 0;
-    SIZE_T totalLength = 0;  // Total length of all layers
-
-    // Allocate memory dynamically for the raw packet buffer
-    // UCHAR* rawPacketBuffer = NULL;
-
-    // First, calculate the total length of the raw packet data
-    while (nb) {
-        packetLength = NET_BUFFER_DATA_LENGTH(nb);
-        IDPS_PRINT2("length: %d", packetLength);
-        totalLength += packetLength;
-        nb = NET_BUFFER_NEXT_NB(nb);
-    }
-    IDPS_PRINT2("total length: %d", packetLength);
-
-    if (totalLength == 0) {
-        IDPS_PRINT("No data in packet.\n");
-        return;
-    }
-
-    //// Allocate memory for the entire raw packet
-    //rawPacketBuffer = (UCHAR*)ExAllocatePool2(NonPagedPool, 1, 'RawP');
-    //if (rawPacketBuffer == NULL) {
-    //    IDPS_PRINT("Failed to allocate memory for raw packet buffer.\n");
-    //    return;
-    //}
-
-    // Reset the buffer pointer and copy data from each NET_BUFFER
-    nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    unsigned int bytesCopied = 0;
-
-    IDPS_PRINT("printing transport\n");
-    while (nb) {
-        packetLength = NET_BUFFER_DATA_LENGTH(nb);
-        packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
-
-        IDPS_PRINT3("%.*s ", packetLength, packetData);
-
-        /*if (packetData && rawPacketBuffer + bytesCopied) {
-            RtlCopyMemory(rawPacketBuffer + bytesCopied, packetData, packetLength);
-            bytesCopied += packetLength;
-        }
-        else {
-            IDPS_PRINT("Failed to access raw packet data.\n");
-            break;
-        }*/
-
-        nb = NET_BUFFER_NEXT_NB(nb);
-    }
-    IDPS_PRINT("finished transport\n");
-
-    // At this point, rawPacketBuffer contains the entire raw packet
-    // Log or process the raw packet as needed
-    IDPS_PRINT2("Raw packet captured: %X bytes\n", (int)bytesCopied);
-
-    //IDPS_PRINT("printing transport\n");
-    // Optionally print the raw packet data (truncated for readability)
-    /*for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
-        IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
-    }*/
-    //IDPS_PRINT("finished transport\n");
+}
+VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
+{
 }
 
 // Boilerplate function without any use for now
@@ -586,19 +457,102 @@ VOID UnInitWfp()
     FwpmEngineClose(engineHandle);
     engineHandle = NULL;
 }
+void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, const char* Filepath, const char* mutexName)
+{
+    // Ensure classifyOut is initialized
+    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+    classifyOut->actionType = FWP_ACTION_PERMIT; // Default action
 
-//RPC_STATUS generateGUIDS()
-//{
-//    RPC_STATUS status;
-//    if ((status = UuidCreate(&ETHERNET_CALLOUT_GUID)) != RPC_S_OK ||
-//        (status = UuidCreate(&IP_CALLOUT_GUID)) != RPC_S_OK ||
-//        (status = UuidCreate(&TRANSPORT_CALLOUT_GUID)) != RPC_S_OK ||
-//        (status = UuidCreate(&ETHERNET_SUBLAYER_GUID)) != RPC_S_OK ||
-//        (status = UuidCreate(&IP_SUBLAYER_GUID)) != RPC_S_OK ||
-//        (status = UuidCreate(&TRANSPORT_SUBLAYER_GUID)) != RPC_S_OK)
-//    {
-//        return status;
-//    }
-//    return RPC_S_OK;
-//
-//}
+    // Check if layerData is not null
+    if (!list)
+        return;
+
+    // NET_BUFFER_LIST to access packet data
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)list;
+    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    UCHAR* packetData = NULL;
+    ULONG packetLength = 0;
+    SIZE_T totalLength = 0;  // Total length of all layers
+
+    // Reset the buffer pointer and copy data from each NET_BUFFER
+    nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+
+    while (nb) {
+        packetLength = NET_BUFFER_DATA_LENGTH(nb);
+        packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
+        IDPS_PRINT3("%.*s ", packetLength, packetData);
+
+        nb = NET_BUFFER_NEXT_NB(nb);
+    }
+}
+
+NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PKMUTEX mutex)
+{
+    OBJECT_ATTRIBUTES objAttributes;
+    HANDLE fileHandle;
+    IO_STATUS_BLOCK ioStatusBlock;
+    NTSTATUS status;
+
+    // Wait for the mutex
+    KeWaitForSingleObject(mutex, Executive, KernelMode, FALSE, NULL);
+
+    // Initialize the OBJECT_ATTRIBUTES structure
+    InitializeObjectAttributes(&objAttributes, filePath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    // Open or create the file
+    status = ZwCreateFile(
+        &fileHandle,
+        GENERIC_WRITE,
+        &objAttributes,
+        &ioStatusBlock,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        0,
+        FILE_OVERWRITE_IF,
+        FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL,
+        0
+    );
+
+    if (!NT_SUCCESS(status)) {
+        // Release the mutex before returning
+        KeReleaseMutex(mutex, FALSE);
+        return status; // Return if file creation failed
+    }
+
+    // Write data to the file
+    status = ZwWriteFile(
+        fileHandle,
+        NULL,                      // Event (optional)
+        NULL,                      // APC routine (optional)
+        NULL,                      // APC context (optional)
+        &ioStatusBlock,
+        buffer,
+        bufferSize,
+        NULL,                      // Byte offset (NULL for append/write at current)
+        NULL                       // Key (optional for I/O operations)
+    );
+
+    // Close the file handle
+    ZwClose(fileHandle);
+
+    // Release the mutex
+    KeReleaseMutex(mutex, FALSE);
+
+    return status;
+}
+
+NTSTATUS InitMutexesAndFiles()
+{
+    RtlInitUnicodeString(&ethernetFilePath, ETHERNET_FILE_PATH);
+    RtlInitUnicodeString(&internetFilePath, INTERNET_FILE_PATH);
+    RtlInitUnicodeString(&transportFilePath, TRANSPORT_FILE_PATH);
+    RtlInitUnicodeString(&applicationFilePath, APPLICATION_FILE_PATH);
+    RtlInitUnicodeString(&ethernetMutexPath, ETHERNET_MUTEX_PATH);
+    RtlInitUnicodeString(&internetMutexPath, INTERNET_MUTEX_PATH);
+    RtlInitUnicodeString(&transportMutexPath, TRANSPORT_MUTEX_PATH);
+    RtlInitUnicodeString(&applicationMutexPath, APPLICATION_MUTEX_PATH);
+
+    // opening mutexes
+    ZwOpenMutant()
+}
