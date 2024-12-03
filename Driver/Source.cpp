@@ -1,10 +1,10 @@
-﻿#include <fwpsk.h>
+﻿// do NOT change order of includation
+#include <fwpsk.h>
+#include <fwpstypes.h>
 #include <fwpmk.h>
-#include <ntddk.h>
 #define INITGUID
-#include <guiddef.h> 
+#include <guiddef.h>
 #include <fwpmu.h>
-#include <ntifs.h>
 
 // Helper Defenitions
 #define __IGNORE [[maybe_unused]]
@@ -30,10 +30,10 @@ UNICODE_STRING DEVICE_NAME = RTL_CONSTANT_STRING(L"\\Device\\IDPS Sniffer Device
 UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 
 #define BASE_FILE_DIRECTORY L"\\??\\C:\\IDPS_shared_files\\"
-#define ETHERNET_FILE_PATH (BASE_FILE_DIRECTORY L"ethernet")
-#define INTERNET_FILE_PATH (BASE_FILE_DIRECTORY L"internet")
-#define TRANSPORT_FILE_PATH (BASE_FILE_DIRECTORY L"transport")
-#define APPLICATION_FILE_PATH (BASE_FILE_DIRECTORY L"application")
+#define ETHERNET_FILE_PATH (BASE_FILE_DIRECTORY L"ethernet.txt")
+#define INTERNET_FILE_PATH (BASE_FILE_DIRECTORY L"internet.txt")
+#define TRANSPORT_FILE_PATH (BASE_FILE_DIRECTORY L"transport.txt")
+#define APPLICATION_FILE_PATH (BASE_FILE_DIRECTORY L"application.txt")
 #define BASE_MUTEX_DIRECTORY L"\\BaseNamedObjects\\"
 #define ETHERNET_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"ethernetMutex")
 #define INTERNET_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"internetMutex")
@@ -45,9 +45,9 @@ HANDLE engineHandle = NULL;
 UINT32 EthernetRegCalloutId = 0, IpRegCalloutId = 0, TransportRegCalloutId = 0, ApplicationRegCalloutId = 0;
 UINT32 EthernetAddCalloutId = 0, IpAddCalloutId = 0, TransportAddCalloutId = 0, ApplicationAddCalloutId = 0;
 UINT64 EthernetFilterId = 0, IpFilterId = 0, TransportFilterId = 0, ApplicationFilterId = 0;
-KMUTEX ethernetMutex, internetMutex, transportMutex, applicationMutex;
-UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
+HANDLE ethernetMutex, internetMutex, transportMutex, applicationMutex;
 UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
+UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
 
 
 // Function declarations
@@ -66,13 +66,26 @@ VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __
 NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const GUID* filterKey, __IGNORE FWPS_FILTER* filter);
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
-void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, const char* Filepath, const char* mutexName);
-NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PKMUTEX mutex);
+void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING Filepath, PHANDLE mutexName);
+NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PHANDLE mutex);
 NTSTATUS InitMutexesAndFiles();
+
+NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
+NTSTATUS NTAPI NtClose(IN HANDLE Handle);
+//NTSTATUS NTAPI ZwOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
+
+#if 0
+NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {}
+NTSTATUS NTAPI NtClose(IN HANDLE Handle) {}
+NTSTATUS NTAPI ZwOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {}
+#endif
+
+//extern "C" __declspec(dllexport) NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
+//extern "C" __declspec(dllexport) NTSTATUS NTAPI NtClose(IN HANDLE Handle);
 
 
 // Entry point
-extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
+NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
 {
     IDPS_PRINT("Entry!\n");
     NTSTATUS status; // Re-used to check each API function
@@ -339,78 +352,6 @@ VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGN
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-    classifyOut->actionType = FWP_ACTION_PERMIT; // Default action
-
-    // Check if layerData is not null
-    if (layerData == NULL) {
-        IDPS_PRINT("No data available to process.\n");
-        return;
-    }
-
-    // NET_BUFFER_LIST to access packet data
-    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    UCHAR* packetData = NULL;
-    ULONG packetLength = 0;
-    SIZE_T totalLength = 0;  // Total length of all layers
-
-    // Allocate memory dynamically for the raw packet buffer
-    //UCHAR* rawPacketBuffer = NULL;
-
-    // First, calculate the total length of the raw packet data
-    while (nb) {
-        packetLength = NET_BUFFER_DATA_LENGTH(nb);
-        IDPS_PRINT2("length: %d", packetLength);
-        totalLength += packetLength;
-        nb = NET_BUFFER_NEXT_NB(nb);
-    }
-    IDPS_PRINT2("total length: %d", packetLength);
-
-    if (totalLength == 0) {
-        IDPS_PRINT("No data in packet.\n");
-        return;
-    }
-
-    //// Allocate memory for the entire raw packet
-    //rawPacketBuffer = (UCHAR*)ExAllocatePool2(NonPagedPool, 1, 'RawP');
-    //if (rawPacketBuffer == NULL) {
-    //    IDPS_PRINT("Failed to allocate memory for raw packet buffer.\n");
-    //    return;
-    //}
-
-    // Reset the buffer pointer and copy data from each NET_BUFFER
-    nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    unsigned int bytesCopied = 0;
-
-    IDPS_PRINT("finished ip\n");
-    while (nb) {
-        packetLength = NET_BUFFER_DATA_LENGTH(nb);
-        packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
-        IDPS_PRINT3("%.*s ", packetLength, packetData);
-        /*if (packetData && rawPacketBuffer + bytesCopied) {
-            RtlCopyMemory(rawPacketBuffer + bytesCopied, packetData, packetLength);
-            bytesCopied += packetLength;
-        }
-        else {
-            IDPS_PRINT("Failed to access raw packet data.\n");
-            break;
-        }*/
-
-        nb = NET_BUFFER_NEXT_NB(nb);
-    }
-    IDPS_PRINT("finished ip\n");
-
-    // At this point, rawPacketBuffer contains the entire raw packet
-    // Log or process the raw packet as needed
-    IDPS_PRINT2("Raw packet captured: %X bytes\n", (int)bytesCopied);
-
-    //IDPS_PRINT("printing ip\n");
-    //// Optionally print the raw packet data (truncated for readability)
-    //for (SIZE_T i = 0; i < min(bytesCopied, (SIZE_T)128); i++) {
-    //    IDPS_PRINT3("%.*s ", bytesCopied, rawPacketBuffer);
-    //}
-    //IDPS_PRINT("finished ip\n");
 }
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
@@ -457,7 +398,7 @@ VOID UnInitWfp()
     FwpmEngineClose(engineHandle);
     engineHandle = NULL;
 }
-void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, const char* Filepath, const char* mutexName)
+void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING Filepath, PHANDLE mutexName)
 {
     // Ensure classifyOut is initialized
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
@@ -486,7 +427,7 @@ void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, const char
     }
 }
 
-NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PKMUTEX mutex)
+NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PHANDLE mutex)
 {
     OBJECT_ATTRIBUTES objAttributes;
     HANDLE fileHandle;
@@ -516,7 +457,7 @@ NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, P
 
     if (!NT_SUCCESS(status)) {
         // Release the mutex before returning
-        KeReleaseMutex(mutex, FALSE);
+        KeReleaseMutex((PKMUTEX)mutex, FALSE);
         return status; // Return if file creation failed
     }
 
@@ -537,13 +478,16 @@ NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, P
     ZwClose(fileHandle);
 
     // Release the mutex
-    KeReleaseMutex(mutex, FALSE);
+    KeReleaseMutex((PKMUTEX)mutex, FALSE);
 
     return status;
 }
 
 NTSTATUS InitMutexesAndFiles()
 {
+    NTSTATUS status;
+    OBJECT_ATTRIBUTES objAttributes;
+
     RtlInitUnicodeString(&ethernetFilePath, ETHERNET_FILE_PATH);
     RtlInitUnicodeString(&internetFilePath, INTERNET_FILE_PATH);
     RtlInitUnicodeString(&transportFilePath, TRANSPORT_FILE_PATH);
@@ -553,6 +497,45 @@ NTSTATUS InitMutexesAndFiles()
     RtlInitUnicodeString(&transportMutexPath, TRANSPORT_MUTEX_PATH);
     RtlInitUnicodeString(&applicationMutexPath, APPLICATION_MUTEX_PATH);
 
-    // opening mutexes
-    ZwOpenMutant()
+    // Open Ethernet Mutex
+    InitializeObjectAttributes(&objAttributes, &ethernetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    status = NtOpenMutant(&ethernetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    if (!NT_SUCCESS(status)) {
+        DbgPrint("Failed to open Ethernet mutex: 0x%08X\n", status);
+        return status;
+    }
+
+    // Open Internet Mutex
+    InitializeObjectAttributes(&objAttributes, &internetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    status = NtOpenMutant(&internetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    if (!NT_SUCCESS(status)) {
+        DbgPrint("Failed to open Internet mutex: 0x%08X\n", status);
+        return status;
+    }
+
+    // Open Transport Mutex
+    InitializeObjectAttributes(&objAttributes, &transportMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    status = NtOpenMutant(&transportMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    if (!NT_SUCCESS(status)) {
+        DbgPrint("Failed to open Transport mutex: 0x%08X\n", status);
+        return status;
+    }
+
+    // Open Application Mutex
+    InitializeObjectAttributes(&objAttributes, &applicationMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    status = NtOpenMutant(&applicationMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    if (!NT_SUCCESS(status)) {
+        DbgPrint("Failed to open Application mutex: 0x%08X\n", status);
+        return status;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+VOID UnInitMutexes()
+{
+    if (ethernetMutex) NtClose(ethernetMutex);
+    if (internetMutex) NtClose(internetMutex);
+    if (transportMutex) NtClose(transportMutex);
+    if (applicationMutex) NtClose(applicationMutex);
 }
