@@ -96,11 +96,11 @@
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km\ndis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/showIncludes %(AdditionalOptions)</AdditionalOptions>
-      <DisableSpecificWarnings>4100;4189;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4100;4189;4101;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Inf />
     <Link>
-      <AdditionalDependencies>$(DDK_LIB_PATH)fwpkclnt.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ndis.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ntoskrnl.lib;C:\Users\nick_\Desktop\Repos\idps\Driver\ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(DDK_LIB_PATH)fwpkclnt.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ndis.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\km\x64\ntoskrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>

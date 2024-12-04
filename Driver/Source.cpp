@@ -1,4 +1,5 @@
 ﻿// do NOT change order of includation
+//#include <wdm.h>
 #include <fwpsk.h>
 #include <fwpstypes.h>
 #include <fwpmk.h>
@@ -45,9 +46,11 @@ HANDLE engineHandle = NULL;
 UINT32 EthernetRegCalloutId = 0, IpRegCalloutId = 0, TransportRegCalloutId = 0, ApplicationRegCalloutId = 0;
 UINT32 EthernetAddCalloutId = 0, IpAddCalloutId = 0, TransportAddCalloutId = 0, ApplicationAddCalloutId = 0;
 UINT64 EthernetFilterId = 0, IpFilterId = 0, TransportFilterId = 0, ApplicationFilterId = 0;
-HANDLE ethernetMutex, internetMutex, transportMutex, applicationMutex;
+PKMUTEX ethernetMutex, internetMutex, transportMutex, applicationMutex;
 UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
 UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
+
+extern POBJECT_TYPE ExMutantObjectType;
 
 
 // Function declarations
@@ -487,6 +490,8 @@ NTSTATUS InitMutexesAndFiles()
 {
     NTSTATUS status;
     OBJECT_ATTRIBUTES objAttributes;
+    UNREFERENCED_PARAMETER(status);
+    UNREFERENCED_PARAMETER(objAttributes);
 
     RtlInitUnicodeString(&ethernetFilePath, ETHERNET_FILE_PATH);
     RtlInitUnicodeString(&internetFilePath, INTERNET_FILE_PATH);
@@ -497,37 +502,46 @@ NTSTATUS InitMutexesAndFiles()
     RtlInitUnicodeString(&transportMutexPath, TRANSPORT_MUTEX_PATH);
     RtlInitUnicodeString(&applicationMutexPath, APPLICATION_MUTEX_PATH);
 
-    // Open Ethernet Mutex
-    InitializeObjectAttributes(&objAttributes, &ethernetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    status = NtOpenMutant(&ethernetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("Failed to open Ethernet mutex: 0x%08X\n", status);
-        return status;
-    }
+    //// Open Ethernet Mutex
+    //InitializeObjectAttributes(&objAttributes, &ethernetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    //status = ObReferenceObjectByName(
+    //    &ethernetMutexPath,                  // Object name
+    //    0x0001 | (0x00100000L), // Desired access
+    //    NULL,                         // Access state (NULL for default)
+    //    KernelMode,                   // Processor mode
+    //    *ExMutantObjectType,          // Object type (internal variable)
+    //    NULL,                         // Parse context
+    //    NULL,                         // Handle count
+    //    (PVOID*)&ethernetMutex              // Out: Pointer to the mutant object
+    //); (&ethernetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    //if (!NT_SUCCESS(status)) {
+    //    DbgPrint("Failed to open Ethernet mutex: 0x%08X\n", status);
+    //    return status;
+    //}
 
-    // Open Internet Mutex
-    InitializeObjectAttributes(&objAttributes, &internetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    status = NtOpenMutant(&internetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("Failed to open Internet mutex: 0x%08X\n", status);
-        return status;
-    }
+    //// Open Internet Mutex
+    //InitializeObjectAttributes(&objAttributes, &internetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    //status = NtOpenMutant(&internetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    //if (!NT_SUCCESS(status)) {
+    //    DbgPrint("Failed to open Internet mutex: 0x%08X\n", status);
+    //    return status;
+    //}
 
-    // Open Transport Mutex
-    InitializeObjectAttributes(&objAttributes, &transportMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    status = NtOpenMutant(&transportMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("Failed to open Transport mutex: 0x%08X\n", status);
-        return status;
-    }
+    //// Open Transport Mutex
+    //InitializeObjectAttributes(&objAttributes, &transportMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    //status = NtOpenMutant(&transportMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    //if (!NT_SUCCESS(status)) {
+    //    DbgPrint("Failed to open Transport mutex: 0x%08X\n", status);
+    //    return status;
+    //}
 
-    // Open Application Mutex
-    InitializeObjectAttributes(&objAttributes, &applicationMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    status = NtOpenMutant(&applicationMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("Failed to open Application mutex: 0x%08X\n", status);
-        return status;
-    }
+    //// Open Application Mutex
+    //InitializeObjectAttributes(&objAttributes, &applicationMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    //status = NtOpenMutant(&applicationMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    //if (!NT_SUCCESS(status)) {
+    //    DbgPrint("Failed to open Application mutex: 0x%08X\n", status);
+    //    return status;
+    //}
 
     return STATUS_SUCCESS;
 }
@@ -539,3 +553,99 @@ VOID UnInitMutexes()
     if (transportMutex) NtClose(transportMutex);
     if (applicationMutex) NtClose(applicationMutex);
 }
+
+//NTSTATUS
+//NtOpenMutant(
+//    __out PHANDLE MutantHandle,
+//    __in ACCESS_MASK DesiredAccess,
+//    __in POBJECT_ATTRIBUTES ObjectAttributes
+//)
+//
+///*++
+//
+//Routine Description:
+//
+//    This function opens a handle to a mutant object with the specified
+//    desired access.
+//
+//Arguments:
+//
+//    MutantHandle - Supplies a pointer to a variable that will receive the
+//        mutant object handle.
+//
+//    DesiredAccess - Supplies the desired types of access for the mutant
+//        object.
+//
+//    ObjectAttributes - Supplies a pointer to an object attributes structure.
+//
+//--*/
+//
+//{
+//
+//    HANDLE Handle;
+//    KPROCESSOR_MODE PreviousMode;
+//    NTSTATUS Status;
+//
+//
+//    //
+//    // Establish an exception handler, probe the output handle address, and
+//    // attempt to open the mutant object. If the probe fails, then return the
+//    // exception code as the service status. Otherwise return the status value
+//    // returned by the object open routine.
+//    //
+//
+//    try {
+//
+//        //
+//        // Get previous processor mode and probe output handle address if
+//        // necessary.
+//        //
+//
+//        PreviousMode = KeGetPreviousMode();
+//        if (PreviousMode != KernelMode) {
+//            ProbeForWriteHandle(MutantHandle);
+//        }
+//
+//        //
+//        // Open handle to the mutant object with the specified desired access.
+//        //
+//
+//        Status = ObOpenObjectByName(ObjectAttributes,
+//            ExMutantObjectType,
+//            PreviousMode,
+//            NULL,
+//            DesiredAccess,
+//            NULL,
+//            &Handle);
+//
+//        //
+//        // If the open was successful, then attempt to write the mutant object
+//        // handle value. If the write attempt fails, then do not report an
+//        // error. When the caller attempts to access the handle value, an
+//        // access violation will occur.
+//        //
+//
+//        if (NT_SUCCESS(Status)) {
+//            try {
+//                *MutantHandle = Handle;
+//
+//            } except(ExSystemExceptionFilter()) {
+//            }
+//        }
+//
+//        //
+//        // If an exception occurs during the probe of the output handle address,
+//        // then always handle the exception and return the exception code as the
+//        // status value.
+//        //
+//
+//    } except(ExSystemExceptionFilter()) {
+//        return GetExceptionCode();
+//    }
+//
+//    //
+//    // Return service status.
+//    //
+//
+//    return Status;
+//}
