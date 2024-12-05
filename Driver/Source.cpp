@@ -1,13 +1,13 @@
 ﻿// do NOT change order of includation
 //#include <wdm.h>
 #include <fwpsk.h>
-#include <fwpstypes.h>
+//#include <fwpstypes.h>
 #include <fwpmk.h>
 #define INITGUID
 #include <guiddef.h>
 #include <fwpmu.h>
 
-// Helper Defenitions
+// Helper Definitions
 #define __IGNORE [[maybe_unused]]
 #define SIGNATURE "##-IDPS_SNIFFER-##: "
 #define IDPS_PRINT(x) KdPrint((SIGNATURE x)) // x is a literal string
@@ -50,7 +50,7 @@ PKMUTEX ethernetMutex, internetMutex, transportMutex, applicationMutex;
 UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
 UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
 
-extern POBJECT_TYPE ExMutantObjectType;
+POBJECT_TYPE ExMutantObjectType;
 
 
 // Function declarations
@@ -73,14 +73,21 @@ void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_S
 NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PHANDLE mutex);
 NTSTATUS InitMutexesAndFiles();
 
-NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
+NTSTATUS
+NTAPI
+ObReferenceObjectByName(IN PUNICODE_STRING ObjectPath,
+                        IN ULONG Attributes,
+                        IN PACCESS_STATE PassedAccessState,
+                        IN ACCESS_MASK DesiredAccess,
+                        IN POBJECT_TYPE ObjectType,
+                        IN KPROCESSOR_MODE AccessMode,
+                        IN OUT PVOID ParseContext,
+                        OUT PVOID* ObjectPtr);
+//NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
 NTSTATUS NTAPI NtClose(IN HANDLE Handle);
 //NTSTATUS NTAPI ZwOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
 
 #if 0
-NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {}
-NTSTATUS NTAPI NtClose(IN HANDLE Handle) {}
-NTSTATUS NTAPI ZwOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes) {}
 #endif
 
 //extern "C" __declspec(dllexport) NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
@@ -196,7 +203,8 @@ NTSTATUS InitializeWfp()
         NT_SUCCESS(status = WfpRegisterCallout()) &&
         NT_SUCCESS(status = WfpAddCallout()) &&
         NT_SUCCESS(status = WfpAddSublayer()) &&
-        NT_SUCCESS(status = WfpAddFilter()))
+        NT_SUCCESS(status = WfpAddFilter()) &&
+        NT_SUCCESS(status = InitMutexesAndFiles()))
     {
         IDPS_PRINT("Initialized WFP successfully\n");
         return STATUS_SUCCESS;
@@ -488,6 +496,7 @@ NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, P
 
 NTSTATUS InitMutexesAndFiles()
 {
+    IDPS_PRINT("entered init mutexes");
     NTSTATUS status;
     OBJECT_ATTRIBUTES objAttributes;
     UNREFERENCED_PARAMETER(status);
@@ -502,22 +511,22 @@ NTSTATUS InitMutexesAndFiles()
     RtlInitUnicodeString(&transportMutexPath, TRANSPORT_MUTEX_PATH);
     RtlInitUnicodeString(&applicationMutexPath, APPLICATION_MUTEX_PATH);
 
-    //// Open Ethernet Mutex
-    //InitializeObjectAttributes(&objAttributes, &ethernetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    //status = ObReferenceObjectByName(
-    //    &ethernetMutexPath,                  // Object name
-    //    0x0001 | (0x00100000L), // Desired access
-    //    NULL,                         // Access state (NULL for default)
-    //    KernelMode,                   // Processor mode
-    //    *ExMutantObjectType,          // Object type (internal variable)
-    //    NULL,                         // Parse context
-    //    NULL,                         // Handle count
-    //    (PVOID*)&ethernetMutex              // Out: Pointer to the mutant object
-    //); (&ethernetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    //if (!NT_SUCCESS(status)) {
-    //    DbgPrint("Failed to open Ethernet mutex: 0x%08X\n", status);
-    //    return status;
-    //}
+    // Open Ethernet Mutex
+    InitializeObjectAttributes(&objAttributes, &ethernetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    status = ObReferenceObjectByName(
+        &ethernetMutexPath,                  // Object name
+        0x0001 | (0x00100000L), // Desired access
+        NULL,                         // Access state (NULL for default)
+        KernelMode,                   // Processor mode
+        ExMutantObjectType,          // Object type (internal variable)
+        0,                         // Parse context
+        NULL,                         // Handle count
+        (PVOID*)&ethernetMutex              // Out: Pointer to the mutant object
+    ); (&ethernetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
+    if (!NT_SUCCESS(status)) {
+        DbgPrint("Failed to open Ethernet mutex: 0x%08X\n", status);
+        return status;
+    }
 
     //// Open Internet Mutex
     //InitializeObjectAttributes(&objAttributes, &internetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
