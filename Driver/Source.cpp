@@ -1,5 +1,6 @@
 ﻿// do NOT change order of includation
-//#include <wdm.h>
+#include "LayerHandles.h"
+//#include <ntifs.h>
 #include <fwpsk.h>
 //#include <fwpstypes.h>
 #include <fwpmk.h>
@@ -46,11 +47,13 @@ HANDLE engineHandle = NULL;
 UINT32 EthernetRegCalloutId = 0, IpRegCalloutId = 0, TransportRegCalloutId = 0, ApplicationRegCalloutId = 0;
 UINT32 EthernetAddCalloutId = 0, IpAddCalloutId = 0, TransportAddCalloutId = 0, ApplicationAddCalloutId = 0;
 UINT64 EthernetFilterId = 0, IpFilterId = 0, TransportFilterId = 0, ApplicationFilterId = 0;
-PKMUTEX ethernetMutex, internetMutex, transportMutex, applicationMutex;
+HANDLES mutexes = { NULL, NULL, NULL, NULL };
+KERNEL_OBJECTS kernelMutexObjects = { NULL, NULL, NULL, NULL };
+
 UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
 UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
 
-POBJECT_TYPE ExMutantObjectType;
+POBJECT_TYPE* ExMutantObjectType;
 
 
 // Function declarations
@@ -70,42 +73,16 @@ NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const G
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
 void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING Filepath, PHANDLE mutexName);
-NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PHANDLE mutex);
-NTSTATUS InitMutexesAndFiles();
-
-NTSTATUS
-NTAPI
-ObReferenceObjectByName(IN PUNICODE_STRING ObjectPath,
-                        IN ULONG Attributes,
-                        IN PACCESS_STATE PassedAccessState,
-                        IN ACCESS_MASK DesiredAccess,
-                        IN POBJECT_TYPE ObjectType,
-                        IN KPROCESSOR_MODE AccessMode,
-                        IN OUT PVOID ParseContext,
-                        OUT PVOID* ObjectPtr);
-//NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
-NTSTATUS NTAPI NtClose(IN HANDLE Handle);
-//NTSTATUS NTAPI ZwOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
-
-#if 0
-#endif
-
-//extern "C" __declspec(dllexport) NTSTATUS NTAPI NtOpenMutant(PHANDLE MutantHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
-//extern "C" __declspec(dllexport) NTSTATUS NTAPI NtClose(IN HANDLE Handle);
-
+NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
+NTSTATUS InitFileNames();
+NTSTATUS InitializeExMutantObjectType();
+VOID UnInitMutexes();
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
 {
     IDPS_PRINT("Entry!\n");
     NTSTATUS status; // Re-used to check each API function
-
-    IDPS_PRINT("Generatin GUID's");  // Didn't know he was chill like dat 😜
-    //if ((status = generateGUIDS()) != RPC_S_OK)
-    //{
-    //    IDPS_PRINT("Generating GUID's failed!");
-    //    return status;
-    //}
 
     // Create the device
     status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
@@ -169,6 +146,8 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_SUCCESS;
+    PHANDLES userHandles = NULL;  // Pointer to the user-provided structure
+    PVOID* kernelObjects = NULL;
 
     // Match request and handle properly
     switch (irpSp->MajorFunction)
@@ -181,6 +160,37 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
         break;
     case IRP_MJ_READ:
         IDPS_PRINT("Read request!\n");
+        break;
+    case IRP_MJ_SET_INFORMATION:
+        IDPS_PRINT("Received handles!\n");
+        kernelObjects = (PVOID*)&kernelMutexObjects;
+        if (IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.InputBufferLength < sizeof(HANDLES)) {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        // Get the input buffer from the IRP
+        userHandles = (PHANDLES)Irp->AssociatedIrp.SystemBuffer;
+        for (int i = 0; i < (sizeof(HANDLES)/sizeof(HANDLE)); i++) {
+            HANDLE handle = ((HANDLE*)userHandles)[i];  // Access handles dynamically
+
+            // Reference each handle to get the kernel object
+            status = ObReferenceObjectByHandle(
+                handle,                    // User handle
+                SYNCHRONIZE,               // Desired access
+                *ExMutantObjectType,       // Expected type (mutant in this case)
+                UserMode,                  // The handle is from user mode
+                &kernelObjects[i],         // Out: Kernel object pointer
+                NULL                       // Optional handle info
+            );
+
+            if (!NT_SUCCESS(status)) {
+                DbgPrint("Failed to reference handle %d: 0x%08X\n", i, status);
+                continue;
+            }
+
+            DbgPrint("Successfully referenced handle %d: %p\n", i, kernelObjects[i]);
+        }
         break;
     default:
         break;
@@ -204,7 +214,8 @@ NTSTATUS InitializeWfp()
         NT_SUCCESS(status = WfpAddCallout()) &&
         NT_SUCCESS(status = WfpAddSublayer()) &&
         NT_SUCCESS(status = WfpAddFilter()) &&
-        NT_SUCCESS(status = InitMutexesAndFiles()))
+        NT_SUCCESS(status = InitFileNames()) &&
+        NT_SUCCESS(status = InitializeExMutantObjectType()))
     {
         IDPS_PRINT("Initialized WFP successfully\n");
         return STATUS_SUCCESS;
@@ -359,16 +370,31 @@ NTSTATUS WfpRegisterCallout()
 
 VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    
+    if (mutexes.ethernet)
+        writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
+    else
+        IDPS_PRINT("Received ethernet packet");
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    if (mutexes.internet)
+        writeNetBufferToFile(layerData, classifyOut, &internetFilePath, &mutexes.internet);
+    else
+        IDPS_PRINT("Received internet packet");
 }
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    if (mutexes.transport)
+        writeNetBufferToFile(layerData, classifyOut, &transportFilePath, &mutexes.transport);
+    else
+        IDPS_PRINT("Received transport packet");
 }
 VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    if (mutexes.application)
+        writeNetBufferToFile(layerData, classifyOut, &applicationFilePath, &mutexes.application);
+    else
+        IDPS_PRINT("Received application packet");
 }
 
 // Boilerplate function without any use for now
@@ -408,99 +434,138 @@ VOID UnInitWfp()
 
     FwpmEngineClose(engineHandle);
     engineHandle = NULL;
+
+    UnInitMutexes();
 }
-void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING Filepath, PHANDLE mutexName)
+void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING filePath, PHANDLE mutexName)
 {
-    // Ensure classifyOut is initialized
-    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-    classifyOut->actionType = FWP_ACTION_PERMIT; // Default action
+    NTSTATUS status = STATUS_SUCCESS;
+    PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)layerData;
+    PNET_BUFFER netBuffer = NULL;
+    ULONGLONG totalDataLength = 0; // To store the full packet length as 8 bytes
+    UCHAR lengthBuffer[8] = { 0 };   // Buffer to hold the length in binary format
 
-    // Check if layerData is not null
-    if (!list)
+    // Validate input
+    if (layerData == NULL || filePath == NULL || mutexName == NULL) {
+        classifyOut->actionType = FWP_ACTION_BLOCK;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
         return;
+    }
 
-    // NET_BUFFER_LIST to access packet data
-    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)list;
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    UCHAR* packetData = NULL;
-    ULONG packetLength = 0;
-    SIZE_T totalLength = 0;  // Total length of all layers
+    // Calculate the total length of data in the Net Buffer List
+    netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
+    while (netBuffer != NULL) {
+        totalDataLength += NET_BUFFER_DATA_LENGTH(netBuffer);
+        netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
+    }
 
-    // Reset the buffer pointer and copy data from each NET_BUFFER
-    nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    if (totalDataLength == 0) {
+        classifyOut->actionType = FWP_ACTION_CONTINUE;
+        return; // Nothing to write
+    }
 
-    while (nb) {
-        packetLength = NET_BUFFER_DATA_LENGTH(nb);
-        packetData = (UCHAR*)NdisGetDataBuffer(nb, packetLength, NULL, 1, 0);
-        IDPS_PRINT3("%.*s ", packetLength, packetData);
+    // Acquire the mutex for exclusive access to the file
+    status = KeWaitForSingleObject(*mutexName, Executive, KernelMode, FALSE, NULL);
+    if (!NT_SUCCESS(status)) {
+        classifyOut->actionType = FWP_ACTION_BLOCK;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+        return;
+    }
 
-        nb = NET_BUFFER_NEXT_NB(nb);
+    // Write the total length (8 bytes) to the file
+    RtlCopyMemory(lengthBuffer, &totalDataLength, sizeof(totalDataLength));
+    status = WriteToFile(filePath, lengthBuffer, sizeof(lengthBuffer));
+    if (!NT_SUCCESS(status)) {
+        classifyOut->actionType = FWP_ACTION_BLOCK;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+        KeReleaseMutex(*mutexName, FALSE);
+        return;
+    }
+
+    // Traverse each NET_BUFFER in the NET_BUFFER_LIST again to write the actual data
+    netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
+    while (netBuffer != NULL) {
+        ULONG dataLength = NET_BUFFER_DATA_LENGTH(netBuffer);
+        PVOID dataPointer = NULL;
+        PMDL mdl = NET_BUFFER_FIRST_MDL(netBuffer);
+        ULONG offset = NET_BUFFER_CURRENT_MDL_OFFSET(netBuffer);
+
+        // Traverse the MDL chain for this NET_BUFFER
+        while (mdl != NULL && dataLength > 0) {
+            ULONG mdlLength = MmGetMdlByteCount(mdl) - offset;
+            ULONG bytesToProcess = min(dataLength, mdlLength);
+
+            // Map the MDL to a virtual address
+            dataPointer = MmGetSystemAddressForMdlSafe(mdl, NormalPagePriority);
+            if (dataPointer == NULL) {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
+            }
+
+            // Adjust the pointer for the offset
+            dataPointer = (PVOID)((PUCHAR)dataPointer + offset);
+
+            // Write this chunk of data to the file
+            status = WriteToFile(filePath, dataPointer, bytesToProcess);
+            if (!NT_SUCCESS(status)) {
+                break;
+            }
+
+            // Update the remaining data length and move to the next MDL
+            dataLength -= bytesToProcess;
+            offset = 0; // Offset is only applicable to the first MDL
+            mdl = mdl->Next;
+        }
+
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+
+        // Move to the next NET_BUFFER in the list
+        netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
+    }
+
+    // Release the mutex
+    KeReleaseMutex(*mutexName, FALSE);
+
+    // Set classify action based on success or failure
+    if (NT_SUCCESS(status)) {
+        classifyOut->actionType = FWP_ACTION_CONTINUE;
+    }
+    else {
+        classifyOut->actionType = FWP_ACTION_BLOCK;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
     }
 }
 
-NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, PHANDLE mutex)
+NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
 {
     OBJECT_ATTRIBUTES objAttributes;
     HANDLE fileHandle;
     IO_STATUS_BLOCK ioStatusBlock;
     NTSTATUS status;
 
-    // Wait for the mutex
-    KeWaitForSingleObject(mutex, Executive, KernelMode, FALSE, NULL);
-
     // Initialize the OBJECT_ATTRIBUTES structure
     InitializeObjectAttributes(&objAttributes, filePath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
     // Open or create the file
-    status = ZwCreateFile(
-        &fileHandle,
-        GENERIC_WRITE,
-        &objAttributes,
-        &ioStatusBlock,
-        NULL,
-        FILE_ATTRIBUTE_NORMAL,
-        0,
-        FILE_OVERWRITE_IF,
-        FILE_SYNCHRONOUS_IO_NONALERT,
-        NULL,
-        0
-    );
+    status = ZwCreateFile( &fileHandle, GENERIC_WRITE, &objAttributes, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, 0, FILE_OVERWRITE_IF, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 
-    if (!NT_SUCCESS(status)) {
-        // Release the mutex before returning
-        KeReleaseMutex((PKMUTEX)mutex, FALSE);
+    if (!NT_SUCCESS(status))
         return status; // Return if file creation failed
-    }
 
     // Write data to the file
-    status = ZwWriteFile(
-        fileHandle,
-        NULL,                      // Event (optional)
-        NULL,                      // APC routine (optional)
-        NULL,                      // APC context (optional)
-        &ioStatusBlock,
-        buffer,
-        bufferSize,
-        NULL,                      // Byte offset (NULL for append/write at current)
-        NULL                       // Key (optional for I/O operations)
-    );
+    status = ZwWriteFile(fileHandle, NULL, NULL, NULL, &ioStatusBlock, buffer, bufferSize, NULL, NULL);
 
     // Close the file handle
     ZwClose(fileHandle);
 
-    // Release the mutex
-    KeReleaseMutex((PKMUTEX)mutex, FALSE);
-
     return status;
 }
 
-NTSTATUS InitMutexesAndFiles()
+NTSTATUS InitFileNames()
 {
-    IDPS_PRINT("entered init mutexes");
-    NTSTATUS status;
-    OBJECT_ATTRIBUTES objAttributes;
-    UNREFERENCED_PARAMETER(status);
-    UNREFERENCED_PARAMETER(objAttributes);
+    IDPS_PRINT("Initializing file names");
 
     RtlInitUnicodeString(&ethernetFilePath, ETHERNET_FILE_PATH);
     RtlInitUnicodeString(&internetFilePath, INTERNET_FILE_PATH);
@@ -511,150 +576,33 @@ NTSTATUS InitMutexesAndFiles()
     RtlInitUnicodeString(&transportMutexPath, TRANSPORT_MUTEX_PATH);
     RtlInitUnicodeString(&applicationMutexPath, APPLICATION_MUTEX_PATH);
 
-    // Open Ethernet Mutex
-    InitializeObjectAttributes(&objAttributes, &ethernetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    status = ObReferenceObjectByName(
-        &ethernetMutexPath,                  // Object name
-        0x0001 | (0x00100000L), // Desired access
-        NULL,                         // Access state (NULL for default)
-        KernelMode,                   // Processor mode
-        ExMutantObjectType,          // Object type (internal variable)
-        0,                         // Parse context
-        NULL,                         // Handle count
-        (PVOID*)&ethernetMutex              // Out: Pointer to the mutant object
-    ); (&ethernetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    if (!NT_SUCCESS(status)) {
-        DbgPrint("Failed to open Ethernet mutex: 0x%08X\n", status);
-        return status;
-    }
-
-    //// Open Internet Mutex
-    //InitializeObjectAttributes(&objAttributes, &internetMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    //status = NtOpenMutant(&internetMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    //if (!NT_SUCCESS(status)) {
-    //    DbgPrint("Failed to open Internet mutex: 0x%08X\n", status);
-    //    return status;
-    //}
-
-    //// Open Transport Mutex
-    //InitializeObjectAttributes(&objAttributes, &transportMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    //status = NtOpenMutant(&transportMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    //if (!NT_SUCCESS(status)) {
-    //    DbgPrint("Failed to open Transport mutex: 0x%08X\n", status);
-    //    return status;
-    //}
-
-    //// Open Application Mutex
-    //InitializeObjectAttributes(&objAttributes, &applicationMutexPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    //status = NtOpenMutant(&applicationMutex, ((0x000F0000L) | (0x00100000L) | 0x0001), &objAttributes);
-    //if (!NT_SUCCESS(status)) {
-    //    DbgPrint("Failed to open Application mutex: 0x%08X\n", status);
-    //    return status;
-    //}
-
     return STATUS_SUCCESS;
 }
 
 VOID UnInitMutexes()
 {
-    if (ethernetMutex) NtClose(ethernetMutex);
-    if (internetMutex) NtClose(internetMutex);
-    if (transportMutex) NtClose(transportMutex);
-    if (applicationMutex) NtClose(applicationMutex);
+#define DEREFERENCE(x) if (x) ObDereferenceObject(x)
+    DEREFERENCE(kernelMutexObjects.ethernet);
+    DEREFERENCE(kernelMutexObjects.internet);
+    DEREFERENCE(kernelMutexObjects.transport);
+    DEREFERENCE(kernelMutexObjects.application);
 }
 
-//NTSTATUS
-//NtOpenMutant(
-//    __out PHANDLE MutantHandle,
-//    __in ACCESS_MASK DesiredAccess,
-//    __in POBJECT_ATTRIBUTES ObjectAttributes
-//)
-//
-///*++
-//
-//Routine Description:
-//
-//    This function opens a handle to a mutant object with the specified
-//    desired access.
-//
-//Arguments:
-//
-//    MutantHandle - Supplies a pointer to a variable that will receive the
-//        mutant object handle.
-//
-//    DesiredAccess - Supplies the desired types of access for the mutant
-//        object.
-//
-//    ObjectAttributes - Supplies a pointer to an object attributes structure.
-//
-//--*/
-//
-//{
-//
-//    HANDLE Handle;
-//    KPROCESSOR_MODE PreviousMode;
-//    NTSTATUS Status;
-//
-//
-//    //
-//    // Establish an exception handler, probe the output handle address, and
-//    // attempt to open the mutant object. If the probe fails, then return the
-//    // exception code as the service status. Otherwise return the status value
-//    // returned by the object open routine.
-//    //
-//
-//    try {
-//
-//        //
-//        // Get previous processor mode and probe output handle address if
-//        // necessary.
-//        //
-//
-//        PreviousMode = KeGetPreviousMode();
-//        if (PreviousMode != KernelMode) {
-//            ProbeForWriteHandle(MutantHandle);
-//        }
-//
-//        //
-//        // Open handle to the mutant object with the specified desired access.
-//        //
-//
-//        Status = ObOpenObjectByName(ObjectAttributes,
-//            ExMutantObjectType,
-//            PreviousMode,
-//            NULL,
-//            DesiredAccess,
-//            NULL,
-//            &Handle);
-//
-//        //
-//        // If the open was successful, then attempt to write the mutant object
-//        // handle value. If the write attempt fails, then do not report an
-//        // error. When the caller attempts to access the handle value, an
-//        // access violation will occur.
-//        //
-//
-//        if (NT_SUCCESS(Status)) {
-//            try {
-//                *MutantHandle = Handle;
-//
-//            } except(ExSystemExceptionFilter()) {
-//            }
-//        }
-//
-//        //
-//        // If an exception occurs during the probe of the output handle address,
-//        // then always handle the exception and return the exception code as the
-//        // status value.
-//        //
-//
-//    } except(ExSystemExceptionFilter()) {
-//        return GetExceptionCode();
-//    }
-//
-//    //
-//    // Return service status.
-//    //
-//
-//    return Status;
-//}
+NTSTATUS InitializeExMutantObjectType() 
+{
+    UNICODE_STRING routineName;
+
+    IDPS_PRINT("Initializing ExMutantObjectType");
+
+    RtlInitUnicodeString(&routineName, L"ExMutantObjectType");
+    ExMutantObjectType = (POBJECT_TYPE*)MmGetSystemRoutineAddress(&routineName);
+
+    if (ExMutantObjectType == NULL) {
+        DbgPrint("Failed to resolve ExMutantObjectType.\n");
+    }
+    else {
+        DbgPrint("ExMutantObjectType resolved at: %p\n", ExMutantObjectType);
+    }
+
+    return STATUS_SUCCESS;
+}
