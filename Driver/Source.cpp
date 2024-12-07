@@ -1,8 +1,8 @@
 ﻿// do NOT change order of includation
 #include "LayerHandles.h"
-//#include <ntifs.h>
+#include <ntifs.h>
+#include <ntddk.h>
 #include <fwpsk.h>
-//#include <fwpstypes.h>
 #include <fwpmk.h>
 #define INITGUID
 #include <guiddef.h>
@@ -36,11 +36,6 @@ UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 #define INTERNET_FILE_PATH (BASE_FILE_DIRECTORY L"internet.txt")
 #define TRANSPORT_FILE_PATH (BASE_FILE_DIRECTORY L"transport.txt")
 #define APPLICATION_FILE_PATH (BASE_FILE_DIRECTORY L"application.txt")
-#define BASE_MUTEX_DIRECTORY L"\\BaseNamedObjects\\"
-#define ETHERNET_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"ethernetMutex")
-#define INTERNET_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"internetMutex")
-#define TRANSPORT_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"transportMutex")
-#define APPLICATION_MUTEX_PATH (BASE_MUTEX_DIRECTORY L"applicationMutex")
 
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
@@ -53,7 +48,7 @@ KERNEL_OBJECTS kernelMutexObjects = { NULL, NULL, NULL, NULL };
 UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
 UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
 
-POBJECT_TYPE* ExMutantObjectType;
+POBJECT_TYPE* ExMutantObjectType = NULL;
 
 
 // Function declarations
@@ -147,7 +142,9 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_SUCCESS;
     PHANDLES userHandles = NULL;  // Pointer to the user-provided structure
-    PVOID* kernelObjects = NULL;
+    HANDLE sourceProcessHandle;
+    OBJECT_ATTRIBUTES objAttrs;
+    CLIENT_ID clientId;
 
     // Match request and handle properly
     switch (irpSp->MajorFunction)
@@ -161,35 +158,45 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
     case IRP_MJ_READ:
         IDPS_PRINT("Read request!\n");
         break;
-    case IRP_MJ_SET_INFORMATION:
+    case IRP_MJ_DEVICE_CONTROL:
+        if (IOCTL_SEND_HANDLES != irpSp->Parameters.DeviceIoControl.IoControlCode)
+        {
+            IDPS_PRINT("Recevied invalid ioctl request");
+            break;
+        }
+
         IDPS_PRINT("Received handles!\n");
-        kernelObjects = (PVOID*)&kernelMutexObjects;
-        if (IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.InputBufferLength < sizeof(HANDLES)) {
+        if (IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.InputBufferLength < sizeof(IOCTL_HANDLES)) {
+            IDPS_PRINT("Recevied invalid IOCTL struct");
             status = STATUS_INVALID_PARAMETER;
             break;
         }
 
         // Get the input buffer from the IRP
-        userHandles = (PHANDLES)Irp->AssociatedIrp.SystemBuffer;
+        userHandles = &(((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->mutexes);
+        clientId.UniqueProcess = (HANDLE)((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->pid;  // PID of the source process
+        clientId.UniqueThread = 0;
+
+        InitializeObjectAttributes(&objAttrs, NULL, 0, NULL, NULL);
+
+        status = ZwOpenProcess(
+            &sourceProcessHandle,
+            PROCESS_DUP_HANDLE,      // Access rights for duplicating handles
+            &objAttrs,
+            &clientId
+        );
+        if (!NT_SUCCESS(status))
+        {
+            IDPS_PRINT("ZwOpenProcess failed!");
+            break;
+        }
+
         for (int i = 0; i < (sizeof(HANDLES)/sizeof(HANDLE)); i++) {
-            HANDLE handle = ((HANDLE*)userHandles)[i];  // Access handles dynamically
+            ((HANDLE*)&mutexes)[i] = ((HANDLE*)userHandles)[i];  // Access handles dynamically
 
-            // Reference each handle to get the kernel object
-            status = ObReferenceObjectByHandle(
-                handle,                    // User handle
-                SYNCHRONIZE,               // Desired access
-                *ExMutantObjectType,       // Expected type (mutant in this case)
-                UserMode,                  // The handle is from user mode
-                &kernelObjects[i],         // Out: Kernel object pointer
-                NULL                       // Optional handle info
-            );
-
-            if (!NT_SUCCESS(status)) {
-                DbgPrint("Failed to reference handle %d: 0x%08X\n", i, status);
-                continue;
-            }
-
-            DbgPrint("Successfully referenced handle %d: %p\n", i, kernelObjects[i]);
+            status = ZwDuplicateObject(sourceProcessHandle, ((HANDLE*)userHandles)[i], NtCurrentProcess(), (((HANDLE*)&mutexes) + i), SYNCHRONIZE, 0, 0);
+            if (!NT_SUCCESS(status))
+                IDPS_PRINT2("Error duplicating handle %d", i);
         }
         break;
     default:
@@ -371,14 +378,14 @@ NTSTATUS WfpRegisterCallout()
 VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
     if (mutexes.ethernet)
-        writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
+        ;// writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
     else
         IDPS_PRINT("Received ethernet packet");
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
     if (mutexes.internet)
-        writeNetBufferToFile(layerData, classifyOut, &internetFilePath, &mutexes.internet);
+        ;// writeNetBufferToFile(layerData, classifyOut, &internetFilePath, &mutexes.internet);
     else
         IDPS_PRINT("Received internet packet");
 }
@@ -439,6 +446,7 @@ VOID UnInitWfp()
 }
 void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING filePath, PHANDLE mutexName)
 {
+    IDPS_PRINT("Writing packet");
     NTSTATUS status = STATUS_SUCCESS;
     PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)layerData;
     PNET_BUFFER netBuffer = NULL;
@@ -590,11 +598,59 @@ VOID UnInitMutexes()
 
 NTSTATUS InitializeExMutantObjectType() 
 {
-    UNICODE_STRING routineName;
+    //NTSTATUS status;
+    //HANDLE directoryHandle = NULL;
+    //HANDLE mutantHandle = NULL;
+    //UNICODE_STRING objectDirectory = RTL_CONSTANT_STRING(L"\\ObjectTypes");
+    //UNICODE_STRING mutantTypeName = RTL_CONSTANT_STRING(L"Mutant");
+    //OBJECT_ATTRIBUTES objectAttributes;
+    //PVOID object = NULL;
+
+    //// Open the \ObjectTypes directory
+    //InitializeObjectAttributes(&objectAttributes, &objectDirectory, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    //status = ZwOpenDirectoryObject(&directoryHandle, DIRECTORY_QUERY, &objectAttributes);
+    //if (!NT_SUCCESS(status)) {
+    //    DbgPrint("Failed to open \\ObjectTypes directory. Status: 0x%X\n", status);
+    //    return status;
+    //}
+
+    //// Open the Mutant object in the \ObjectTypes directory
+    //InitializeObjectAttributes(&objectAttributes, &mutantTypeName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, directoryHandle, NULL);
+
+    //status = ZwOpenObjectByName(&objectAttributes, NULL, 0, NULL, &mutantHandle);
+    //if (!NT_SUCCESS(status)) {
+    //    DbgPrint("Failed to open Mutant object type. Status: 0x%X\n", status);
+    //    ZwClose(directoryHandle);
+    //    return status;
+    //}
+
+    //// Get the kernel object associated with the Mutant handle
+    //status = ObReferenceObjectByHandle(mutantHandle, 0, NULL, KernelMode, &object, NULL);
+    //if (!NT_SUCCESS(status)) {
+    //    DbgPrint("ObReferenceObjectByHandle failed for Mutant object. Status: 0x%X\n", status);
+    //    ZwClose(mutantHandle);
+    //    ZwClose(directoryHandle);
+    //    return status;
+    //}
+
+    //// Access the OBJECT_HEADER and retrieve the POBJECT_TYPE
+    //POBJECT_HEADER objectHeader = OBJECT_TO_OBJECT_HEADER(object);
+    //ExMutantObjectType = objectHeader->Type;
+
+    //// Cleanup
+    //ObDereferenceObject(object);
+    //ZwClose(mutantHandle);
+    //ZwClose(directoryHandle);
+
+    //DbgPrint("ExMutantObjectType successfully initialized.\n");
+    //return STATUS_SUCCESS;
+
+    /*UNICODE_STRING routineName;
 
     IDPS_PRINT("Initializing ExMutantObjectType");
 
-    RtlInitUnicodeString(&routineName, L"ExMutantObjectType");
+    RtlInitUnicodeString(&routineName, L"\\ObjectTypes\\Mutant");
     ExMutantObjectType = (POBJECT_TYPE*)MmGetSystemRoutineAddress(&routineName);
 
     if (ExMutantObjectType == NULL) {
@@ -602,7 +658,69 @@ NTSTATUS InitializeExMutantObjectType()
     }
     else {
         DbgPrint("ExMutantObjectType resolved at: %p\n", ExMutantObjectType);
-    }
+    }*/
+
+
+    //typedef struct _OBJECT_TYPE_INITIALIZER
+    //{
+    //    WORD Length;
+    //    UCHAR ObjectTypeFlags;
+    //    ULONG CaseInsensitive : 1;
+    //    ULONG UnnamedObjectsOnly : 1;
+    //    ULONG UseDefaultObject : 1;
+    //    ULONG SecurityRequired : 1;
+    //    ULONG MaintainHandleCount : 1;
+    //    ULONG MaintainTypeList : 1;
+    //    ULONG ObjectTypeCode;
+    //    ULONG InvalidAttributes;
+    //    GENERIC_MAPPING GenericMapping;
+    //    ULONG ValidAccessMask;
+    //    POOL_TYPE PoolType;
+    //    ULONG DefaultPagedPoolCharge;
+    //    ULONG DefaultNonPagedPoolCharge;
+    //    PVOID DumpProcedure;
+    //    LONG* OpenProcedure;
+    //    PVOID CloseProcedure;
+    //    PVOID DeleteProcedure;
+    //    LONG* ParseProcedure;
+    //    LONG* SecurityProcedure;
+    //    LONG* QueryNameProcedure;
+    //    UCHAR* OkayToCloseProcedure;
+    //} OBJECT_TYPE_INITIALIZER, * POBJECT_TYPE_INITIALIZER;
+
+    //OBJECT_TYPE_INITIALIZER ObjectTypeInitializer;
+    //NTSTATUS Status;
+    //UNICODE_STRING TypeName;
+    //const GENERIC_MAPPING ExpMutantMapping = {
+    //STANDARD_RIGHTS_READ | 0x1,
+    //STANDARD_RIGHTS_WRITE,
+    //STANDARD_RIGHTS_EXECUTE | SYNCHRONIZE,
+    //STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x3
+    //};
+
+    ////
+    //// Initialize string descriptor.
+    ////
+
+    //RtlInitUnicodeString(&TypeName, L"Mutant");
+
+    ////
+    //// Create mutant object type descriptor.
+    ////
+
+    //RtlZeroMemory(&ObjectTypeInitializer, sizeof(ObjectTypeInitializer));
+    ////RtlZeroMemory(&PsGetCurrentProcess()->Pcb.DirectoryTableBase[0], KdDumpEnableOffset);
+    //ObjectTypeInitializer.Length = sizeof(ObjectTypeInitializer);
+    //ObjectTypeInitializer.InvalidAttributes = OBJ_OPENLINK;
+    //ObjectTypeInitializer.GenericMapping = ExpMutantMapping;
+    //ObjectTypeInitializer.PoolType = NonPagedPool;
+    //ObjectTypeInitializer.DefaultNonPagedPoolCharge = sizeof(KMUTANT);
+    //ObjectTypeInitializer.ValidAccessMask = STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x3;
+    //ObjectTypeInitializer.DeleteProcedure = NULL;
+    //Status = ObCreateObjectType(&TypeName,
+    //    &ObjectTypeInitializer,
+    //    (PSECURITY_DESCRIPTOR)NULL,
+    //    &ExMutantObjectType);
 
     return STATUS_SUCCESS;
 }

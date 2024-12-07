@@ -184,6 +184,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\Driver\LayerHandles.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="GUI.h" />
     <ClInclude Include="GUIDlg.h" />

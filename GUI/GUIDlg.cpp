@@ -7,6 +7,7 @@
 #include "GUI.h"
 #include "GUIDlg.h"
 #include "afxdialogex.h"
+#include "../Driver/LayerHandles.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -72,6 +73,7 @@ BEGIN_MESSAGE_MAP(CGUIDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON2, &CGUIDlg::OnBnClickedButton2)
 	ON_BN_CLICKED(IDC_BUTTON1, &CGUIDlg::OnBnClickedButton1)
+	ON_BN_CLICKED(IDC_BUTTON3, &CGUIDlg::OnBnClickedButton3)
 END_MESSAGE_MAP()
 
 
@@ -173,7 +175,7 @@ void CGUIDlg::OnBnClickedButton1()
 {
 	// Try to open sniffer device, notify status to user
 
-	deviceHandle = CreateFileA(DEVICE_NAME, GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
+	deviceHandle = CreateFileW(L"\\\\.\\SnifferDeviceLink", GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
 	
 	if (deviceHandle == INVALID_HANDLE_VALUE) {
 		MessageBoxW(L"Unable to find sniffer device!", L"Error", MB_ICONERROR);
@@ -182,4 +184,42 @@ void CGUIDlg::OnBnClickedButton1()
 	}
 
 	MessageBoxW(L"Found sniffer device successfully", L"Yay!", MB_ICONASTERISK);
+}
+
+
+void CGUIDlg::OnBnClickedButton3()
+{
+	DWORD bytesReturned;
+	IOCTL_HANDLES ioctl;
+
+	ioctl.pid = GetCurrentProcessId();
+	ioctl.mutexes.ethernet = CreateMutexW(NULL, FALSE, ETHERNET_MUTEX_PATH);
+	ioctl.mutexes.internet = CreateMutexW(NULL, FALSE, INTERNET_MUTEX_PATH);
+	ioctl.mutexes.transport = CreateMutexW(NULL, FALSE, TRANSPORT_MUTEX_PATH);
+	ioctl.mutexes.application = CreateMutexW(NULL, FALSE, APPLICATION_MUTEX_PATH);
+
+	if (ioctl.mutexes.ethernet == INVALID_HANDLE_VALUE || ioctl.mutexes.internet == INVALID_HANDLE_VALUE || ioctl.mutexes.transport == INVALID_HANDLE_VALUE || ioctl.mutexes.application == INVALID_HANDLE_VALUE)
+	{
+		MessageBoxW(L"Failed to create or open mutex.", L":(", MB_ICONASTERISK);
+		return;
+	}
+
+
+	BOOL success = DeviceIoControl(
+		deviceHandle,                       // Handle to the device
+		IOCTL_SEND_HANDLES,             // IOCTL code
+		&ioctl,                        // Input buffer (pointer to the struct)
+		sizeof(IOCTL_HANDLES),               // Size of input buffer
+		NULL,                          // Output buffer (not needed here)
+		0,                             // Size of output buffer
+		&bytesReturned,                // Bytes returned
+		NULL                           // Overlapped (optional, NULL for synchronous I/O)
+	);
+
+	if (!success) {
+		MessageBoxW(L"DeviceIoControl failed.", L":(", MB_ICONASTERISK);
+	}
+	else {
+		MessageBoxW(L"Struct sent successfully.", L":)", MB_ICONASTERISK);
+	}
 }
