@@ -378,14 +378,14 @@ NTSTATUS WfpRegisterCallout()
 VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
     if (mutexes.ethernet)
-        ;// writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
+        writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
     else
         IDPS_PRINT("Received ethernet packet");
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
     if (mutexes.internet)
-        ;// writeNetBufferToFile(layerData, classifyOut, &internetFilePath, &mutexes.internet);
+        writeNetBufferToFile(layerData, classifyOut, &internetFilePath, &mutexes.internet);
     else
         IDPS_PRINT("Received internet packet");
 }
