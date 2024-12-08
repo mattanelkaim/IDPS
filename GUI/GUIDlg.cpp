@@ -1,4 +1,3 @@
-
 // GUIDlg.cpp : implementation file
 //
 
@@ -9,11 +8,12 @@
 #include "afxdialogex.h"
 #include "../Driver/LayerHandles.h"
 
+#pragma warning(disable:4996)  // Unsafe sprintf
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
-#include <string_view>
 
 constexpr const CHAR* DEVICE_NAME = "\\\\.\\IDPS Sniffer Device";
 // Global Handle for now
@@ -26,15 +26,15 @@ class CAboutDlg : public CDialogEx
 public:
 	CAboutDlg();
 
-// Dialog Data
+	// Dialog Data
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
-// Implementation
+	// Implementation
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -103,7 +103,7 @@ BOOL CGUIDlg::OnInitDialog()
 		}
 	}
 
-	// Set the icon for this dialog.  The framework does this automatically
+	// Set the icon for this dialog. The framework does this automatically
 	//  when the application's main window is not a dialog
 	SetIcon(m_hIcon, TRUE);			// Set big icon
 	SetIcon(m_hIcon, FALSE);		// Set small icon
@@ -127,7 +127,7 @@ void CGUIDlg::OnSysCommand(UINT nID, LPARAM lParam)
 }
 
 // If you add a minimize button to your dialog, you will need the code below
-//  to draw the icon.  For MFC applications using the document/view model,
+//  to draw the icon. For MFC applications using the document/view model,
 //  this is automatically done for you by the framework.
 
 void CGUIDlg::OnPaint()
@@ -155,8 +155,8 @@ void CGUIDlg::OnPaint()
 	}
 }
 
-// The system calls this function to obtain the cursor to display while the user drags
-//  the minimized window.
+// The system calls this function to obtain the cursor
+// to display while the user drags the minimized window.
 HCURSOR CGUIDlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
@@ -176,9 +176,12 @@ void CGUIDlg::OnBnClickedButton1()
 	// Try to open sniffer device, notify status to user
 
 	deviceHandle = CreateFileW(L"\\\\.\\SnifferDeviceLink", GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
-	
-	if (deviceHandle == INVALID_HANDLE_VALUE) {
-		MessageBoxW(L"Unable to find sniffer device!", L"Error", MB_ICONERROR);
+
+	if (deviceHandle == INVALID_HANDLE_VALUE)
+	{
+		char buffer[24];
+		sprintf(buffer, "Error code: %lu", GetLastError());
+		MessageBoxA(NULL, buffer, "Error", MB_ICONERROR);
 		MessageBeep(MB_ICONERROR);
 		return;
 	}
@@ -206,20 +209,18 @@ void CGUIDlg::OnBnClickedButton3()
 
 
 	BOOL success = DeviceIoControl(
-		deviceHandle,                       // Handle to the device
-		IOCTL_SEND_HANDLES,             // IOCTL code
-		&ioctl,                        // Input buffer (pointer to the struct)
-		sizeof(IOCTL_HANDLES),               // Size of input buffer
-		NULL,                          // Output buffer (not needed here)
-		0,                             // Size of output buffer
-		&bytesReturned,                // Bytes returned
-		NULL                           // Overlapped (optional, NULL for synchronous I/O)
+		deviceHandle,           // Handle to the device
+		IOCTL_SEND_HANDLES,     // IOCTL code
+		&ioctl,                 // Input buffer (pointer to the struct)
+		sizeof(IOCTL_HANDLES),  // Size of input buffer
+		NULL,                   // Output buffer (not needed here)
+		0,                      // Size of output buffer
+		&bytesReturned,         // Bytes returned
+		NULL                    // Overlapped (optional, NULL for synchronous I/O)
 	);
 
-	if (!success) {
+	if (!success)
 		MessageBoxW(L"DeviceIoControl failed.", L":(", MB_ICONASTERISK);
-	}
-	else {
+	else
 		MessageBoxW(L"Struct sent successfully.", L":)", MB_ICONASTERISK);
-	}
 }
