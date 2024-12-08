@@ -48,8 +48,6 @@ KERNEL_OBJECTS kernelMutexObjects = { NULL, NULL, NULL, NULL };
 UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
 UNICODE_STRING ethernetFilePath, internetFilePath, transportFilePath, applicationFilePath;
 
-POBJECT_TYPE* ExMutantObjectType = NULL;
-
 
 // Function declarations
 VOID DriverUnload(PDRIVER_OBJECT DriverObject);
@@ -70,7 +68,6 @@ VOID UnInitWfp();
 void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING Filepath, PHANDLE mutexName);
 NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
 NTSTATUS InitFileNames();
-NTSTATUS InitializeExMutantObjectType();
 VOID UnInitMutexes();
 
 // Entry point
@@ -179,12 +176,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
         InitializeObjectAttributes(&objAttrs, NULL, 0, NULL, NULL);
 
-        status = ZwOpenProcess(
-            &sourceProcessHandle,
-            PROCESS_DUP_HANDLE,      // Access rights for duplicating handles
-            &objAttrs,
-            &clientId
-        );
+        status = ZwOpenProcess( &sourceProcessHandle, PROCESS_DUP_HANDLE, &objAttrs, &clientId);
         if (!NT_SUCCESS(status))
         {
             IDPS_PRINT("ZwOpenProcess failed!");
@@ -221,8 +213,7 @@ NTSTATUS InitializeWfp()
         NT_SUCCESS(status = WfpAddCallout()) &&
         NT_SUCCESS(status = WfpAddSublayer()) &&
         NT_SUCCESS(status = WfpAddFilter()) &&
-        NT_SUCCESS(status = InitFileNames()) &&
-        NT_SUCCESS(status = InitializeExMutantObjectType()))
+        NT_SUCCESS(status = InitFileNames()))
     {
         IDPS_PRINT("Initialized WFP successfully\n");
         return STATUS_SUCCESS;
@@ -446,7 +437,7 @@ VOID UnInitWfp()
 }
 void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING filePath, PHANDLE mutexName)
 {
-    IDPS_PRINT("Writing packet");
+    IDPS_PRINT("Writing packet to file");
     NTSTATUS status = STATUS_SUCCESS;
     PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)layerData;
     PNET_BUFFER netBuffer = NULL;
@@ -594,133 +585,4 @@ VOID UnInitMutexes()
     DEREFERENCE(kernelMutexObjects.internet);
     DEREFERENCE(kernelMutexObjects.transport);
     DEREFERENCE(kernelMutexObjects.application);
-}
-
-NTSTATUS InitializeExMutantObjectType() 
-{
-    //NTSTATUS status;
-    //HANDLE directoryHandle = NULL;
-    //HANDLE mutantHandle = NULL;
-    //UNICODE_STRING objectDirectory = RTL_CONSTANT_STRING(L"\\ObjectTypes");
-    //UNICODE_STRING mutantTypeName = RTL_CONSTANT_STRING(L"Mutant");
-    //OBJECT_ATTRIBUTES objectAttributes;
-    //PVOID object = NULL;
-
-    //// Open the \ObjectTypes directory
-    //InitializeObjectAttributes(&objectAttributes, &objectDirectory, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-
-    //status = ZwOpenDirectoryObject(&directoryHandle, DIRECTORY_QUERY, &objectAttributes);
-    //if (!NT_SUCCESS(status)) {
-    //    DbgPrint("Failed to open \\ObjectTypes directory. Status: 0x%X\n", status);
-    //    return status;
-    //}
-
-    //// Open the Mutant object in the \ObjectTypes directory
-    //InitializeObjectAttributes(&objectAttributes, &mutantTypeName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, directoryHandle, NULL);
-
-    //status = ZwOpenObjectByName(&objectAttributes, NULL, 0, NULL, &mutantHandle);
-    //if (!NT_SUCCESS(status)) {
-    //    DbgPrint("Failed to open Mutant object type. Status: 0x%X\n", status);
-    //    ZwClose(directoryHandle);
-    //    return status;
-    //}
-
-    //// Get the kernel object associated with the Mutant handle
-    //status = ObReferenceObjectByHandle(mutantHandle, 0, NULL, KernelMode, &object, NULL);
-    //if (!NT_SUCCESS(status)) {
-    //    DbgPrint("ObReferenceObjectByHandle failed for Mutant object. Status: 0x%X\n", status);
-    //    ZwClose(mutantHandle);
-    //    ZwClose(directoryHandle);
-    //    return status;
-    //}
-
-    //// Access the OBJECT_HEADER and retrieve the POBJECT_TYPE
-    //POBJECT_HEADER objectHeader = OBJECT_TO_OBJECT_HEADER(object);
-    //ExMutantObjectType = objectHeader->Type;
-
-    //// Cleanup
-    //ObDereferenceObject(object);
-    //ZwClose(mutantHandle);
-    //ZwClose(directoryHandle);
-
-    //DbgPrint("ExMutantObjectType successfully initialized.\n");
-    //return STATUS_SUCCESS;
-
-    /*UNICODE_STRING routineName;
-
-    IDPS_PRINT("Initializing ExMutantObjectType");
-
-    RtlInitUnicodeString(&routineName, L"\\ObjectTypes\\Mutant");
-    ExMutantObjectType = (POBJECT_TYPE*)MmGetSystemRoutineAddress(&routineName);
-
-    if (ExMutantObjectType == NULL) {
-        DbgPrint("Failed to resolve ExMutantObjectType.\n");
-    }
-    else {
-        DbgPrint("ExMutantObjectType resolved at: %p\n", ExMutantObjectType);
-    }*/
-
-
-    //typedef struct _OBJECT_TYPE_INITIALIZER
-    //{
-    //    WORD Length;
-    //    UCHAR ObjectTypeFlags;
-    //    ULONG CaseInsensitive : 1;
-    //    ULONG UnnamedObjectsOnly : 1;
-    //    ULONG UseDefaultObject : 1;
-    //    ULONG SecurityRequired : 1;
-    //    ULONG MaintainHandleCount : 1;
-    //    ULONG MaintainTypeList : 1;
-    //    ULONG ObjectTypeCode;
-    //    ULONG InvalidAttributes;
-    //    GENERIC_MAPPING GenericMapping;
-    //    ULONG ValidAccessMask;
-    //    POOL_TYPE PoolType;
-    //    ULONG DefaultPagedPoolCharge;
-    //    ULONG DefaultNonPagedPoolCharge;
-    //    PVOID DumpProcedure;
-    //    LONG* OpenProcedure;
-    //    PVOID CloseProcedure;
-    //    PVOID DeleteProcedure;
-    //    LONG* ParseProcedure;
-    //    LONG* SecurityProcedure;
-    //    LONG* QueryNameProcedure;
-    //    UCHAR* OkayToCloseProcedure;
-    //} OBJECT_TYPE_INITIALIZER, * POBJECT_TYPE_INITIALIZER;
-
-    //OBJECT_TYPE_INITIALIZER ObjectTypeInitializer;
-    //NTSTATUS Status;
-    //UNICODE_STRING TypeName;
-    //const GENERIC_MAPPING ExpMutantMapping = {
-    //STANDARD_RIGHTS_READ | 0x1,
-    //STANDARD_RIGHTS_WRITE,
-    //STANDARD_RIGHTS_EXECUTE | SYNCHRONIZE,
-    //STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x3
-    //};
-
-    ////
-    //// Initialize string descriptor.
-    ////
-
-    //RtlInitUnicodeString(&TypeName, L"Mutant");
-
-    ////
-    //// Create mutant object type descriptor.
-    ////
-
-    //RtlZeroMemory(&ObjectTypeInitializer, sizeof(ObjectTypeInitializer));
-    ////RtlZeroMemory(&PsGetCurrentProcess()->Pcb.DirectoryTableBase[0], KdDumpEnableOffset);
-    //ObjectTypeInitializer.Length = sizeof(ObjectTypeInitializer);
-    //ObjectTypeInitializer.InvalidAttributes = OBJ_OPENLINK;
-    //ObjectTypeInitializer.GenericMapping = ExpMutantMapping;
-    //ObjectTypeInitializer.PoolType = NonPagedPool;
-    //ObjectTypeInitializer.DefaultNonPagedPoolCharge = sizeof(KMUTANT);
-    //ObjectTypeInitializer.ValidAccessMask = STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x3;
-    //ObjectTypeInitializer.DeleteProcedure = NULL;
-    //Status = ObCreateObjectType(&TypeName,
-    //    &ObjectTypeInitializer,
-    //    (PSECURITY_DESCRIPTOR)NULL,
-    //    &ExMutantObjectType);
-
-    return STATUS_SUCCESS;
 }
