@@ -389,10 +389,35 @@ VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IG
 }
 VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    if (mutexes.application)
-        writeNetBufferToFile(layerData, classifyOut, &applicationFilePath, &mutexes.application);
-    else
-        IDPS_PRINT("Received application packet");
+    UNREFERENCED_PARAMETER(inFixedValues);
+    UNREFERENCED_PARAMETER(inMetaValues);
+    UNREFERENCED_PARAMETER(context);
+    UNREFERENCED_PARAMETER(filter);
+    UNREFERENCED_PARAMETER(flowContext);
+
+    classifyOut->actionType = FWP_ACTION_PERMIT; // Allow the packet by default
+
+    if (layerData == NULL) {
+        return; // No data to process
+    }
+
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+
+    while (nb != NULL) {
+        ULONG dataLength = NET_BUFFER_DATA_LENGTH(nb);
+
+        if (dataLength > 0) {
+            PUCHAR packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
+
+            if (packetData != NULL) {
+                // Print the entire buffer as a single string
+                DbgPrint("%.*s", dataLength, packetData);
+            }
+        }
+
+        nb = NET_BUFFER_NEXT_NB(nb); // Move to the next buffer
+    }
 }
 
 // Boilerplate function without any use for now
