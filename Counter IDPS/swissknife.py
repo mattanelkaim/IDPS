@@ -9,6 +9,11 @@ from banner_generator import print_banner
 
 
 def handle_attack(args: list[str]) -> None:
+    """
+    Handles different attack types based on user input.
+    :param args: A list of strings representing arguments passed to the script.
+    :return: None
+    """
     args_num = len(args)
     if args_num < 2:
         print('Invalid usage, see "help"')
@@ -44,6 +49,11 @@ def handle_attack(args: list[str]) -> None:
 
 
 def commit_ddos(target: str) -> None:
+    """
+    Performs a DoS attack by flooding the target with ICMP ping requests.
+    :param target: The IP address of the target machine.
+    :return: None
+    """
     print('Committing DoS, press CTRL+C at any moment to stop.')
     try:
         while True:
@@ -57,6 +67,11 @@ def commit_ddos(target: str) -> None:
 
 
 def commit_arp_spoofing(target: str) -> None:
+    """
+    Performs ARP spoofing to redirect traffic from the target.
+    :param target: The IP address of the target machine **(must be private)**.
+    :return: None
+    """
     if not is_local_ip(target):
         print('Invalid use, please enter a private ip')
         return
@@ -78,6 +93,13 @@ def commit_arp_spoofing(target: str) -> None:
 
 
 def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True) -> None:
+    """
+    Performs a NULL TCP scan to identify open ports on the target.
+    :param target: The IP address of the target machine.
+    :param ports: *(optional)* A comma-separated list of ports to scan. Defaults to 20-80 if unspecified.
+    :param print_closed: *(optional)* A flag indicating whether to print closed ports. Default is true.
+    :return: None
+    """
     try:
         port_list = extract_ports(ports)
     except ValueError:
@@ -117,6 +139,11 @@ def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True
 
 
 def commit_dns_spoofing(target: str) -> None:
+    """
+    Performs DNS spoofing to redirect DNS requests to a different domain.
+    :param target: The IP address of the target machine **(must be private)**.
+    :return: None
+    """
     if not is_local_ip(target):
         print('Invalid use, please enter a private ip')
         return
@@ -135,8 +162,12 @@ def commit_dns_spoofing(target: str) -> None:
     sniff(prn=packet_handler, promisc=True, store=False, filter="udp port 53")
 
 
-# Returns whether to continue or not
 def handle_command(cmd: list[str]) -> bool:
+    """
+    Handles user commands like attack, help, exit, etc.
+    :param cmd: A list of strings representing the user command & arguments.
+    :return: Whether to continue listening to commands (*True*) or to exit (*False*).
+    """
     if len(cmd) == 0:
         print('Command not supported! Use "help" to learn more')
         return True

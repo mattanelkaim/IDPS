@@ -3,7 +3,7 @@ import re
 
 HELP = """Supported commands:
 - set {target} {ip}
-- attack {ddos|arp|portscan}
+- attack {ddos|arp|portscan|dns}
 - help
 - exit"""
 
@@ -17,11 +17,20 @@ LOCAL_IP = get_if_addr(conf.iface)
 
 
 def get_command() -> str:
+    """
+    Prompts the user for a command.
+    :return: The input string in lowercase.
+    """
     user_command = input("\n> ").lower()
     return user_command
 
 
 def resolve_target(target: str) -> str:
+    """
+    Resolves the target to an IP address. Handles both IP addresses and domain names.
+    :param target: The target IP address or domain name.
+    :return: The resolved IP address **|** an empty string if target is invalid.
+    """
     # Handle edge case
     if target in ("localhost", "127.0.0.1"):
         return LOCAL_IP
@@ -37,18 +46,32 @@ def resolve_target(target: str) -> str:
         return target
 
 
-# Receives a VALID IP address!
 def is_local_ip(ip: str) -> bool:
+    """
+    Checks if the given IP address is a private (local) IP address.
+    :param ip: The IP address to check.
+    :return: *True* if IP is private, *False* otherwise.
+    """
     ip_bytes = ip.split('.')
     return ip_bytes[0] == '10' or ip_bytes[0:1] == ['192.168'] \
         or (ip_bytes[0] == '172' and 16 <= int(ip_bytes[1]) <= 31)
 
 
 def is_valid_port(port: str) -> bool:
+    """
+    Checks if the given port number is valid.
+    :param port: The port number to check.
+    :return: *True* if port is within a valid range, *False* otherwise.
+    """
     return 1 <= int(port) <= 65535
 
 
 def extract_ports(ports: str) -> list[int]:
+    """
+    Extracts a list of port numbers from a comma-separated string of port numbers and ranges.
+    :param ports: The string of port numbers and ranges.
+    :return: A list of valid port numbers *(can be empty)*.
+    """
     # Handle edge case of unspecified
     if ports == '':
         return []
