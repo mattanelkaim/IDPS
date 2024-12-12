@@ -77,6 +77,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     NTSTATUS status; // Re-used to check each API function
 
     // Create the device
+    IDPS_PRINT("Creating Device...\n");
     status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
     if (!NT_SUCCESS(status))
     {
@@ -90,6 +91,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     }
 
     // Create the symbolic link
+    IDPS_PRINT("Creating SymLink...\n");
     status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
     if (STATUS_OBJECT_NAME_COLLISION == status)
     {
@@ -111,16 +113,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     DriverObject->DriverUnload = DriverUnload;
 
     IDPS_PRINT("Creation successful!\n");
-    IDPS_PRINT("Initializing WFP...\n");
-
-    status = InitializeWfp();
-    if (!NT_SUCCESS(status))
-    {
-        // InitializeWfp() already prints err and calls UnInitWfp()
-        IoDeleteDevice(deviceObject);
-        IoDeleteSymbolicLink(&SYMLINK_NAME);
-        return status;
-    }
 
     return STATUS_SUCCESS;
 }
@@ -183,12 +175,30 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
             break;
         }
 
-        for (int i = 0; i < (sizeof(HANDLES)/sizeof(HANDLE)); i++) {
+        BOOLEAN duplicatedSuccefully = TRUE;
+        for (int i = 0; i < (sizeof(HANDLES)/sizeof(HANDLE)) && duplicatedSuccefully; i++) {
             ((HANDLE*)&mutexes)[i] = ((HANDLE*)userHandles)[i];  // Access handles dynamically
 
             status = ZwDuplicateObject(sourceProcessHandle, ((HANDLE*)userHandles)[i], NtCurrentProcess(), (((HANDLE*)&mutexes) + i), SYNCHRONIZE, 0, 0);
             if (!NT_SUCCESS(status))
+            {
                 IDPS_PRINT2("Error duplicating handle %d", i);
+                duplicatedSuccefully = FALSE;
+            }
+        }
+
+        if (duplicatedSuccefully)
+        {
+            IDPS_PRINT("Initializing WFP...\n");
+
+            status = InitializeWfp();
+            if (!NT_SUCCESS(status))
+            {
+                // InitializeWfp() already prints err and calls UnInitWfp()
+                IoDeleteDevice(deviceObject);
+                IoDeleteSymbolicLink(&SYMLINK_NAME);
+                return status;
+            }
         }
         break;
     default:
@@ -368,55 +378,118 @@ NTSTATUS WfpRegisterCallout()
 
 VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    if (mutexes.ethernet)
-        writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
-    else
-        IDPS_PRINT("Received ethernet packet");
+    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+
+    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+
+    writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
+    IDPS_PRINT("Received ethernet packet");
+    FWPS_STREAM_DATA0* streamData = packet->streamData;
+    UCHAR string[1024] = { 0 };
+    SIZE_T length = 0;
+    SIZE_T bytes;
+
+    if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
+    {
+        length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
+        FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
+        IDPS_PRINT2("data is %s\r\n", string);
+    }
+
+    packet->streamAction = FWPS_STREAM_ACTION_NONE;
+    classifyOut->actionType = FWP_ACTION_PERMIT;
+    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+    {
+        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+    }
+
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+
+    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
     if (mutexes.internet)
         writeNetBufferToFile(layerData, classifyOut, &internetFilePath, &mutexes.internet);
     else
-        IDPS_PRINT("Received internet packet");
+    {
+        IDPS_PRINT("Received internet packet");        
+        FWPS_STREAM_DATA0* streamData = packet->streamData;
+        UCHAR string[1024] = { 0 };
+        SIZE_T length = 0;
+        SIZE_T bytes;
+
+        if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
+        {
+            length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
+            FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
+            IDPS_PRINT2("data is %s\r\n", string);
+        }
+    }
+    packet->streamAction = FWPS_STREAM_ACTION_NONE;
+    classifyOut->actionType = FWP_ACTION_PERMIT;
+    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+    {
+        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+    }
+
 }
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
+
 {
-    if (mutexes.transport)
-        writeNetBufferToFile(layerData, classifyOut, &transportFilePath, &mutexes.transport);
-    else
-        IDPS_PRINT("Received transport packet");
+    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+
+    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+    //writeNetBufferToFile(layerData, classifyOut, &transportFilePath, &mutexes.transport);
+
+    IDPS_PRINT("Received transport packet");
+    FWPS_STREAM_DATA0* streamData = packet->streamData;
+    UCHAR string[1024] = { 0 };
+    SIZE_T length = 0;
+    SIZE_T bytes;
+
+    if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
+    {
+        length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
+        FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
+        IDPS_PRINT2("data is %s\r\n", string);
+    }
+
+    packet->streamAction = FWPS_STREAM_ACTION_NONE;
+    classifyOut->actionType = FWP_ACTION_PERMIT;
+    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+    {
+        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
+        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+    }
+
 }
 VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    UNREFERENCED_PARAMETER(inFixedValues);
-    UNREFERENCED_PARAMETER(inMetaValues);
-    UNREFERENCED_PARAMETER(context);
-    UNREFERENCED_PARAMETER(filter);
-    UNREFERENCED_PARAMETER(flowContext);
+    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
 
-    classifyOut->actionType = FWP_ACTION_PERMIT; // Allow the packet by default
+    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+    
+    IDPS_PRINT("Received application packet");
+    FWPS_STREAM_DATA0* streamData = packet->streamData;
+    UCHAR string[1024] = { 0 };
+    SIZE_T length = 0;
+    SIZE_T bytes;
 
-    if (layerData == NULL) {
-        return; // No data to process
+    if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
+    {
+        length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
+        FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
+        IDPS_PRINT2("data is %s\r\n", string);
     }
-
-    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-
-    while (nb != NULL) {
-        ULONG dataLength = NET_BUFFER_DATA_LENGTH(nb);
-
-        if (dataLength > 0) {
-            PUCHAR packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
-
-            if (packetData != NULL) {
-                // Print the entire buffer as a single string
-                DbgPrint("%.*s", dataLength, packetData);
-            }
-        }
-
-        nb = NET_BUFFER_NEXT_NB(nb); // Move to the next buffer
+    
+    packet->streamAction = FWPS_STREAM_ACTION_NONE;
+    classifyOut->actionType = FWP_ACTION_PERMIT;
+    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
+    {
+        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
     }
 }
 
@@ -432,11 +505,11 @@ VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IG
     // Noting here!
 }
 
+VOID UnInitWfp()
+{
 #define delFilter(x) if (x) {FwpmFilterDeleteById(engineHandle, x);}
 #define delCallout(x) if (x) {FwpmCalloutDeleteById(engineHandle, x);}
 #define unregCallout(x) if (x) {FwpsCalloutUnregisterById(x);}
-VOID UnInitWfp()
-{
     if (!engineHandle)
         return;
 
