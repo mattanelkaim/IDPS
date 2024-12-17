@@ -174,9 +174,10 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
             IDPS_PRINT("ZwOpenProcess failed!");
             break;
         }
+        IDPS_PRINT("Opened parent process succefully");
 
         BOOLEAN duplicatedSuccefully = TRUE;
-        for (int i = 0; i < (sizeof(HANDLES)/sizeof(HANDLE)) && duplicatedSuccefully; i++) {
+        for (int i = 0; i < (sizeof(HANDLES)/sizeof(HANDLE)); i++) {
             ((HANDLE*)&mutexes)[i] = ((HANDLE*)userHandles)[i];  // Access handles dynamically
 
             status = ZwDuplicateObject(sourceProcessHandle, ((HANDLE*)userHandles)[i], NtCurrentProcess(), (((HANDLE*)&mutexes) + i), SYNCHRONIZE, 0, 0);
@@ -184,21 +185,24 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
             {
                 IDPS_PRINT2("Error duplicating handle %d", i);
                 duplicatedSuccefully = FALSE;
+                break;
             }
         }
 
-        if (duplicatedSuccefully)
-        {
-            IDPS_PRINT("Initializing WFP...\n");
+        IDPS_PRINT("Succesfully duplicated handles");
 
-            status = InitializeWfp();
-            if (!NT_SUCCESS(status))
-            {
-                // InitializeWfp() already prints err and calls UnInitWfp()
-                IoDeleteDevice(deviceObject);
-                IoDeleteSymbolicLink(&SYMLINK_NAME);
-                return status;
-            }
+        if (!duplicatedSuccefully)
+            break;
+
+        IDPS_PRINT("Initializing WFP...\n");
+
+        status = InitializeWfp();
+        if (!NT_SUCCESS(status))
+        {
+            // InitializeWfp() already prints err and calls UnInitWfp()
+            IoDeleteDevice(deviceObject);
+            IoDeleteSymbolicLink(&SYMLINK_NAME);
+            return status;
         }
         break;
     default:
@@ -218,12 +222,12 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 NTSTATUS InitializeWfp()
 {
     NTSTATUS status;
-    if (NT_SUCCESS(status = WfpOpenEngine()) &&
+    if (NT_SUCCESS(status = InitFileNames()) &&
+        NT_SUCCESS(status = WfpOpenEngine()) &&
         NT_SUCCESS(status = WfpRegisterCallout()) &&
         NT_SUCCESS(status = WfpAddCallout()) &&
         NT_SUCCESS(status = WfpAddSublayer()) &&
-        NT_SUCCESS(status = WfpAddFilter()) &&
-        NT_SUCCESS(status = InitFileNames()))
+        NT_SUCCESS(status = WfpAddFilter()))
     {
         IDPS_PRINT("Initialized WFP successfully\n");
         return STATUS_SUCCESS;
@@ -251,11 +255,11 @@ NTSTATUS WfpAddCallout()
     callout.displayData.name = displayName;
     callout.displayData.description = displayName;
 
-    callout.calloutKey = ETHERNET_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
-    status = FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
-    if (!NT_SUCCESS(status))
-        return status;
+    //callout.calloutKey = ETHERNET_CALLOUT_GUID;
+    //callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
+    //status = FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
+    //if (!NT_SUCCESS(status))
+    //    return status;
 
     callout.calloutKey = IP_CALLOUT_GUID;
     callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // Ip Layer
@@ -263,15 +267,19 @@ NTSTATUS WfpAddCallout()
     if (!NT_SUCCESS(status))
         return status;
 
-    callout.calloutKey = TRANSPORT_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Transport Layer
-    status = FwpmCalloutAdd(engineHandle, &callout, NULL, &TransportAddCalloutId);
-    if (!NT_SUCCESS(status))
-        return status;
+    //callout.calloutKey = TRANSPORT_CALLOUT_GUID;
+    //callout.applicableLayer = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Transport Layer
+    //status = FwpmCalloutAdd(engineHandle, &callout, NULL, &TransportAddCalloutId);
+    //if (!NT_SUCCESS(status))
+    //    return status;
 
-    callout.calloutKey = APPLICATION_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4; // Application Layer
-    return FwpmCalloutAdd(engineHandle, &callout, NULL, &ApplicationAddCalloutId);
+    //callout.calloutKey = APPLICATION_CALLOUT_GUID;
+    //callout.applicableLayer = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4; // Application Layer
+    //status = FwpmCalloutAdd(engineHandle, &callout, NULL, &ApplicationAddCalloutId);
+    //if (!NT_SUCCESS(status))
+    //    return status;
+
+    return status;
 }
 
 NTSTATUS WfpAddSublayer()
@@ -284,23 +292,27 @@ NTSTATUS WfpAddSublayer()
     sublayer.displayData.description = displayName;
     sublayer.weight = 65500;
 
-    sublayer.subLayerKey = ETHERNET_SUBLAYER_GUID;
+    /*sublayer.subLayerKey = ETHERNET_SUBLAYER_GUID;
     status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
     if (!NT_SUCCESS(status))
-        return status;
+        return status;*/
 
     sublayer.subLayerKey = IP_SUBLAYER_GUID;
     status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
     if (!NT_SUCCESS(status))
         return status;
 
-    sublayer.subLayerKey = TRANSPORT_SUBLAYER_GUID;
+    /*sublayer.subLayerKey = TRANSPORT_SUBLAYER_GUID;
     status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
     if (!NT_SUCCESS(status))
-        return status;
+        return status;*/
 
-    sublayer.subLayerKey = APPLICATION_SUBLAYER_GUID;
-    return FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
+    /*sublayer.subLayerKey = APPLICATION_SUBLAYER_GUID;
+    status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
+    if (!NT_SUCCESS(status))
+        return status;*/
+
+    return status;
 }
 
 NTSTATUS WfpAddFilter()
@@ -317,12 +329,12 @@ NTSTATUS WfpAddFilter()
     filter.filterCondition = NULL; // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     filter.action.type = FWP_ACTION_CALLOUT_TERMINATING;
 
-    filter.subLayerKey = ETHERNET_SUBLAYER_GUID;
-    filter.action.calloutKey = ETHERNET_CALLOUT_GUID;
-    filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
-    status = FwpmFilterAdd(engineHandle, &filter, NULL, &EthernetFilterId);
-    if (!NT_SUCCESS(status))
-        return status;
+    //filter.subLayerKey = ETHERNET_SUBLAYER_GUID;
+    //filter.action.calloutKey = ETHERNET_CALLOUT_GUID;
+    //filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
+    //status = FwpmFilterAdd(engineHandle, &filter, NULL, &EthernetFilterId);
+    //if (!NT_SUCCESS(status))
+    //    return status;
 
     filter.subLayerKey = IP_SUBLAYER_GUID;
     filter.action.calloutKey = IP_CALLOUT_GUID;
@@ -331,17 +343,21 @@ NTSTATUS WfpAddFilter()
     if (!NT_SUCCESS(status))
         return status;
 
-    filter.subLayerKey = TRANSPORT_SUBLAYER_GUID;
-    filter.action.calloutKey = TRANSPORT_CALLOUT_GUID;
-    filter.layerKey = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Transport Layer
-    status = FwpmFilterAdd(engineHandle, &filter, NULL, &TransportFilterId);
-    if (!NT_SUCCESS(status))
-        return status;
+    //filter.subLayerKey = TRANSPORT_SUBLAYER_GUID;
+    //filter.action.calloutKey = TRANSPORT_CALLOUT_GUID;
+    //filter.layerKey = FWPM_LAYER_INBOUND_TRANSPORT_V4; // Transport Layer
+    //status = FwpmFilterAdd(engineHandle, &filter, NULL, &TransportFilterId);
+    //if (!NT_SUCCESS(status))
+    //    return status;
 
-    filter.subLayerKey = APPLICATION_SUBLAYER_GUID;
-    filter.action.calloutKey = APPLICATION_CALLOUT_GUID;
-    filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4; // Application Layer
-    return FwpmFilterAdd(engineHandle, &filter, NULL, &ApplicationFilterId);
+    //filter.subLayerKey = APPLICATION_SUBLAYER_GUID;
+    //filter.action.calloutKey = APPLICATION_CALLOUT_GUID;
+    //filter.layerKey = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4; // Application Layer
+    //status = FwpmFilterAdd(engineHandle, &filter, NULL, &ApplicationFilterId);
+    //if (!NT_SUCCESS(status))
+    //    return status;
+
+    return status;
 }
 
 NTSTATUS WfpRegisterCallout()
@@ -353,11 +369,11 @@ NTSTATUS WfpRegisterCallout()
     callout.notifyFn = NotifyCallback;
     callout.flowDeleteFn = FlowDeleteCallback;
 
-    callout.calloutKey = ETHERNET_CALLOUT_GUID;
+    /*callout.calloutKey = ETHERNET_CALLOUT_GUID;
     callout.classifyFn = EthernetCallback;
     status =  FwpsCalloutRegister(deviceObject, &callout, &EthernetRegCalloutId);
     if (!NT_SUCCESS(status))
-        return status;
+        return status;*/
 
     callout.calloutKey = IP_CALLOUT_GUID;
     callout.classifyFn = IpCallback;
@@ -365,106 +381,206 @@ NTSTATUS WfpRegisterCallout()
     if (!NT_SUCCESS(status))
         return status;
 
-    callout.calloutKey = TRANSPORT_CALLOUT_GUID;
+    /*callout.calloutKey = TRANSPORT_CALLOUT_GUID;
     callout.classifyFn = TransportCallback;
     status = FwpsCalloutRegister(deviceObject, &callout, &TransportRegCalloutId);
     if (!NT_SUCCESS(status))
-        return status;
+        return status;*/
 
-    callout.calloutKey = APPLICATION_CALLOUT_GUID;
+    /*callout.calloutKey = APPLICATION_CALLOUT_GUID;
     callout.classifyFn = ApplicationCallback;
-    return FwpsCalloutRegister(deviceObject, &callout, &ApplicationRegCalloutId);
+    status = FwpsCalloutRegister(deviceObject, &callout, &ApplicationRegCalloutId);
+    if (!NT_SUCCESS(status))
+        return status;*/
+
+    return status;
 }
 
 VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    IDPS_PRINT("Received inbound Ethernet packet");
+
+    if (layerData == NULL || classifyOut == NULL) {
+        IDPS_PRINT("Layer data or classifyOut is NULL");
+        return;
+    }
+
+    IDPS_PRINT("Layer data is not null");
+
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-
-    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
-
-    writeNetBufferToFile(layerData, classifyOut, &ethernetFilePath, &mutexes.ethernet);
-    IDPS_PRINT("Received ethernet packet");
-    FWPS_STREAM_DATA0* streamData = packet->streamData;
-    UCHAR string[1024] = { 0 };
-    SIZE_T length = 0;
-    SIZE_T bytes;
-
-    if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
-    {
-        length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
-        FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
-        IDPS_PRINT2("data is %s\r\n", string);
-    }
-
-    packet->streamAction = FWPS_STREAM_ACTION_NONE;
     classifyOut->actionType = FWP_ACTION_PERMIT;
-    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
-    {
-        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    if (nbl == NULL) {
+        IDPS_PRINT("NET_BUFFER_LIST is NULL");
+        return;
     }
 
+    IDPS_PRINT("NET_BUFFER_LIST is not null");
+
+    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    while (nb != NULL) {
+        ULONG packetLength = NET_BUFFER_DATA_LENGTH(nb);
+
+        // Ensure buffer to read data
+        UCHAR packetBuffer[1024] = { 0 };
+        ULONG readLength = (packetLength < sizeof(packetBuffer)) ? packetLength : sizeof(packetBuffer);
+
+        // Retrieve the data
+        PUCHAR data = NdisGetDataBuffer(nb, readLength, packetBuffer, 1, 0);
+        if (data == NULL) {
+            IDPS_PRINT("Failed to retrieve packet data");
+            return;
+        }
+
+        // If data was mapped into the local buffer, update pointer to it
+        if (data != packetBuffer) {
+            RtlCopyMemory(packetBuffer, data, readLength);
+        }
+
+        // Print the raw data as a string (may include non-printable characters)
+        ULONG i = 0;
+        for (i = 0; i + 64ul < readLength; i += 64)
+            IDPS_PRINT3("%.*s", i, packetBuffer + i);
+        IDPS_PRINT3("%.*s", readLength - i, packetBuffer + i);
+        //IDPS_PRINT("waiting for mutex");
+        //if (!NT_SUCCESS(KeWaitForSingleObject(mutexes.internet, Executive, KernelMode, FALSE, NULL)))
+        //{
+        //    IDPS_PRINT("Failed to wait for mutex");
+        //}
+        ///*IDPS_PRINT("writing buffer to file");
+        //WriteToFile(&internetFilePath, packetBuffer, readLength);*/
+        //IDPS_PRINT("Releasing mutex");
+        //KeReleaseMutex(mutexes.internet, FALSE);
+
+        // Move to the next NET_BUFFER
+        nb = NET_BUFFER_NEXT_NB(nb);
+    }
+
+    IDPS_PRINT("Finished processing packet");
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    IDPS_PRINT("Received inbound IP packet");
+
+    if (layerData == NULL || classifyOut == NULL) {
+        IDPS_PRINT("Layer data or classifyOut is NULL");
+        return;
+    }
+
+    IDPS_PRINT("Layer data is not null");
+
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-
-    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
-    if (mutexes.internet)
-        writeNetBufferToFile(layerData, classifyOut, &internetFilePath, &mutexes.internet);
-    else
-    {
-        IDPS_PRINT("Received internet packet");        
-        FWPS_STREAM_DATA0* streamData = packet->streamData;
-        UCHAR string[1024] = { 0 };
-        SIZE_T length = 0;
-        SIZE_T bytes;
-
-        if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
-        {
-            length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
-            FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
-            IDPS_PRINT2("data is %s\r\n", string);
-        }
-    }
-    packet->streamAction = FWPS_STREAM_ACTION_NONE;
     classifyOut->actionType = FWP_ACTION_PERMIT;
-    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
-    {
-        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    if (nbl == NULL) {
+        IDPS_PRINT("NET_BUFFER_LIST is NULL");
+        return;
     }
 
+    IDPS_PRINT("NET_BUFFER_LIST is not null");
+
+    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    while (nb != NULL) {
+        ULONG packetLength = NET_BUFFER_DATA_LENGTH(nb);
+
+        // Ensure buffer to read data
+        UCHAR packetBuffer[1024] = { 0 };
+        ULONG readLength = (packetLength < sizeof(packetBuffer)) ? packetLength : sizeof(packetBuffer);
+
+        // Retrieve the data
+        PUCHAR data = NdisGetDataBuffer(nb, readLength, packetBuffer, 1, 0);
+        if (data == NULL) {
+            IDPS_PRINT("Failed to retrieve packet data");
+            return;
+        }
+
+        // If data was mapped into the local buffer, update pointer to it
+        if (data != packetBuffer) {
+            RtlCopyMemory(packetBuffer, data, readLength);
+        }
+
+        // Print the raw data as a string (may include non-printable characters)
+        ULONG i;
+        for (i = 0; i + 64ul < readLength; i += 64)
+            IDPS_PRINT3("%.*s", i, packetBuffer + i);
+        IDPS_PRINT3("%.*s", readLength - i, packetBuffer + i);
+        //IDPS_PRINT("waiting for mutex");
+        //if (!NT_SUCCESS(KeWaitForSingleObject(mutexes.internet, Executive, KernelMode, FALSE, NULL)))
+        //{
+        //    IDPS_PRINT("Failed to wait for mutex");
+        //}
+        IDPS_PRINT("writing buffer to file");
+        WriteToFile(&internetFilePath, packetBuffer, readLength);
+        //IDPS_PRINT("Releasing mutex");
+        //KeReleaseMutex(mutexes.internet, FALSE);
+
+        // Move to the next NET_BUFFER
+        nb = NET_BUFFER_NEXT_NB(nb);
+    }
+
+    IDPS_PRINT("Finished processing packet");
 }
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
-
 {
+    IDPS_PRINT("Received inbound IP packet");
+
+    if (layerData == NULL || classifyOut == NULL) {
+        IDPS_PRINT("Layer data or classifyOut is NULL");
+        return;
+    }
+
+    IDPS_PRINT("Layer data is not null");
+
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
-
-    FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
-    //writeNetBufferToFile(layerData, classifyOut, &transportFilePath, &mutexes.transport);
-
-    IDPS_PRINT("Received transport packet");
-    FWPS_STREAM_DATA0* streamData = packet->streamData;
-    UCHAR string[1024] = { 0 };
-    SIZE_T length = 0;
-    SIZE_T bytes;
-
-    if ((streamData->flags & FWPS_STREAM_FLAG_RECEIVE))
-    {
-        length = streamData->dataLength <= 1024 ? streamData->dataLength : 1024; // only reading 1024 bytes from the stream (or less)
-        FwpsCopyStreamDataToBuffer(streamData, string, length, &bytes);
-        IDPS_PRINT2("data is %s\r\n", string);
-    }
-
-    packet->streamAction = FWPS_STREAM_ACTION_NONE;
     classifyOut->actionType = FWP_ACTION_PERMIT;
-    if (filter->flags && FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
-    {
-        classifyOut->actionType &= FWPS_RIGHT_ACTION_WRITE;
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    if (nbl == NULL) {
+        IDPS_PRINT("NET_BUFFER_LIST is NULL");
+        return;
     }
 
+    IDPS_PRINT("NET_BUFFER_LIST is not null");
+
+    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
+    while (nb != NULL) {
+        ULONG packetLength = NET_BUFFER_DATA_LENGTH(nb);
+
+        // Ensure buffer to read data
+        UCHAR packetBuffer[1024] = { 0 };
+        ULONG readLength = (packetLength < sizeof(packetBuffer)) ? packetLength : sizeof(packetBuffer);
+
+        // Retrieve the data
+        PUCHAR data = NdisGetDataBuffer(nb, readLength, packetBuffer, 1, 0);
+        if (data == NULL) {
+            IDPS_PRINT("Failed to retrieve packet data");
+            return;
+        }
+
+        // If data was mapped into the local buffer, update pointer to it
+        if (data != packetBuffer) {
+            RtlCopyMemory(packetBuffer, data, readLength);
+        }
+
+        // Print the raw data as a string (may include non-printable characters)
+        IDPS_PRINT3("%.*s", readLength, packetBuffer);
+        //IDPS_PRINT("waiting for mutex");
+        //if (!NT_SUCCESS(KeWaitForSingleObject(mutexes.internet, Executive, KernelMode, FALSE, NULL)))
+        //{
+        //    IDPS_PRINT("Failed to wait for mutex");
+        //}
+        ///*IDPS_PRINT("writing buffer to file");
+        //WriteToFile(&internetFilePath, packetBuffer, readLength);*/
+        //IDPS_PRINT("Releasing mutex");
+        //KeReleaseMutex(mutexes.internet, FALSE);
+
+        // Move to the next NET_BUFFER
+        nb = NET_BUFFER_NEXT_NB(nb);
+    }
+
+    IDPS_PRINT("Finished processing packet");
 }
 VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
@@ -533,7 +649,7 @@ VOID UnInitWfp()
 
     UnInitMutexes();
 }
-void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING filePath, PHANDLE mutexName)
+void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING filePath, PHANDLE mutex)
 {
     IDPS_PRINT("Writing packet to file");
     NTSTATUS status = STATUS_SUCCESS;
@@ -543,7 +659,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
     UCHAR lengthBuffer[8] = { 0 };   // Buffer to hold the length in binary format
 
     // Validate input
-    if (layerData == NULL || filePath == NULL || mutexName == NULL) {
+    if (layerData == NULL || filePath == NULL || mutex == NULL) {
         classifyOut->actionType = FWP_ACTION_BLOCK;
         classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
         return;
@@ -562,7 +678,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
     }
 
     // Acquire the mutex for exclusive access to the file
-    status = KeWaitForSingleObject(*mutexName, Executive, KernelMode, FALSE, NULL);
+    status = KeWaitForSingleObject(*mutex, Executive, KernelMode, FALSE, NULL);
     if (!NT_SUCCESS(status)) {
         classifyOut->actionType = FWP_ACTION_BLOCK;
         classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
@@ -575,7 +691,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
     if (!NT_SUCCESS(status)) {
         classifyOut->actionType = FWP_ACTION_BLOCK;
         classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-        KeReleaseMutex(*mutexName, FALSE);
+        KeReleaseMutex(*mutex, FALSE);
         return;
     }
 
@@ -623,7 +739,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
     }
 
     // Release the mutex
-    KeReleaseMutex(*mutexName, FALSE);
+    KeReleaseMutex(*mutex, FALSE);
 
     // Set classify action based on success or failure
     if (NT_SUCCESS(status)) {
@@ -643,19 +759,38 @@ NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
     NTSTATUS status;
 
     // Initialize the OBJECT_ATTRIBUTES structure
+    IDPS_PRINT("Initializing file attributes");
     InitializeObjectAttributes(&objAttributes, filePath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
-    // Open or create the file
-    status = ZwCreateFile( &fileHandle, GENERIC_WRITE, &objAttributes, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, 0, FILE_OVERWRITE_IF, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
+    // Open or create the file    
+    if (KeGetCurrentIrql() != PASSIVE_LEVEL) // Added for debugging
+    {
+        IDPS_PRINT("HEY NIGA!!!");
+        return STATUS_SUCCESS;
+    }
+
+    IDPS_PRINT("Creating file handle");
+    status = ZwCreateFile(&fileHandle, GENERIC_WRITE, &objAttributes, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, 0, FILE_OVERWRITE_IF, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 
     if (!NT_SUCCESS(status))
+    {
+        IDPS_PRINT2("Failed to open file: %x", status);
         return status; // Return if file creation failed
+    }
 
     // Write data to the file
+    IDPS_PRINT("Writing to file");
     status = ZwWriteFile(fileHandle, NULL, NULL, NULL, &ioStatusBlock, buffer, bufferSize, NULL, NULL);
 
+    if (!NT_SUCCESS(status))
+    {
+        IDPS_PRINT("Failed to write to file.");
+        return status; // Return if file creation failed
+    }
+
     // Close the file handle
-    ZwClose(fileHandle);
+    IDPS_PRINT("Closing file handle");
+    status = ZwClose(fileHandle);
 
     return status;
 }
@@ -678,9 +813,8 @@ NTSTATUS InitFileNames()
 
 VOID UnInitMutexes()
 {
-#define DEREFERENCE(x) if (x) ObDereferenceObject(x)
-    DEREFERENCE(kernelMutexObjects.ethernet);
-    DEREFERENCE(kernelMutexObjects.internet);
-    DEREFERENCE(kernelMutexObjects.transport);
-    DEREFERENCE(kernelMutexObjects.application);
+    ZwClose(mutexes.ethernet);
+    ZwClose(mutexes.internet);
+    ZwClose(mutexes.transport);
+    ZwClose(mutexes.application);
 }
