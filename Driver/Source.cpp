@@ -16,6 +16,17 @@
 #define IDPS_PRINT3(x1, x2, x3) KdPrint((SIGNATURE x1, x2, x3)) // x1 is a literal string, x2 is the buffer length, x3 is the char buffer
 #define IDPS_PRINT4(x1, x2, x3, x4) KdPrint((SIGNATURE x1, x2, x3, x4)) // 4 params
 
+// work item to operate at IRQL passive level
+typedef struct _WORK_CONTEXT {
+    char WorkItem[128];       // The pre-allocated work item
+    PUNICODE_STRING FilePath;   // Pointer to the file path
+    PVOID Buffer;               // Pointer to the data buffer
+    ULONG BufferSize;           // Size of the data buffer
+    BOOL finished;
+} WORK_CONTEXT, * PWORK_CONTEXT;
+
+WORK_CONTEXT workContext = { 0 };
+
 // IOCTL code for user-mode communication
 #define IOCTL_READ_RAW_PACKET CTL_CODE(FILE_DEVICE_NETWORK, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
@@ -66,9 +77,10 @@ NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const G
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
 void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING Filepath, PHANDLE mutexName);
-NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
+void WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
 NTSTATUS InitFileNames();
 VOID UnInitMutexes();
+VOID WriteToFileWorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -106,10 +118,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
         return status;
     }
 
+    // Initialize the work item in the global context
+    IDPS_PRINT("Initializing work item...\n");
+    IoInitializeWorkItem(deviceObject, (PIO_WORKITEM)&workContext.WorkItem);
+
     // Bind functions to handling function
     for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; ++i)
         DriverObject->MajorFunction[i] = DriverPassThru;
-
     DriverObject->DriverUnload = DriverUnload;
 
     IDPS_PRINT("Creation successful!\n");
@@ -511,7 +526,7 @@ VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE co
         //{
         //    IDPS_PRINT("Failed to wait for mutex");
         //}
-        IDPS_PRINT("writing buffer to file");
+        IDPS_PRINT("queueing work item");
         WriteToFile(&internetFilePath, packetBuffer, readLength);
         //IDPS_PRINT("Releasing mutex");
         //KeReleaseMutex(mutexes.internet, FALSE);
@@ -687,7 +702,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
 
     // Write the total length (8 bytes) to the file
     RtlCopyMemory(lengthBuffer, &totalDataLength, sizeof(totalDataLength));
-    status = WriteToFile(filePath, lengthBuffer, sizeof(lengthBuffer));
+    WriteToFile(filePath, lengthBuffer, sizeof(lengthBuffer));
     if (!NT_SUCCESS(status)) {
         classifyOut->actionType = FWP_ACTION_BLOCK;
         classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
@@ -719,7 +734,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
             dataPointer = (PVOID)((PUCHAR)dataPointer + offset);
 
             // Write this chunk of data to the file
-            status = WriteToFile(filePath, dataPointer, bytesToProcess);
+            WriteToFile(filePath, dataPointer, bytesToProcess);
             if (!NT_SUCCESS(status)) {
                 break;
             }
@@ -751,48 +766,23 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
     }
 }
 
-NTSTATUS WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
+void WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
 {
-    OBJECT_ATTRIBUTES objAttributes;
-    HANDLE fileHandle;
-    IO_STATUS_BLOCK ioStatusBlock;
-    NTSTATUS status;
+    // Initialize the global context
+    workContext.finished = FALSE;
+    workContext.FilePath = filePath;
+    workContext.Buffer = buffer;
+    workContext.BufferSize = bufferSize;
 
-    // Initialize the OBJECT_ATTRIBUTES structure
-    IDPS_PRINT("Initializing file attributes");
-    InitializeObjectAttributes(&objAttributes, filePath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    while (!workContext.finished) { (void)0; }
 
-    // Open or create the file    
-    if (KeGetCurrentIrql() != PASSIVE_LEVEL) // Added for debugging
-    {
-        IDPS_PRINT("HEY NIGA!!!");
-        return STATUS_SUCCESS;
-    }
-
-    IDPS_PRINT("Creating file handle");
-    status = ZwCreateFile(&fileHandle, GENERIC_WRITE, &objAttributes, &ioStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, 0, FILE_OVERWRITE_IF, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
-
-    if (!NT_SUCCESS(status))
-    {
-        IDPS_PRINT2("Failed to open file: %x", status);
-        return status; // Return if file creation failed
-    }
-
-    // Write data to the file
-    IDPS_PRINT("Writing to file");
-    status = ZwWriteFile(fileHandle, NULL, NULL, NULL, &ioStatusBlock, buffer, bufferSize, NULL, NULL);
-
-    if (!NT_SUCCESS(status))
-    {
-        IDPS_PRINT("Failed to write to file.");
-        return status; // Return if file creation failed
-    }
-
-    // Close the file handle
-    IDPS_PRINT("Closing file handle");
-    status = ZwClose(fileHandle);
-
-    return status;
+    // Queue the work item
+    IoQueueWorkItem(
+        (PIO_WORKITEM)&workContext.WorkItem,
+        WriteToFileWorkItemRoutine,
+        DelayedWorkQueue,
+        &workContext
+    );
 }
 
 NTSTATUS InitFileNames()
@@ -817,4 +807,70 @@ VOID UnInitMutexes()
     ZwClose(mutexes.internet);
     ZwClose(mutexes.transport);
     ZwClose(mutexes.application);
+}
+
+VOID WriteToFileWorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+    PWORK_CONTEXT context = (PWORK_CONTEXT)Context;
+
+    HANDLE fileHandle = NULL;
+    OBJECT_ATTRIBUTES objAttributes;
+    IO_STATUS_BLOCK ioStatusBlock;
+    NTSTATUS status;
+
+    // Initialize the OBJECT_ATTRIBUTES structure
+    IDPS_PRINT("Initializing file attributes");
+    InitializeObjectAttributes(
+        &objAttributes,
+        context->FilePath,
+        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+        NULL,
+        NULL
+    );
+
+    // Open or create the file
+    IDPS_PRINT("Creating file handle");
+    status = ZwCreateFile(
+        &fileHandle,
+        GENERIC_WRITE,
+        &objAttributes,
+        &ioStatusBlock,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        0,
+        FILE_OVERWRITE_IF,
+        FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL,
+        0
+    );
+
+    if (!NT_SUCCESS(status)) {
+        IDPS_PRINT2("Failed to open file: %x", status);
+        goto end;
+    }
+
+    // Write data to the file
+    IDPS_PRINT("Writing to file");
+    status = ZwWriteFile(
+        fileHandle,
+        NULL,
+        NULL,
+        NULL,
+        &ioStatusBlock,
+        context->Buffer,
+        context->BufferSize,
+        NULL,
+        NULL
+    );
+
+    if (!NT_SUCCESS(status))
+        IDPS_PRINT("Failed to write to file.");
+
+    end:
+    // Close the file handle
+    IDPS_PRINT("Closing file handle");
+    ZwClose(fileHandle);
+
+    context->finished = TRUE;
 }
