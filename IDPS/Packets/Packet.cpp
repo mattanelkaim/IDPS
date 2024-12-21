@@ -24,10 +24,3 @@ Packet::Packet(const IPv4Header& ipv4, const TransportHeader& transport) noexcep
     destinationPort(transport.destinationPort),
     protocol(ipv4.protocol)
 {}
-
-
-int main()
-{
-    puts(ipToString(3232235777).c_str());
-    return 0;
-}
