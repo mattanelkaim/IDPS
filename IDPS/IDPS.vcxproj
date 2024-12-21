@@ -138,7 +138,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Handlers\DBHandler.cpp" />
+    <ClCompile Include="Packets\Layers.cpp" />
     <ClCompile Include="Packets\Packet.cpp" />
+    <ClCompile Include="Source.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
