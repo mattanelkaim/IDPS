@@ -22,10 +22,12 @@ typedef struct _WORK_CONTEXT {
     PUNICODE_STRING FilePath;   // Pointer to the file path
     PVOID Buffer;               // Pointer to the data buffer
     ULONG BufferSize;           // Size of the data buffer
+    HANDLE mutex;
     BOOL finished;
 } WORK_CONTEXT, * PWORK_CONTEXT;
 
 WORK_CONTEXT workContext = { 0 };
+BOOL driverUnloading = FALSE;
 
 // IOCTL code for user-mode communication
 #define IOCTL_READ_RAW_PACKET CTL_CODE(FILE_DEVICE_NETWORK, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
@@ -43,10 +45,10 @@ UNICODE_STRING DEVICE_NAME = RTL_CONSTANT_STRING(L"\\Device\\IDPS Sniffer Device
 UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
 
 #define BASE_FILE_DIRECTORY L"\\??\\C:\\IDPS_shared_files\\"
-#define ETHERNET_FILE_PATH (BASE_FILE_DIRECTORY L"ethernet.txt")
-#define INTERNET_FILE_PATH (BASE_FILE_DIRECTORY L"internet.txt")
-#define TRANSPORT_FILE_PATH (BASE_FILE_DIRECTORY L"transport.txt")
-#define APPLICATION_FILE_PATH (BASE_FILE_DIRECTORY L"application.txt")
+#define ETHERNET_FILE_PATH (BASE_FILE_DIRECTORY L"ethernet.bin")
+#define INTERNET_FILE_PATH (BASE_FILE_DIRECTORY L"internet.bin")
+#define TRANSPORT_FILE_PATH (BASE_FILE_DIRECTORY L"transport.bin")
+#define APPLICATION_FILE_PATH (BASE_FILE_DIRECTORY L"application.bin")
 
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
@@ -54,6 +56,7 @@ UINT32 EthernetRegCalloutId = 0, IpRegCalloutId = 0, TransportRegCalloutId = 0, 
 UINT32 EthernetAddCalloutId = 0, IpAddCalloutId = 0, TransportAddCalloutId = 0, ApplicationAddCalloutId = 0;
 UINT64 EthernetFilterId = 0, IpFilterId = 0, TransportFilterId = 0, ApplicationFilterId = 0;
 HANDLES mutexes = { NULL, NULL, NULL, NULL };
+HANDLE workMutex = NULL;
 KERNEL_OBJECTS kernelMutexObjects = { NULL, NULL, NULL, NULL };
 
 UNICODE_STRING ethernetMutexPath, internetMutexPath, transportMutexPath, applicationMutexPath;
@@ -76,11 +79,11 @@ VOID ApplicationCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __
 NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const GUID* filterKey, __IGNORE FWPS_FILTER* filter);
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
-void writeNetBufferToFile(void* list, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING Filepath, PHANDLE mutexName);
-void WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
+void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
+void TryQueueWorkItem(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, HANDLE mutex);
 NTSTATUS InitFileNames();
 VOID UnInitMutexes();
-VOID WriteToFileWorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context);
+VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -121,6 +124,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     // Initialize the work item in the global context
     IDPS_PRINT("Initializing work item...\n");
     IoInitializeWorkItem(deviceObject, (PIO_WORKITEM)&workContext.WorkItem);
+    workContext.finished = TRUE;
 
     // Bind functions to handling function
     for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; ++i)
@@ -134,10 +138,14 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
 
 VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
+    driverUnloading = TRUE; // insuring no new work items queue while unloading the driver
+    IDPS_PRINT("Unloading driver...\n");
     UnInitWfp();
+    while (!workContext.finished) { (void)0; }
+    IoUninitializeWorkItem((PIO_WORKITEM)&workContext.WorkItem);
     IoDeleteDevice(DriverObject->DeviceObject);
     IoDeleteSymbolicLink(&SYMLINK_NAME);
-    IDPS_PRINT("Driver unloaded!\n");
+    IDPS_PRINT("Driver unloaded succefully!\n");
 }
 
 // Handling function
@@ -146,7 +154,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_SUCCESS;
     PHANDLES userHandles = NULL;  // Pointer to the user-provided structure
-    HANDLE sourceProcessHandle;
+    PEPROCESS sourceProcessHandle;
     OBJECT_ATTRIBUTES objAttrs;
     CLIENT_ID clientId;
 
@@ -178,6 +186,8 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
         // Get the input buffer from the IRP
         userHandles = &(((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->mutexes);
+
+        //PsLookupProcessByProcessId((HANDLE)((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->pid, &sourceProcessHandle);
         clientId.UniqueProcess = (HANDLE)((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->pid;  // PID of the source process
         clientId.UniqueThread = 0;
 
@@ -198,16 +208,16 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
             status = ZwDuplicateObject(sourceProcessHandle, ((HANDLE*)userHandles)[i], NtCurrentProcess(), (((HANDLE*)&mutexes) + i), SYNCHRONIZE, 0, 0);
             if (!NT_SUCCESS(status))
             {
-                IDPS_PRINT2("Error duplicating handle %d", i);
+                IDPS_PRINT3("Error duplicating handle %d : %X", i, status);
                 duplicatedSuccefully = FALSE;
                 break;
             }
         }
 
-        IDPS_PRINT("Succesfully duplicated handles");
-
         if (!duplicatedSuccefully)
             break;
+
+        IDPS_PRINT("Succesfully duplicated handles");
 
         IDPS_PRINT("Initializing WFP...\n");
 
@@ -519,17 +529,11 @@ VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE co
         // Print the raw data as a string (may include non-printable characters)
         ULONG i;
         for (i = 0; i + 64ul < readLength; i += 64)
-            IDPS_PRINT3("%.*s", i, packetBuffer + i);
+            IDPS_PRINT3("%.*s", 64, packetBuffer + i);
         IDPS_PRINT3("%.*s", readLength - i, packetBuffer + i);
-        //IDPS_PRINT("waiting for mutex");
-        //if (!NT_SUCCESS(KeWaitForSingleObject(mutexes.internet, Executive, KernelMode, FALSE, NULL)))
-        //{
-        //    IDPS_PRINT("Failed to wait for mutex");
-        //}
         IDPS_PRINT("queueing work item");
-        WriteToFile(&internetFilePath, packetBuffer, readLength);
-        //IDPS_PRINT("Releasing mutex");
-        //KeReleaseMutex(mutexes.internet, FALSE);
+        TryQueueWorkItem(&internetFilePath, packetBuffer, readLength, mutexes.internet);
+
 
         // Move to the next NET_BUFFER
         nb = NET_BUFFER_NEXT_NB(nb);
@@ -664,7 +668,7 @@ VOID UnInitWfp()
 
     UnInitMutexes();
 }
-void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNICODE_STRING filePath, PHANDLE mutex)
+void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
 {
     IDPS_PRINT("Writing packet to file");
     NTSTATUS status = STATUS_SUCCESS;
@@ -702,7 +706,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
 
     // Write the total length (8 bytes) to the file
     RtlCopyMemory(lengthBuffer, &totalDataLength, sizeof(totalDataLength));
-    WriteToFile(filePath, lengthBuffer, sizeof(lengthBuffer));
+    //WriteToFile(filePath, lengthBuffer, sizeof(lengthBuffer));
     if (!NT_SUCCESS(status)) {
         classifyOut->actionType = FWP_ACTION_BLOCK;
         classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
@@ -734,7 +738,7 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
             dataPointer = (PVOID)((PUCHAR)dataPointer + offset);
 
             // Write this chunk of data to the file
-            WriteToFile(filePath, dataPointer, bytesToProcess);
+            //WriteToFile(filePath, dataPointer, bytesToProcess);
             if (!NT_SUCCESS(status)) {
                 break;
             }
@@ -766,20 +770,22 @@ void writeNetBufferToFile(void* layerData, FWPS_CLASSIFY_OUT* classifyOut, PUNIC
     }
 }
 
-void WriteToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
+void TryQueueWorkItem(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, HANDLE mutex)
 {
+    if (!workContext.finished || driverUnloading)
+        return;
+
     // Initialize the global context
     workContext.finished = FALSE;
     workContext.FilePath = filePath;
     workContext.Buffer = buffer;
     workContext.BufferSize = bufferSize;
-
-    while (!workContext.finished) { (void)0; }
+    workContext.mutex = mutex;
 
     // Queue the work item
     IoQueueWorkItem(
         (PIO_WORKITEM)&workContext.WorkItem,
-        WriteToFileWorkItemRoutine,
+        WorkItemRoutine,
         DelayedWorkQueue,
         &workContext
     );
@@ -809,7 +815,7 @@ VOID UnInitMutexes()
     ZwClose(mutexes.application);
 }
 
-VOID WriteToFileWorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
+VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
 {
     UNREFERENCED_PARAMETER(DeviceObject);
     PWORK_CONTEXT context = (PWORK_CONTEXT)Context;
@@ -817,7 +823,18 @@ VOID WriteToFileWorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
     HANDLE fileHandle = NULL;
     OBJECT_ATTRIBUTES objAttributes;
     IO_STATUS_BLOCK ioStatusBlock;
-    NTSTATUS status;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    // If the driver unloaded while the work item was still queued
+    if (context->finished)
+        return;
+
+    /*IDPS_PRINT("Waiting for mutex...");
+    status = ZwWaitForSingleObject(context->mutex, FALSE, NULL);
+    if (!NT_SUCCESS(status)) {
+        IDPS_PRINT2("Waiting for mutex failed: %X", status);
+        return;
+    }*/
 
     // Initialize the OBJECT_ATTRIBUTES structure
     IDPS_PRINT("Initializing file attributes");
@@ -871,6 +888,10 @@ VOID WriteToFileWorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
     // Close the file handle
     IDPS_PRINT("Closing file handle");
     ZwClose(fileHandle);
+
+    //// Release the mutex
+    //IDPS_PRINT("Releasing the mutex");
+    //KeReleaseMutex(context->mutex, FALSE);
 
     context->finished = TRUE;
 }

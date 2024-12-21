@@ -195,10 +195,10 @@ void CGUIDlg::OnBnClickedButton3()
 	DWORD bytesReturned;
 
 	ioctlHandles.pid = GetCurrentProcessId();
-	ioctlHandles.mutexes.ethernet = CreateMutexW(NULL, TRUE, ETHERNET_MUTEX_PATH);
-	ioctlHandles.mutexes.internet = CreateMutexW(NULL, TRUE, INTERNET_MUTEX_PATH);
-	ioctlHandles.mutexes.transport = CreateMutexW(NULL, TRUE, TRANSPORT_MUTEX_PATH);
-	ioctlHandles.mutexes.application = CreateMutexW(NULL, TRUE, APPLICATION_MUTEX_PATH);
+	ioctlHandles.mutexes.ethernet = CreateMutexW(NULL, FALSE, ETHERNET_MUTEX_PATH);
+	ioctlHandles.mutexes.internet = CreateMutexW(NULL, FALSE, INTERNET_MUTEX_PATH);
+	ioctlHandles.mutexes.transport = CreateMutexW(NULL, FALSE, TRANSPORT_MUTEX_PATH);
+	ioctlHandles.mutexes.application = CreateMutexW(NULL, FALSE, APPLICATION_MUTEX_PATH);
 
 	if (ioctlHandles.mutexes.ethernet == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.internet == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.transport == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.application == INVALID_HANDLE_VALUE)
 	{
