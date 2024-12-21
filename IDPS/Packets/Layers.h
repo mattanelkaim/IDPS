@@ -1,11 +1,15 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
-enum ProtocolCode : uint8_t
+enum ProtocolCode : uint16_t
 {
+    IPV4 = 0x0800,
+    IPV6 = 0x86DD,
     TCP = 0x06,
     UDP = 0x11,
+    ARP = 0x0806,
 };
 
 // TODO: Implement constructors
@@ -14,10 +18,10 @@ struct EthernetHeader
 {
     uint8_t destinationMAC[6];
     uint8_t sourceMAC[6];
-    uint16_t etherType; // Indicates the protocol (IPv4 | IPv6)
+    ProtocolCode etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
     // Constructor to initialize from raw data
-    EthernetHeader(const uint8_t* rawData);
+    EthernetHeader(const std::vector<uint8_t> rawData);
 };
 
 struct IPv4Header
@@ -33,7 +37,7 @@ struct IPv4Header
     uint32_t sourceAddress;
     uint32_t destinationAddress;
 
-    IPv4Header(const uint8_t* rawData);
+    IPv4Header(const std::vector<uint8_t> rawData);
 };
 
 struct TransportHeader
@@ -54,12 +58,12 @@ struct TCPHeader : TransportHeader
     uint16_t windowSize;
     uint16_t urgentPointer;
 
-    TCPHeader(const uint8_t* rawData);
+    TCPHeader(const std::vector<uint8_t> rawData);
 };
 
 struct UDPHeader : TransportHeader
 {
     uint16_t length;
 
-    UDPHeader(const uint8_t* rawData);
+    UDPHeader(const std::vector<uint8_t> rawData);
 };
