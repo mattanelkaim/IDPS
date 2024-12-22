@@ -21,9 +21,24 @@
     <ClInclude Include="sqlite\sqlite3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Packets\Layers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Packets\Packet.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Handlers\DBHandler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Packets\Layers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Packets\Packet.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

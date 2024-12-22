@@ -1,4 +1,4 @@
-#include "Packets/Layers.cpp"
+#include "Packets/Layers.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -28,6 +28,8 @@ std::vector<uint8_t> readFile(const std::string& filename)
         std::cerr << "Failed to read file contents!\n";
         return {}; // Empty
     }
+
+    return buffer;
 }
 
 int main()
@@ -37,6 +39,10 @@ int main()
     // Read byte by byte and print in a nice hex format
     for (const uint8_t byte : rawData)
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(byte)) << " "; 
+
+    const std::vector<uint8_t> dstMAC(rawData.cbegin(), rawData.cbegin() + 14);
+    EthernetHeader ethHeader(dstMAC);
+    std::cout << std::dec << "\nEthernet header type: " << ethHeader.etherType << '\n';
 
     return 0;
 }
