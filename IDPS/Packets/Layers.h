@@ -16,12 +16,13 @@ enum ProtocolCode : uint16_t
 
 struct EthernetHeader
 {
-    uint8_t destinationMAC[6];
-    uint8_t sourceMAC[6];
+    uint8_t dstMAC[6];
+    uint8_t srcMAC[6];
     ProtocolCode etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
+public:
     // Constructor to initialize from raw data
-    EthernetHeader(const std::vector<uint8_t> rawData);
+    EthernetHeader(const std::vector<uint8_t>& rawData);
 };
 
 struct IPv4Header
@@ -37,7 +38,8 @@ struct IPv4Header
     uint32_t sourceAddress;
     uint32_t destinationAddress;
 
-    IPv4Header(const std::vector<uint8_t> rawData);
+public:
+    IPv4Header(const std::vector<uint8_t>& rawData);
 };
 
 struct TransportHeader
@@ -46,6 +48,7 @@ struct TransportHeader
     uint16_t destinationPort;
     uint16_t checksum;
 
+public:
     TransportHeader(const uint16_t src, const uint16_t dst, const uint16_t checksum);
 };
 
@@ -58,12 +61,14 @@ struct TCPHeader : TransportHeader
     uint16_t windowSize;
     uint16_t urgentPointer;
 
-    TCPHeader(const std::vector<uint8_t> rawData);
+public:
+    TCPHeader(const std::vector<uint8_t>& rawData);
 };
 
 struct UDPHeader : TransportHeader
 {
     uint16_t length;
 
-    UDPHeader(const std::vector<uint8_t> rawData);
+public:
+    UDPHeader(const std::vector<uint8_t>& rawData);
 };
