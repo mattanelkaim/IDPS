@@ -32,17 +32,30 @@ std::vector<uint8_t> readFile(const std::string& filename)
     return buffer;
 }
 
+void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t highlight = 0)
+{
+    // Read byte by byte and print in a nice hex format
+    std::cout << std::hex << std::setfill('0') << "\033[31m"; // Formatting + red color
+    for (size_t i = 0; i < highlight; ++i)
+        std::cout << std::setw(2) << static_cast<int>(buffer[i]) << " ";
+
+    // Print second half (not highlighted)
+    std::cout << "\033[0m"; // Reset color
+    for (size_t i = highlight; i < buffer.size(); ++i)
+        std::cout << std::setw(2) << static_cast<int>(buffer[i]) << " ";
+
+    std::cout << std::dec << '\n';
+}
+
 int main()
 {
     const std::vector<uint8_t> rawData = readFile("http packet.bin");
+ 
+    printHexBuffer(rawData, 14);
 
-    // Read byte by byte and print in a nice hex format
-    for (const uint8_t byte : rawData)
-        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(byte)) << " "; 
-
-    const std::vector<uint8_t> dstMAC(rawData.cbegin(), rawData.cbegin() + 14);
-    EthernetHeader ethHeader(dstMAC);
-    std::cout << std::dec << "\nEthernet header type: " << ethHeader.etherType << '\n';
+    const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + 14);
+    EthernetHeader ethHeader(ethernet);
+    std::cout << ethHeader << '\n';
 
     return 0;
 }
