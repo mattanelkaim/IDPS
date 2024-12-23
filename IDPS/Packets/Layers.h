@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <iosfwd> // std::ostream
 #include <vector>
 
 enum ProtocolCode : uint16_t
@@ -23,6 +24,7 @@ struct EthernetHeader
 public:
     // Constructor to initialize from raw data
     EthernetHeader(const std::vector<uint8_t>& rawData);
+    friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
 
 struct IPv4Header
