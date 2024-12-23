@@ -53,9 +53,13 @@ int main()
  
     printHexBuffer(rawData, 14);
 
-    const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + 14);
+    const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + sizeof(EthernetHeader));
     EthernetHeader ethHeader(ethernet);
     std::cout << ethHeader << '\n';
+
+    const std::vector<uint8_t> ipv4(rawData.cbegin() + sizeof(EthernetHeader), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header));
+    IPv4Header ipHeader(ipv4);
+    std::cout << ipHeader << '\n';
 
     return 0;
 }

@@ -1,17 +1,9 @@
 #pragma once
 
+#include "../Helper.h"
 #include <cstdint>
 #include <iosfwd> // std::ostream
 #include <vector>
-
-enum ProtocolCode : uint16_t
-{
-    IPV4 = 0x0800,
-    IPV6 = 0x86DD,
-    TCP = 0x06,
-    UDP = 0x11,
-    ARP = 0x0806,
-};
 
 // TODO: Implement constructors
 
@@ -22,7 +14,6 @@ struct EthernetHeader
     ProtocolCode etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
 public:
-    // Constructor to initialize from raw data
     EthernetHeader(const std::vector<uint8_t>& rawData);
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
@@ -36,12 +27,13 @@ struct IPv4Header
     uint16_t flagsAndFragmentOffset;
     uint8_t timeToLive;
     ProtocolCode protocol; // Indicates upper-layer (TCP | UDP)
-    uint16_t headerChecksum;
-    uint32_t sourceAddress;
-    uint32_t destinationAddress;
+    uint16_t checksum;
+    uint32_t srcIP;
+    uint32_t dstIP;
 
 public:
     IPv4Header(const std::vector<uint8_t>& rawData);
+    friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
 struct TransportHeader

@@ -132,6 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Handlers\DBHandler.h" />
+    <ClInclude Include="Helper.h" />
     <ClInclude Include="Packets\Layers.h" />
     <ClInclude Include="Packets\Packet.h" />
     <ClInclude Include="sqlite\sqlite3.h" />
