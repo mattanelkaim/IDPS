@@ -19,8 +19,8 @@
 // work item to operate at IRQL passive level
 typedef struct _WORK_CONTEXT {
     char WorkItem[128]; // A 128 byte buffer to replace _IO_WORKITEM (128 is based purely on hope and prayer)
-    BOOL finished;
-    BOOL started;
+    BOOL queued;
+    BOOL ongoing;
     PVOID layerData;
 } WORK_CONTEXT, * PWORK_CONTEXT;
 
@@ -81,7 +81,7 @@ void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
 void TryQueueWorkItem(PVOID layerData);
 NTSTATUS InitFileNames();
 VOID UnInitMutexes();
-VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context);
+KSTART_ROUTINE WorkItemRoutine;
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -122,8 +122,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     // Initialize the work item in the global context
     IDPS_PRINT("Initializing work item...\n");
     IoInitializeWorkItem(deviceObject, (PIO_WORKITEM)&workContext.WorkItem);
-    workContext.finished = TRUE;
-    workContext.started = FALSE;
+    workContext.queued = FALSE;
+    workContext.ongoing = FALSE;
 
     // Bind functions to handling function
     for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; ++i)
@@ -139,7 +139,7 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     driverUnloading = TRUE; // insuring no new work items queue while unloading the driver
     IDPS_PRINT("Unloading driver...\n");
-    //while(workContext.started) {}
+    while(workContext.ongoing) {}
     IoUninitializeWorkItem((PIO_WORKITEM)&workContext.WorkItem);
     UnInitWfp();
     IoDeleteDevice(DriverObject->DeviceObject);
@@ -634,6 +634,12 @@ void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
     OBJECT_ATTRIBUTES objAttributes;
     IO_STATUS_BLOCK ioStatusBlock;
 
+    if (!buffer)
+    {
+        IDPS_PRINT("writeToFile received null buffer");
+        return;
+    }
+
     // Initialize the OBJECT_ATTRIBUTES structure
     IDPS_PRINT("Initializing file attributes");
     InitializeObjectAttributes(
@@ -666,7 +672,7 @@ void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
     }
 
     // Write data to the file
-    IDPS_PRINT2("Writing %ul bytes to file", bufferSize);
+    IDPS_PRINT2("Writing %u bytes to file", bufferSize);
     status = ZwWriteFile(
         fileHandle,
         NULL,
@@ -690,14 +696,14 @@ closeFile:
 
 void TryQueueWorkItem(PVOID layerData)
 {
-    if (!workContext.finished || driverUnloading)
+    if (workContext.queued || driverUnloading)
     {
         IDPS_PRINT("Work item already queued...");
         return;
     }
 
     // Initialize the global context
-    workContext.finished = FALSE;
+    workContext.queued = TRUE;
     workContext.layerData = layerData;
 
     // Queue the work item
@@ -735,23 +741,21 @@ VOID UnInitMutexes()
     ZwClose(mutexes.application);
 }
 
-VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
+VOID WorkItemRoutine(PVOID Context)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
     PWORK_CONTEXT context = (PWORK_CONTEXT)Context;
 
-    context->started = TRUE;
+    context->ongoing = TRUE;
 
     // If the driver unloaded while the work item was still queued
-    if (context->finished || !context->layerData)
+    if (driverUnloading || !context->layerData)
     {
         IDPS_PRINT("Abandoning work item routine");
-        context->started = FALSE;
+        context->ongoing = FALSE;
         return;
     }
 
     IDPS_PRINT("Begun work item routine!");
-    context->finished = FALSE;
 
     NTSTATUS status = STATUS_SUCCESS;
     PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)context->layerData;
@@ -768,8 +772,8 @@ VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
     if (totalDataLength == 0)
     {
         IDPS_PRINT("Work item received no data!");
-        context->finished = TRUE;
-        context->started = FALSE;
+        context->queued = FALSE;
+        context->ongoing = FALSE;
         return; // Nothing to write
     }
 
@@ -801,7 +805,7 @@ VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
 
             // Write this chunk of data to the file
             ULONG i;
-            for (i = 0; i + 64ul < bytesToProcess; i += 64)
+            for (i = 0; i + 64 < bytesToProcess; i += 64)
                 IDPS_PRINT3("%.*s", 64, (BYTE*)dataPointer + i);
             IDPS_PRINT3("%.*s", bytesToProcess - i, (BYTE*)dataPointer + i);
             writeToFile(&internetFilePath, dataPointer, bytesToProcess);
@@ -821,6 +825,6 @@ VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
     }
 
     IDPS_PRINT("Finished work item routine");
-    context->finished = TRUE;
-    context->started = FALSE;
+    context->queued = FALSE;
+    context->ongoing = FALSE;
 }
