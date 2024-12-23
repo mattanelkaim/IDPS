@@ -18,12 +18,10 @@
 
 // work item to operate at IRQL passive level
 typedef struct _WORK_CONTEXT {
-    char WorkItem[128];       // The pre-allocated work item
-    PUNICODE_STRING FilePath;   // Pointer to the file path
-    PVOID Buffer;               // Pointer to the data buffer
-    ULONG BufferSize;           // Size of the data buffer
-    HANDLE mutex;
+    char WorkItem[128]; // A 128 byte buffer to replace _IO_WORKITEM (128 is based purely on hope and prayer)
     BOOL finished;
+    BOOL started;
+    PVOID layerData;
 } WORK_CONTEXT, * PWORK_CONTEXT;
 
 WORK_CONTEXT workContext = { 0 };
@@ -80,7 +78,7 @@ NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const G
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
 void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
-void TryQueueWorkItem(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, HANDLE mutex);
+void TryQueueWorkItem(PVOID layerData);
 NTSTATUS InitFileNames();
 VOID UnInitMutexes();
 VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context);
@@ -125,6 +123,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     IDPS_PRINT("Initializing work item...\n");
     IoInitializeWorkItem(deviceObject, (PIO_WORKITEM)&workContext.WorkItem);
     workContext.finished = TRUE;
+    workContext.started = FALSE;
 
     // Bind functions to handling function
     for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; ++i)
@@ -140,9 +139,9 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     driverUnloading = TRUE; // insuring no new work items queue while unloading the driver
     IDPS_PRINT("Unloading driver...\n");
-    UnInitWfp();
-    while (!workContext.finished) { (void)0; }
+    //while(workContext.started) {}
     IoUninitializeWorkItem((PIO_WORKITEM)&workContext.WorkItem);
+    UnInitWfp();
     IoDeleteDevice(DriverObject->DeviceObject);
     IoDeleteSymbolicLink(&SYMLINK_NAME);
     IDPS_PRINT("Driver unloaded succefully!\n");
@@ -229,6 +228,8 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
             IoDeleteSymbolicLink(&SYMLINK_NAME);
             return status;
         }
+
+
         break;
     default:
         break;
@@ -486,60 +487,18 @@ VOID EthernetCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGN
 }
 VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    IDPS_PRINT("Received inbound IP packet");
+    IDPS_PRINT("Received inbound IP packet...");
 
     if (layerData == NULL || classifyOut == NULL) {
         IDPS_PRINT("Layer data or classifyOut is NULL");
         return;
     }
 
-    IDPS_PRINT("Layer data is not null");
-
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
     classifyOut->actionType = FWP_ACTION_PERMIT;
-
-    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
-    if (nbl == NULL) {
-        IDPS_PRINT("NET_BUFFER_LIST is NULL");
-        return;
-    }
-
-    IDPS_PRINT("NET_BUFFER_LIST is not null");
-
-    NET_BUFFER* nb = NET_BUFFER_LIST_FIRST_NB(nbl);
-    while (nb != NULL) {
-        ULONG packetLength = NET_BUFFER_DATA_LENGTH(nb);
-
-        // Ensure buffer to read data
-        UCHAR packetBuffer[1024] = { 0 };
-        ULONG readLength = (packetLength < sizeof(packetBuffer)) ? packetLength : sizeof(packetBuffer);
-
-        // Retrieve the data
-        PUCHAR data = NdisGetDataBuffer(nb, readLength, packetBuffer, 1, 0);
-        if (data == NULL) {
-            IDPS_PRINT("Failed to retrieve packet data");
-            return;
-        }
-
-        // If data was mapped into the local buffer, update pointer to it
-        if (data != packetBuffer) {
-            RtlCopyMemory(packetBuffer, data, readLength);
-        }
-
-        // Print the raw data as a string (may include non-printable characters)
-        ULONG i;
-        for (i = 0; i + 64ul < readLength; i += 64)
-            IDPS_PRINT3("%.*s", 64, packetBuffer + i);
-        IDPS_PRINT3("%.*s", readLength - i, packetBuffer + i);
-        IDPS_PRINT("queueing work item");
-        TryQueueWorkItem(&internetFilePath, packetBuffer, readLength, mutexes.internet);
-
-
-        // Move to the next NET_BUFFER
-        nb = NET_BUFFER_NEXT_NB(nb);
-    }
-
-    IDPS_PRINT("Finished processing packet");
+        
+    IDPS_PRINT("queueing work item");
+    TryQueueWorkItem(layerData);
 }
 VOID TransportCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
@@ -670,117 +629,76 @@ VOID UnInitWfp()
 }
 void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
 {
-    IDPS_PRINT("Writing packet to file");
     NTSTATUS status = STATUS_SUCCESS;
-    PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)layerData;
-    PNET_BUFFER netBuffer = NULL;
-    ULONGLONG totalDataLength = 0; // To store the full packet length as 8 bytes
-    UCHAR lengthBuffer[8] = { 0 };   // Buffer to hold the length in binary format
+    HANDLE fileHandle = NULL;
+    OBJECT_ATTRIBUTES objAttributes;
+    IO_STATUS_BLOCK ioStatusBlock;
 
-    // Validate input
-    if (layerData == NULL || filePath == NULL || mutex == NULL) {
-        classifyOut->actionType = FWP_ACTION_BLOCK;
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-        return;
-    }
+    // Initialize the OBJECT_ATTRIBUTES structure
+    IDPS_PRINT("Initializing file attributes");
+    InitializeObjectAttributes(
+        &objAttributes,
+        filePath,
+        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+        NULL,
+        NULL
+    );
 
-    // Calculate the total length of data in the Net Buffer List
-    netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
-    while (netBuffer != NULL) {
-        totalDataLength += NET_BUFFER_DATA_LENGTH(netBuffer);
-        netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
-    }
+    // Open or create the file
+    IDPS_PRINT("Creating file handle");
+    status = ZwCreateFile(
+        &fileHandle,
+        GENERIC_WRITE,
+        &objAttributes,
+        &ioStatusBlock,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        0,
+        FILE_OVERWRITE_IF,
+        FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL,
+        0
+    );
 
-    if (totalDataLength == 0) {
-        classifyOut->actionType = FWP_ACTION_CONTINUE;
-        return; // Nothing to write
-    }
-
-    // Acquire the mutex for exclusive access to the file
-    status = KeWaitForSingleObject(*mutex, Executive, KernelMode, FALSE, NULL);
     if (!NT_SUCCESS(status)) {
-        classifyOut->actionType = FWP_ACTION_BLOCK;
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-        return;
+        IDPS_PRINT2("Failed to open file: %x", status);
+        goto closeFile;
     }
 
-    // Write the total length (8 bytes) to the file
-    RtlCopyMemory(lengthBuffer, &totalDataLength, sizeof(totalDataLength));
-    //WriteToFile(filePath, lengthBuffer, sizeof(lengthBuffer));
-    if (!NT_SUCCESS(status)) {
-        classifyOut->actionType = FWP_ACTION_BLOCK;
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-        KeReleaseMutex(*mutex, FALSE);
-        return;
-    }
+    // Write data to the file
+    IDPS_PRINT2("Writing %ul bytes to file", bufferSize);
+    status = ZwWriteFile(
+        fileHandle,
+        NULL,
+        NULL,
+        NULL,
+        &ioStatusBlock,
+        buffer,
+        bufferSize,
+        NULL,
+        NULL
+    );
 
-    // Traverse each NET_BUFFER in the NET_BUFFER_LIST again to write the actual data
-    netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
-    while (netBuffer != NULL) {
-        ULONG dataLength = NET_BUFFER_DATA_LENGTH(netBuffer);
-        PVOID dataPointer = NULL;
-        PMDL mdl = NET_BUFFER_FIRST_MDL(netBuffer);
-        ULONG offset = NET_BUFFER_CURRENT_MDL_OFFSET(netBuffer);
+    if (!NT_SUCCESS(status))
+        IDPS_PRINT("Failed to write to file.");
 
-        // Traverse the MDL chain for this NET_BUFFER
-        while (mdl != NULL && dataLength > 0) {
-            ULONG mdlLength = MmGetMdlByteCount(mdl) - offset;
-            ULONG bytesToProcess = min(dataLength, mdlLength);
-
-            // Map the MDL to a virtual address
-            dataPointer = MmGetSystemAddressForMdlSafe(mdl, NormalPagePriority);
-            if (dataPointer == NULL) {
-                status = STATUS_INSUFFICIENT_RESOURCES;
-                break;
-            }
-
-            // Adjust the pointer for the offset
-            dataPointer = (PVOID)((PUCHAR)dataPointer + offset);
-
-            // Write this chunk of data to the file
-            //WriteToFile(filePath, dataPointer, bytesToProcess);
-            if (!NT_SUCCESS(status)) {
-                break;
-            }
-
-            // Update the remaining data length and move to the next MDL
-            dataLength -= bytesToProcess;
-            offset = 0; // Offset is only applicable to the first MDL
-            mdl = mdl->Next;
-        }
-
-        if (!NT_SUCCESS(status)) {
-            break;
-        }
-
-        // Move to the next NET_BUFFER in the list
-        netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
-    }
-
-    // Release the mutex
-    KeReleaseMutex(*mutex, FALSE);
-
-    // Set classify action based on success or failure
-    if (NT_SUCCESS(status)) {
-        classifyOut->actionType = FWP_ACTION_CONTINUE;
-    }
-    else {
-        classifyOut->actionType = FWP_ACTION_BLOCK;
-        classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-    }
+closeFile:
+    // Closing the file handle
+    IDPS_PRINT("Closing file handle");
+    ZwClose(fileHandle);
 }
 
-void TryQueueWorkItem(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, HANDLE mutex)
+void TryQueueWorkItem(PVOID layerData)
 {
     if (!workContext.finished || driverUnloading)
+    {
+        IDPS_PRINT("Work item already queued...");
         return;
+    }
 
     // Initialize the global context
     workContext.finished = FALSE;
-    workContext.FilePath = filePath;
-    workContext.Buffer = buffer;
-    workContext.BufferSize = bufferSize;
-    workContext.mutex = mutex;
+    workContext.layerData = layerData;
 
     // Queue the work item
     IoQueueWorkItem(
@@ -789,6 +707,8 @@ void TryQueueWorkItem(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize, 
         DelayedWorkQueue,
         &workContext
     );
+
+    IDPS_PRINT("Work item queued succefully!");
 }
 
 NTSTATUS InitFileNames()
@@ -820,78 +740,87 @@ VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
     UNREFERENCED_PARAMETER(DeviceObject);
     PWORK_CONTEXT context = (PWORK_CONTEXT)Context;
 
-    HANDLE fileHandle = NULL;
-    OBJECT_ATTRIBUTES objAttributes;
-    IO_STATUS_BLOCK ioStatusBlock;
-    NTSTATUS status = STATUS_SUCCESS;
+    context->started = TRUE;
 
     // If the driver unloaded while the work item was still queued
-    if (context->finished)
+    if (context->finished || !context->layerData)
+    {
+        IDPS_PRINT("Abandoning work item routine");
+        context->started = FALSE;
         return;
-
-    /*IDPS_PRINT("Waiting for mutex...");
-    status = ZwWaitForSingleObject(context->mutex, FALSE, NULL);
-    if (!NT_SUCCESS(status)) {
-        IDPS_PRINT2("Waiting for mutex failed: %X", status);
-        return;
-    }*/
-
-    // Initialize the OBJECT_ATTRIBUTES structure
-    IDPS_PRINT("Initializing file attributes");
-    InitializeObjectAttributes(
-        &objAttributes,
-        context->FilePath,
-        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
-        NULL,
-        NULL
-    );
-
-    // Open or create the file
-    IDPS_PRINT("Creating file handle");
-    status = ZwCreateFile(
-        &fileHandle,
-        GENERIC_WRITE,
-        &objAttributes,
-        &ioStatusBlock,
-        NULL,
-        FILE_ATTRIBUTE_NORMAL,
-        0,
-        FILE_OVERWRITE_IF,
-        FILE_SYNCHRONOUS_IO_NONALERT,
-        NULL,
-        0
-    );
-
-    if (!NT_SUCCESS(status)) {
-        IDPS_PRINT2("Failed to open file: %x", status);
-        goto end;
     }
 
-    // Write data to the file
-    IDPS_PRINT("Writing to file");
-    status = ZwWriteFile(
-        fileHandle,
-        NULL,
-        NULL,
-        NULL,
-        &ioStatusBlock,
-        context->Buffer,
-        context->BufferSize,
-        NULL,
-        NULL
-    );
+    IDPS_PRINT("Begun work item routine!");
+    context->finished = FALSE;
 
-    if (!NT_SUCCESS(status))
-        IDPS_PRINT("Failed to write to file.");
+    NTSTATUS status = STATUS_SUCCESS;
+    PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)context->layerData;
+    PNET_BUFFER netBuffer = NULL;
+    ULONG totalDataLength = 0; // To store the full packet length as 8 bytes
 
-    end:
-    // Close the file handle
-    IDPS_PRINT("Closing file handle");
-    ZwClose(fileHandle);
+    // Calculate the total length of data in the Net Buffer List
+    netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
+    while (netBuffer != NULL) {
+        totalDataLength += NET_BUFFER_DATA_LENGTH(netBuffer);
+        netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
+    }
 
-    //// Release the mutex
-    //IDPS_PRINT("Releasing the mutex");
-    //KeReleaseMutex(context->mutex, FALSE);
+    if (totalDataLength == 0)
+    {
+        IDPS_PRINT("Work item received no data!");
+        context->finished = TRUE;
+        context->started = FALSE;
+        return; // Nothing to write
+    }
 
+    // Write the total length (8 bytes) to the file
+    writeToFile(&internetFilePath, &totalDataLength, totalDataLength);
+
+    // Traverse each NET_BUFFER in the NET_BUFFER_LIST again to write the actual data
+    netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
+    while (netBuffer != NULL) {
+        ULONG dataLength = NET_BUFFER_DATA_LENGTH(netBuffer);
+        PVOID dataPointer = NULL;
+        PMDL mdl = NET_BUFFER_FIRST_MDL(netBuffer);
+        ULONG offset = NET_BUFFER_CURRENT_MDL_OFFSET(netBuffer);
+
+        // Traverse the MDL chain for this NET_BUFFER
+        while (mdl != NULL && dataLength > 0) {
+            ULONG mdlLength = MmGetMdlByteCount(mdl) - offset;
+            ULONG bytesToProcess = min(dataLength, mdlLength);
+
+            // Map the MDL to a virtual address
+            dataPointer = MmGetSystemAddressForMdlSafe(mdl, NormalPagePriority);
+            if (dataPointer == NULL) {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
+            }
+
+            // Adjust the pointer for the offset
+            dataPointer = (PVOID)((PUCHAR)dataPointer + offset);
+
+            // Write this chunk of data to the file
+            ULONG i;
+            for (i = 0; i + 64ul < bytesToProcess; i += 64)
+                IDPS_PRINT3("%.*s", 64, (BYTE*)dataPointer + i);
+            IDPS_PRINT3("%.*s", bytesToProcess - i, (BYTE*)dataPointer + i);
+            writeToFile(&internetFilePath, dataPointer, bytesToProcess);
+
+            // Update the remaining data length and move to the next MDL
+            dataLength -= bytesToProcess;
+            offset = 0; // Offset is only applicable to the first MDL
+            mdl = mdl->Next;
+        }
+
+        if (!NT_SUCCESS(status)) {
+            break;
+        }
+
+        // Move to the next NET_BUFFER in the list
+        netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
+    }
+
+    IDPS_PRINT("Finished work item routine");
     context->finished = TRUE;
+    context->started = FALSE;
 }
