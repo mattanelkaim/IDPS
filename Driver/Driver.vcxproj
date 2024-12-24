@@ -97,7 +97,7 @@
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km\ndis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/showIncludes %(AdditionalOptions)</AdditionalOptions>
-      <DisableSpecificWarnings>4100;4189;4101;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4100;4189;4101;4702;4242;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Inf />
     <Link>

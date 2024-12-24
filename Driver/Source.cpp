@@ -21,7 +21,9 @@ typedef struct _WORK_CONTEXT {
     char WorkItem[128]; // A 128 byte buffer to replace _IO_WORKITEM (128 is based purely on hope and prayer)
     BOOL queued;
     BOOL ongoing;
-    PVOID layerData;
+	BOOL held;
+	BYTE layerData[65536]; // 64KB buffer to store the layer data
+	USHORT layerDataLength;
 } WORK_CONTEXT, * PWORK_CONTEXT;
 
 WORK_CONTEXT workContext = { 0 };
@@ -81,7 +83,8 @@ void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize);
 void TryQueueWorkItem(PVOID layerData);
 NTSTATUS InitFileNames();
 VOID UnInitMutexes();
-KSTART_ROUTINE WorkItemRoutine;
+IO_WORKITEM_ROUTINE WorkItemRoutine;
+void copyLayerData(PVOID layerData);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -119,11 +122,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
         return status;
     }
 
-    // Initialize the work item in the global context
+    // Initializing work context
     IDPS_PRINT("Initializing work item...\n");
     IoInitializeWorkItem(deviceObject, (PIO_WORKITEM)&workContext.WorkItem);
     workContext.queued = FALSE;
     workContext.ongoing = FALSE;
+	workContext.held = FALSE;
+	workContext.layerDataLength = 0;
 
     // Bind functions to handling function
     for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; ++i)
@@ -696,15 +701,20 @@ closeFile:
 
 void TryQueueWorkItem(PVOID layerData)
 {
+    if (!workContext.ongoing)
+    {
+		workContext.held = TRUE;
+		copyLayerData(layerData);
+		workContext.held = FALSE;
+    }
+
     if (workContext.queued || driverUnloading)
     {
         IDPS_PRINT("Work item already queued...");
         return;
     }
 
-    // Initialize the global context
     workContext.queued = TRUE;
-    workContext.layerData = layerData;
 
     // Queue the work item
     IoQueueWorkItem(
@@ -741,44 +751,32 @@ VOID UnInitMutexes()
     ZwClose(mutexes.application);
 }
 
-VOID WorkItemRoutine(PVOID Context)
+void copyLayerData(PVOID layerData)
 {
-    PWORK_CONTEXT context = (PWORK_CONTEXT)Context;
-
-    context->ongoing = TRUE;
-
-    // If the driver unloaded while the work item was still queued
-    if (driverUnloading || !context->layerData)
-    {
-        IDPS_PRINT("Abandoning work item routine");
-        context->ongoing = FALSE;
-        return;
-    }
-
-    IDPS_PRINT("Begun work item routine!");
-
     NTSTATUS status = STATUS_SUCCESS;
-    PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)context->layerData;
+    PNET_BUFFER_LIST netBufferList = (PNET_BUFFER_LIST)layerData;
     PNET_BUFFER netBuffer = NULL;
-    ULONG totalDataLength = 0; // To store the full packet length as 8 bytes
+    USHORT totalDataLength = 0; // To store the full packet length as 8 bytes
+	USHORT currPos = 0; // Current position in the buffer
 
+	if (!layerData)
+		return;
+	
     // Calculate the total length of data in the Net Buffer List
     netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
     while (netBuffer != NULL) {
-        totalDataLength += NET_BUFFER_DATA_LENGTH(netBuffer);
+        totalDataLength += (USHORT)NET_BUFFER_DATA_LENGTH(netBuffer);
         netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
     }
+
+	workContext.layerDataLength = totalDataLength;
 
     if (totalDataLength == 0)
     {
         IDPS_PRINT("Work item received no data!");
-        context->queued = FALSE;
-        context->ongoing = FALSE;
         return; // Nothing to write
     }
 
-    // Write the total length (8 bytes) to the file
-    writeToFile(&internetFilePath, &totalDataLength, totalDataLength);
 
     // Traverse each NET_BUFFER in the NET_BUFFER_LIST again to write the actual data
     netBuffer = NET_BUFFER_LIST_FIRST_NB(netBufferList);
@@ -804,14 +802,11 @@ VOID WorkItemRoutine(PVOID Context)
             dataPointer = (PVOID)((PUCHAR)dataPointer + offset);
 
             // Write this chunk of data to the file
-            ULONG i;
-            for (i = 0; i + 64 < bytesToProcess; i += 64)
-                IDPS_PRINT3("%.*s", 64, (BYTE*)dataPointer + i);
-            IDPS_PRINT3("%.*s", bytesToProcess - i, (BYTE*)dataPointer + i);
-            writeToFile(&internetFilePath, dataPointer, bytesToProcess);
+			RtlCopyMemory(workContext.layerData + currPos, dataPointer, bytesToProcess);
+			currPos += (USHORT)bytesToProcess;
 
             // Update the remaining data length and move to the next MDL
-            dataLength -= bytesToProcess;
+            dataLength -= (USHORT)bytesToProcess;
             offset = 0; // Offset is only applicable to the first MDL
             mdl = mdl->Next;
         }
@@ -823,8 +818,43 @@ VOID WorkItemRoutine(PVOID Context)
         // Move to the next NET_BUFFER in the list
         netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
     }
+}
 
-    IDPS_PRINT("Finished work item routine");
+VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+    PWORK_CONTEXT context = (PWORK_CONTEXT)Context;
+
+	if (!context)
+	{
+		IDPS_PRINT("Work item routine received null context");
+		return;
+	}
+
+    context->ongoing = TRUE;
+	while (context->held) {} // waiting for the work item to be released
+
+    // If the driver unloaded while the work item was still queued
+    if (driverUnloading || !context->layerData)
+    {
+        IDPS_PRINT("Abandoning work item routine");
+        context->ongoing = FALSE;
+        return;
+    }
+
+    IDPS_PRINT("Begun work item routine!");
+
+    // Write the total length (8 bytes) to the file
+    writeToFile(&internetFilePath, &workContext.layerDataLength, sizeof(workContext.layerDataLength));
+
+	// writing the actual data to the file
+    USHORT i;
+    for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
+        IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
+    IDPS_PRINT3("%.*s", workContext.layerDataLength - i, workContext.layerData + i);
+    writeToFile(&internetFilePath, workContext.layerData, workContext.layerDataLength);
+
     context->queued = FALSE;
     context->ongoing = FALSE;
+    IDPS_PRINT("Finished work item routine");
 }
