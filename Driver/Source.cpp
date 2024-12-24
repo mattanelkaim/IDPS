@@ -659,13 +659,13 @@ void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
     IDPS_PRINT("Creating file handle");
     status = ZwCreateFile(
         &fileHandle,
-        GENERIC_WRITE,
+        FILE_APPEND_DATA | SYNCHRONIZE,
         &objAttributes,
         &ioStatusBlock,
         NULL,
         FILE_ATTRIBUTE_NORMAL,
-        0,
-        FILE_OVERWRITE_IF,
+        FILE_SHARE_WRITE,
+        FILE_OPEN_IF,
         FILE_SYNCHRONOUS_IO_NONALERT,
         NULL,
         0
@@ -673,6 +673,22 @@ void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
 
     if (!NT_SUCCESS(status)) {
         IDPS_PRINT2("Failed to open file: %x", status);
+        goto closeFile;
+    }
+
+    // Set the file pointer to the end of the file
+    FILE_POSITION_INFORMATION filePositionInfo;
+    filePositionInfo.CurrentByteOffset.QuadPart = FILE_WRITE_TO_END_OF_FILE;
+    status = ZwSetInformationFile(
+        fileHandle,
+        &ioStatusBlock,
+        &filePositionInfo,
+        sizeof(FILE_POSITION_INFORMATION),
+        FilePositionInformation
+    );
+
+    if (!NT_SUCCESS(status)) {
+        IDPS_PRINT2("Failed to set file pointer: %x", status);
         goto closeFile;
     }
 
