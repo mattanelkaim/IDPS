@@ -32,16 +32,24 @@ std::vector<uint8_t> readFile(const std::string& filename)
     return buffer;
 }
 
-void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t highlight = 0)
+void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, const size_t second = 0)
 {
+    size_t i = 0, sectionEnd = first;
+
     // Read byte by byte and print in a nice hex format
     std::cout << std::hex << std::setfill('0') << "\033[31m"; // Formatting + red color
-    for (size_t i = 0; i < highlight; ++i)
+    for (; i < sectionEnd; ++i)
+        std::cout << std::setw(2) << static_cast<int>(buffer[i]) << " ";
+    sectionEnd += second;
+
+    // Print second layer
+    std::cout << "\033[32m"; // Green color
+    for (; i < sectionEnd; ++i)
         std::cout << std::setw(2) << static_cast<int>(buffer[i]) << " ";
 
-    // Print second half (not highlighted)
+    // Print the rest
     std::cout << "\033[0m"; // Reset color
-    for (size_t i = highlight; i < buffer.size(); ++i)
+    for (; i < buffer.size(); ++i)
         std::cout << std::setw(2) << static_cast<int>(buffer[i]) << " ";
 
     std::cout << std::dec << '\n';
@@ -51,15 +59,15 @@ int main()
 {
     const std::vector<uint8_t> rawData = readFile("http packet.bin");
  
-    printHexBuffer(rawData, 14);
+    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header));
 
     const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + sizeof(EthernetHeader));
     EthernetHeader ethHeader(ethernet);
-    std::cout << ethHeader << '\n';
+    std::cout << "\n\033[41mEthernet:\033[0m\n" << ethHeader << '\n';
 
     const std::vector<uint8_t> ipv4(rawData.cbegin() + sizeof(EthernetHeader), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header));
     IPv4Header ipHeader(ipv4);
-    std::cout << ipHeader << '\n';
+    std::cout << "\033[42mIP:\033[0m\n" << ipHeader << '\n';
 
     return 0;
 }
