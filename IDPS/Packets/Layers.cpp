@@ -1,4 +1,3 @@
-//#include "../Helper.h"
 #include "Layers.h"
 #include <iomanip> // std::setw, std::setfill
 #include <stdexcept> // std::runtime_error
@@ -13,7 +12,7 @@ EthernetHeader::EthernetHeader(const std::vector<uint8_t>& rawData)
     *this = *reinterpret_cast<const EthernetHeader*>(rawData.data());
 
     // Convert to big endian if needed
-    this->etherType = toBigEndian(this->etherType);
+    this->etherType = Helper::toBigEndian(this->etherType);
 }
 
 std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
@@ -42,12 +41,12 @@ IPv4Header::IPv4Header(const std::vector<uint8_t>& rawData)
     *this = *reinterpret_cast<const IPv4Header*>(rawData.data());
 
     // Convert to big endian if needed
-    this->totalLength = toBigEndian(this->totalLength);
-    this->identification = toBigEndian(this->identification);
-    this->flagsAndFragmentOffset = toBigEndian(this->flagsAndFragmentOffset);
-    this->checksum = toBigEndian(this->checksum);
-    this->srcIP = toBigEndian(this->srcIP);
-    this->dstIP = toBigEndian(this->dstIP);
+    this->totalLength = Helper::toBigEndian(this->totalLength);
+    this->identification = Helper::toBigEndian(this->identification);
+    this->flagsAndFragmentOffset = Helper::toBigEndian(this->flagsAndFragmentOffset);
+    this->checksum = Helper::toBigEndian(this->checksum);
+    this->srcIP = Helper::toBigEndian(this->srcIP);
+    this->dstIP = Helper::toBigEndian(this->dstIP);
 }
 
 std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)

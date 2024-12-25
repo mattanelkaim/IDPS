@@ -7,6 +7,8 @@
 
 // TODO: Implement constructors
 
+#pragma pack(push, 1) // All structs must be packed because of alignment
+
 struct EthernetHeader
 {
     uint8_t dstMAC[6];
@@ -66,3 +68,5 @@ struct UDPHeader : TransportHeader
 public:
     UDPHeader(const std::vector<uint8_t>& rawData);
 };
+
+#pragma pack(pop)
