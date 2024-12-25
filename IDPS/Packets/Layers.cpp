@@ -121,3 +121,28 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
 
     return os;
 }
+
+
+UDPHeader::UDPHeader(const std::vector<uint8_t>& rawData)
+{
+    if (rawData.size() < sizeof(UDPHeader)) [[unlikely]]
+        throw std::runtime_error("Invalid UDP header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const UDPHeader*>(rawData.data());
+
+    // Convert to big endian if needed
+    this->srcPort = Helper::toBigEndian(this->srcPort);
+    this->dstPort = Helper::toBigEndian(this->dstPort);
+    this->length = Helper::toBigEndian(this->length);
+    this->checksum = Helper::toBigEndian(this->checksum);
+}
+
+std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
+{
+    os << "\033[4mSource port\033[0m: " << obj.srcPort << '\n';
+    os << "\033[4mDestination port\033[0m: " << obj.dstPort << '\n';
+    os << "\033[4mLength\033[0m: " << obj.length << '\n';
+    os << "\033[4mChecksum\033[0m: " << obj.checksum << '\n';
+    return os;
+}

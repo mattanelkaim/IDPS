@@ -57,10 +57,14 @@ public:
 
 struct UDPHeader
 {
+    uint16_t srcPort;
+    uint16_t dstPort;
     uint16_t length;
+    uint16_t checksum;
 
 public:
     UDPHeader(const std::vector<uint8_t>& rawData);
+    friend std::ostream& operator<<(std::ostream& os, const UDPHeader& obj);
 };
 
 #pragma pack(pop)
