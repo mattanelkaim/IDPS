@@ -1,10 +1,9 @@
 #include "Layers.h"
 #include <iomanip> // std::setw, std::setfill
 #include <stdexcept> // std::runtime_error
-#include <iostream>
-#include <bitset>
 
-EthernetHeader::EthernetHeader(const std::vector<uint8_t>& rawData)
+
+EthernetHeader::EthernetHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(EthernetHeader)) [[unlikely]]
         throw std::runtime_error("Invalid Ethernet header size");
@@ -33,7 +32,7 @@ std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
 }
 
 
-IPv4Header::IPv4Header(const std::vector<uint8_t>& rawData)
+IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(IPv4Header)) [[unlikely]]
         throw std::runtime_error("Invalid IPv4 header size");
@@ -68,15 +67,7 @@ std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
 }
 
 
-//TransportHeader::TransportHeader(const uint16_t src, const uint16_t dst, const uint16_t checksum)
-//{
-//    this->srcPort = Helper::toBigEndian(src);
-//    this->dstPort = Helper::toBigEndian(dst);
-//    this->checksum = Helper::toBigEndian(checksum);
-//}
-
-
-TCPHeader::TCPHeader(const std::vector<uint8_t>& rawData)
+TCPHeader::TCPHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(TCPHeader)) [[unlikely]]
         throw std::runtime_error("Invalid TCP header size");
@@ -123,7 +114,7 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
 }
 
 
-UDPHeader::UDPHeader(const std::vector<uint8_t>& rawData)
+UDPHeader::UDPHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(UDPHeader)) [[unlikely]]
         throw std::runtime_error("Invalid UDP header size");

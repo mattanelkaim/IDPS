@@ -3,7 +3,7 @@
 #include "../Helper.h"
 #include <cstdint>
 #include <iosfwd> // std::ostream
-#include <vector>
+#include <span>
 
 // TODO: Implement constructors
 
@@ -16,7 +16,7 @@ struct EthernetHeader
     ProtocolCode_16 etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
 public:
-    EthernetHeader(const std::vector<uint8_t>& rawData);
+    EthernetHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
 
@@ -34,7 +34,7 @@ struct IPv4Header
     uint32_t dstIP;
 
 public:
-    IPv4Header(const std::vector<uint8_t>& rawData);
+    IPv4Header(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
@@ -51,7 +51,7 @@ struct TCPHeader
     uint16_t urgentPointer;
 
 public:
-    TCPHeader(const std::vector<uint8_t>& rawData);
+    TCPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const TCPHeader& obj);
 };
 
@@ -63,7 +63,7 @@ struct UDPHeader
     uint16_t checksum;
 
 public:
-    UDPHeader(const std::vector<uint8_t>& rawData);
+    UDPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const UDPHeader& obj);
 };
 
