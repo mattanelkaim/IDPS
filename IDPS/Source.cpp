@@ -57,7 +57,7 @@ void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, 
 
 int main()
 {
-    const std::vector<uint8_t> rawData = readFile("http packet.bin");
+    const std::vector<uint8_t> rawData = readFile("packet174");
  
     printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header));
 
