@@ -38,30 +38,24 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
-struct TransportHeader
+struct TCPHeader
 {
-    uint16_t sourcePort;
-    uint16_t destinationPort;
-    uint16_t checksum;
-
-public:
-    TransportHeader(const uint16_t src, const uint16_t dst, const uint16_t checksum);
-};
-
-struct TCPHeader : TransportHeader
-{
-    uint32_t sequenceNumber;
-    uint32_t acknowledgmentNumber;
+    uint16_t srcPort;
+    uint16_t dstPort;
+    uint32_t seqNumber;
+    uint32_t ackNumber;
     uint8_t dataOffsetAndReserved;
     uint8_t flags;
     uint16_t windowSize;
+    uint16_t checksum;
     uint16_t urgentPointer;
 
 public:
     TCPHeader(const std::vector<uint8_t>& rawData);
+    friend std::ostream& operator<<(std::ostream& os, const TCPHeader& obj);
 };
 
-struct UDPHeader : TransportHeader
+struct UDPHeader
 {
     uint16_t length;
 

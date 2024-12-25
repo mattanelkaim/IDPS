@@ -32,7 +32,7 @@ std::vector<uint8_t> readFile(const std::string& filename)
     return buffer;
 }
 
-void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, const size_t second = 0)
+void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, const size_t second = 0, const size_t third = 0)
 {
     size_t i = 0, sectionEnd = first;
 
@@ -44,6 +44,12 @@ void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, 
 
     // Print second layer
     std::cout << "\033[32m"; // Green color
+    for (; i < sectionEnd; ++i)
+        std::cout << std::setw(2) << static_cast<int>(buffer[i]) << " ";
+    sectionEnd += third;
+
+    // Print second layer
+    std::cout << "\033[33m"; // Yellow color
     for (; i < sectionEnd; ++i)
         std::cout << std::setw(2) << static_cast<int>(buffer[i]) << " ";
 
@@ -59,7 +65,7 @@ int main()
 {
     const std::vector<uint8_t> rawData = readFile("packet174");
  
-    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header));
+    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(TCPHeader));
 
     const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + sizeof(EthernetHeader));
     EthernetHeader ethHeader(ethernet);
@@ -68,6 +74,14 @@ int main()
     const std::vector<uint8_t> ipv4(rawData.cbegin() + sizeof(EthernetHeader), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header));
     IPv4Header ipHeader(ipv4);
     std::cout << "\033[42mIP:\033[0m\n" << ipHeader << '\n';
+
+
+    const std::vector<uint8_t> tcp(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader));
+    TCPHeader tcpHeader(tcp);
+    std::cout << "\033[43mTCP:\033[0m\n" << tcpHeader << '\n';
+
+    const std::string data(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader), rawData.cend());
+    std::cout << "\033[7mData:\033[0m\n" << data << '\n';
 
     return 0;
 }
