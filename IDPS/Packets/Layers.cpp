@@ -45,7 +45,6 @@ IPv4Header::IPv4Header(const std::vector<uint8_t>& rawData)
     this->totalLength = toBigEndian(this->totalLength);
     this->identification = toBigEndian(this->identification);
     this->flagsAndFragmentOffset = toBigEndian(this->flagsAndFragmentOffset);
-    this->protocol = toBigEndian(this->protocol);
     this->checksum = toBigEndian(this->checksum);
     this->srcIP = toBigEndian(this->srcIP);
     this->dstIP = toBigEndian(this->dstIP);

@@ -6,13 +6,17 @@
 #include <cstdint>
 #include <string>
 
-enum ProtocolCode : uint16_t
+enum ProtocolCode_16 : uint16_t
 {
     IPV4 = 0x0800,
     IPV6 = 0x86DD,
-    TCP = 0x06,  // TODO ERROR MUST BE 1 BYTE ONLY
-    UDP = 0x11,
     ARP = 0x0806,
+};
+
+enum ProtocolCode_8 : uint8_t
+{
+    TCP = 0x06,
+    UDP = 0x11,
 };
 
 //namespace Helper
@@ -36,16 +40,16 @@ enum ProtocolCode : uint16_t
 
 
 template <typename T>
-concept IntegralOrProtocolCode = std::integral<T> || std::is_same_v<T, ProtocolCode>;
+concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
 
-template <IntegralOrProtocolCode T>
+template <IntegralOrProtocolCode_16 T>
 constexpr T toBigEndian(const T& val) noexcept
 {
     if constexpr (std::endian::native == std::endian::big)
         return val;
     else // Swap bytes to Big Endian
     {
-        if constexpr (std::is_same_v<T, ProtocolCode>)
+        if constexpr (std::is_same_v<T, ProtocolCode_16>)
             return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
         else
             return std::byteswap(val);

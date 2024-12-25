@@ -13,7 +13,7 @@ public:
     const uint16_t sourcePort;
     const uint16_t destinationPort;
     // TCP | UDP
-    const ProtocolCode protocol;
+    const ProtocolCode_8 protocol;
 
     // Parsed protocol layers
     EthernetHeader* ethernetHeader = nullptr;

@@ -11,7 +11,7 @@ struct EthernetHeader
 {
     uint8_t dstMAC[6];
     uint8_t srcMAC[6];
-    ProtocolCode etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
+    ProtocolCode_16 etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
 public:
     EthernetHeader(const std::vector<uint8_t>& rawData);
@@ -26,7 +26,7 @@ struct IPv4Header
     uint16_t identification;
     uint16_t flagsAndFragmentOffset;
     uint8_t timeToLive;
-    ProtocolCode protocol; // Indicates upper-layer (TCP | UDP)
+    ProtocolCode_8 protocol; // Indicates upper-layer (TCP | UDP)
     uint16_t checksum;
     uint32_t srcIP;
     uint32_t dstIP;
