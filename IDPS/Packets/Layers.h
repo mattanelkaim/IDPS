@@ -38,7 +38,12 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
-struct TCPHeader
+struct TransportHeader
+{
+    //TransportHeader() = delete;
+};
+
+struct TCPHeader : public TransportHeader
 {
     uint16_t srcPort;
     uint16_t dstPort;
@@ -55,7 +60,7 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const TCPHeader& obj);
 };
 
-struct UDPHeader
+struct UDPHeader : public TransportHeader
 {
     uint16_t srcPort;
     uint16_t dstPort;
