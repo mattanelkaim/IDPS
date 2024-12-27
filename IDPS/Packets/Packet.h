@@ -1,22 +1,25 @@
-//#pragma once
-//
-//#include "Layers.h"
-//#include <string>
-//
-//class Packet
-//{
-//public:
-//    Packet(const IPv4Header& ipv4, const TransportHeader& transport) noexcept;
-//
-//    std::string sourceIP;
-//    std::string destinationIP;
-//    const uint16_t sourcePort;
-//    const uint16_t destinationPort;
-//    // TCP | UDP
-//    const ProtocolCode_8 protocol;
-//
-//    // Parsed protocol layers
-//    EthernetHeader* ethernetHeader = nullptr;
-//    IPv4Header* ipv4Header = nullptr;
-//    TransportHeader* transportHeader = nullptr;
-//};
+#pragma once
+
+#include "../Helper.h"
+#include "Layers.h"
+#include <span>
+#include <string>
+
+class Packet
+{
+public:
+    //Packet(const IPv4Header& ipv4, const TransportHeader& transport) noexcept;
+    Packet(std::span<const uint8_t> rawData);
+
+    std::string sourceIP;
+    std::string destinationIP;
+    uint16_t sourcePort;
+    uint16_t destinationPort;
+    // TCP | UDP
+    ProtocolCode_8 protocol;
+
+    // Parsed protocol layers
+    EthernetHeader* ethernetHeader = nullptr;
+    IPv4Header* ipv4Header = nullptr;
+    TransportHeader* transportHeader = nullptr;
+};

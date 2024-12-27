@@ -1,4 +1,5 @@
 #include "Packets/Layers.h"
+#include "Packets/Packet.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -63,25 +64,26 @@ void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, 
 
 int main()
 {
-    const std::vector<uint8_t> rawData = readFile("packet174");
+    const std::vector<uint8_t> rawData = readFile("dns packet.bin");
  
-    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(TCPHeader));
+    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
 
-    const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + sizeof(EthernetHeader));
-    EthernetHeader ethHeader(ethernet);
-    std::cout << "\n\033[41mEthernet:\033[0m\n" << ethHeader << '\n';
+    //const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + sizeof(EthernetHeader));
+    //EthernetHeader ethHeader(ethernet);
+    //std::cout << "\n\033[41mEthernet:\033[0m\n" << ethHeader << '\n';
 
-    const std::vector<uint8_t> ipv4(rawData.cbegin() + sizeof(EthernetHeader), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header));
-    IPv4Header ipHeader(ipv4);
-    std::cout << "\033[42mIP:\033[0m\n" << ipHeader << '\n';
+    //const std::vector<uint8_t> ipv4(rawData.cbegin() + sizeof(EthernetHeader), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header));
+    //IPv4Header ipHeader(ipv4);
+    //std::cout << "\033[42mIP:\033[0m\n" << ipHeader << '\n';
 
+    //const std::vector<uint8_t> tcp(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader));
+    //TCPHeader tcpHeader(tcp);
+    //std::cout << "\033[43mTCP:\033[0m\n" << tcpHeader << '\n';
 
-    const std::vector<uint8_t> tcp(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader));
-    TCPHeader tcpHeader(tcp);
-    std::cout << "\033[43mTCP:\033[0m\n" << tcpHeader << '\n';
+    //const std::string data(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader), rawData.cend());
+    //std::cout << "\033[7mData:\033[0m\n" << data << '\n';
 
-    const std::string data(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader), rawData.cend());
-    std::cout << "\033[7mData:\033[0m\n" << data << '\n';
+    Packet packet(rawData);
 
     return 0;
 }
