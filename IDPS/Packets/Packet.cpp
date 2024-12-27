@@ -1,14 +1,7 @@
 #include "Packet.h"
-#include <stdexcept> // std::runtime_error
 #include <iostream>
+#include <stdexcept> // std::runtime_error
 
-//Packet::Packet(const IPv4Header& ipv4, const TransportHeader& transport) noexcept :
-//    sourceIP(Helper::ipToString(ipv4.srcIP)),
-//    destinationIP(Helper::ipToString(ipv4.dstIP)),
-//    sourcePort(transport.sourcePort),
-//    destinationPort(transport.destinationPort),
-//    protocol(ipv4.protocol)
-//{}
 
 Packet::Packet(const std::span<const uint8_t> rawData) :
     ethernetHeader(new EthernetHeader(rawData.subspan(0, sizeof(EthernetHeader))))
@@ -51,4 +44,11 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
     {
         throw std::runtime_error("Unsupported transport protocol");
     }
+}
+
+Packet::~Packet()
+{
+    delete ethernetHeader;
+    delete ipv4Header;
+    delete transportHeader;
 }

@@ -8,8 +8,8 @@
 class Packet
 {
 public:
-    //Packet(const IPv4Header& ipv4, const TransportHeader& transport) noexcept;
     Packet(std::span<const uint8_t> rawData);
+    ~Packet();
 
     std::string sourceIP;
     std::string destinationIP;
