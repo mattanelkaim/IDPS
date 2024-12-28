@@ -132,13 +132,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Handlers\DBHandler.h" />
+    <ClInclude Include="Helper.h" />
     <ClInclude Include="Packets\Layers.h" />
     <ClInclude Include="Packets\Packet.h" />
     <ClInclude Include="sqlite\sqlite3.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Handlers\DBHandler.cpp" />
+    <ClCompile Include="Packets\Layers.cpp" />
     <ClCompile Include="Packets\Packet.cpp" />
+    <ClCompile Include="Source.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

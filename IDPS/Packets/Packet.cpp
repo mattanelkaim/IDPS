@@ -1,33 +1,54 @@
 #include "Packet.h"
+#include <iostream>
+#include <stdexcept> // std::runtime_error
 
-std::string ipToString(const uint32_t ip) noexcept
+
+Packet::Packet(const std::span<const uint8_t> rawData) :
+    ethernetHeader(new EthernetHeader(rawData.subspan(0, sizeof(EthernetHeader))))
 {
-    // Allocate a buffer large enough for "255.255.255.255\0" (16 bytes max)
-    char buffer[16];
+    std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
+    size_t offset = sizeof(EthernetHeader), layerEnd = offset;
 
-    // Extract and format directly into the buffer
-    std::snprintf(buffer, sizeof(buffer), "%u.%u.%u.%u",
-                  (ip >> 24) & 0xFF,
-                  (ip >> 16) & 0xFF,
-                  (ip >> 8) & 0xFF,
-                  ip & 0xFF);
+    if (ethernetHeader->etherType == IPV4)
+    {
+        layerEnd += sizeof(IPv4Header);
+        this->ipv4Header = new IPv4Header(rawData.subspan(offset, layerEnd));
+        this->sourceIP = Helper::ipToString(ipv4Header->srcIP);
+        this->destinationIP = Helper::ipToString(ipv4Header->dstIP);
+        std::cout << "\033[42mIP:\033[0m\n" << *ipv4Header << '\n';
+    }
+    else // Probably IPv6 or ARP
+    {
+        throw std::runtime_error("Unsupported protocol");
+    }
 
-    // Return the formatted string (this is optimal)
-    return std::string(buffer);
+    offset = layerEnd;
+    this->protocol = ipv4Header->protocol;
+    if (this->protocol == TCP)
+    {
+        layerEnd += sizeof(TCPHeader);
+        this->transportHeader = new TCPHeader(rawData.subspan(offset, layerEnd));
+        this->sourcePort = static_cast<TCPHeader*>(transportHeader)->srcPort;
+        this->destinationPort = static_cast<TCPHeader*>(transportHeader)->dstPort;
+        std::cout << "\033[43mTCP:\033[0m\n" << *static_cast<TCPHeader*>(transportHeader) << '\n';
+    }
+    else if (this->protocol == UDP)
+    {
+        layerEnd += sizeof(UDPHeader);
+        this->transportHeader = new UDPHeader(rawData.subspan(offset, layerEnd));
+        this->sourcePort = static_cast<UDPHeader*>(transportHeader)->srcPort;
+        this->destinationPort = static_cast<UDPHeader*>(transportHeader)->dstPort;
+        std::cout << "\033[43mUDP:\033[0m\n" << *static_cast<UDPHeader*>(transportHeader) << '\n';
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported transport protocol");
+    }
 }
 
-
-Packet::Packet(const IPv4Header& ipv4, const TransportHeader& transport) noexcept :
-    sourceIP(ipToString(ipv4.sourceAddress)),
-    destinationIP(ipToString(ipv4.destinationAddress)),
-    sourcePort(transport.sourcePort),
-    destinationPort(transport.destinationPort),
-    protocol(ipv4.protocol)
-{}
-
-
-int main()
+Packet::~Packet()
 {
-    puts(ipToString(3232235777).c_str());
-    return 0;
+    delete ethernetHeader;
+    delete ipv4Header;
+    delete transportHeader;
 }
