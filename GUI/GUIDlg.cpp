@@ -18,6 +18,7 @@
 constexpr const CHAR* DEVICE_NAME = "\\\\.\\IDPS Sniffer Device";
 // Global Handle for now
 HANDLE deviceHandle = NULL;
+IOCTL_HANDLES ioctlHandles = { 0 };
 
 // CAboutDlg dialog used for App About
 
@@ -74,6 +75,8 @@ BEGIN_MESSAGE_MAP(CGUIDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON2, &CGUIDlg::OnBnClickedButton2)
 	ON_BN_CLICKED(IDC_BUTTON1, &CGUIDlg::OnBnClickedButton1)
 	ON_BN_CLICKED(IDC_BUTTON3, &CGUIDlg::OnBnClickedButton3)
+	ON_BN_CLICKED(IDC_BUTTON4, &CGUIDlg::OnBnClickedButton4)
+	ON_BN_CLICKED(IDC_BUTTON5, &CGUIDlg::OnBnClickedButton5)
 END_MESSAGE_MAP()
 
 
@@ -190,25 +193,23 @@ void CGUIDlg::OnBnClickedButton1()
 void CGUIDlg::OnBnClickedButton3()
 {
 	DWORD bytesReturned;
-	IOCTL_HANDLES ioctl;
 
-	ioctl.pid = GetCurrentProcessId();
-	ioctl.mutexes.ethernet = CreateMutexW(NULL, FALSE, ETHERNET_MUTEX_PATH);
-	ioctl.mutexes.internet = CreateMutexW(NULL, FALSE, INTERNET_MUTEX_PATH);
-	ioctl.mutexes.transport = CreateMutexW(NULL, FALSE, TRANSPORT_MUTEX_PATH);
-	ioctl.mutexes.application = CreateMutexW(NULL, FALSE, APPLICATION_MUTEX_PATH);
+	ioctlHandles.pid = GetCurrentProcessId();
+	ioctlHandles.mutexes.ethernet = CreateMutexW(NULL, FALSE, ETHERNET_MUTEX_PATH);
+	ioctlHandles.mutexes.internet = CreateMutexW(NULL, FALSE, INTERNET_MUTEX_PATH);
+	ioctlHandles.mutexes.transport = CreateMutexW(NULL, FALSE, TRANSPORT_MUTEX_PATH);
+	ioctlHandles.mutexes.application = CreateMutexW(NULL, FALSE, APPLICATION_MUTEX_PATH);
 
-	if (ioctl.mutexes.ethernet == INVALID_HANDLE_VALUE || ioctl.mutexes.internet == INVALID_HANDLE_VALUE || ioctl.mutexes.transport == INVALID_HANDLE_VALUE || ioctl.mutexes.application == INVALID_HANDLE_VALUE)
+	if (ioctlHandles.mutexes.ethernet == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.internet == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.transport == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.application == INVALID_HANDLE_VALUE)
 	{
 		MessageBoxW(L"Failed to create or open mutex.", L":(", MB_ICONASTERISK);
 		return;
 	}
 
-
 	BOOL success = DeviceIoControl(
 		deviceHandle,                       // Handle to the device
 		IOCTL_SEND_HANDLES,             // IOCTL code
-		&ioctl,                        // Input buffer (pointer to the struct)
+		&ioctlHandles,                        // Input buffer (pointer to the struct)
 		sizeof(IOCTL_HANDLES),               // Size of input buffer
 		NULL,                          // Output buffer (not needed here)
 		0,                             // Size of output buffer
@@ -222,4 +223,22 @@ void CGUIDlg::OnBnClickedButton3()
 	else {
 		MessageBoxW(L"Struct sent successfully.", L":)", MB_ICONASTERISK);
 	}
+}
+
+
+void CGUIDlg::OnBnClickedButton4()
+{
+	WaitForSingleObject(ioctlHandles.mutexes.ethernet, INFINITE);
+	WaitForSingleObject(ioctlHandles.mutexes.internet, INFINITE);
+	WaitForSingleObject(ioctlHandles.mutexes.transport, INFINITE);
+	WaitForSingleObject(ioctlHandles.mutexes.application, INFINITE);
+}
+
+
+void CGUIDlg::OnBnClickedButton5()
+{
+	ReleaseMutex(ioctlHandles.mutexes.ethernet);
+	ReleaseMutex(ioctlHandles.mutexes.internet);
+	ReleaseMutex(ioctlHandles.mutexes.transport);
+	ReleaseMutex(ioctlHandles.mutexes.application);
 }

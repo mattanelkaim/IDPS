@@ -29,7 +29,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ntoskrnl.h">
+    <ClInclude Include="LayerHandles.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
