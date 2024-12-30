@@ -1,5 +1,6 @@
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
+#include "Sender.hpp"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -83,7 +84,16 @@ int main()
     //const std::string data(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader), rawData.cend());
     //std::cout << "\033[7mData:\033[0m\n" << data << '\n';
 
-    Packet packet(rawData);
+    //Packet packet(rawData);
+
+#include <winsock2.h>
+    in_addr broadcast;
+    Sender::GetBroadcastAddress("Intel(R) Wi-Fi 6 AX201 160MHz", broadcast);
+    
+    /*To print a ULONG ip addr*/
+    char ip[16] = {0};
+    inet_ntop(AF_INET, &broadcast, ip, sizeof(ip));
+    printf("\nBroadcast is: %s\n", ip);
 
     return 0;
 }
