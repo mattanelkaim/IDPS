@@ -95,5 +95,13 @@ int main()
     inet_ntop(AF_INET, &broadcast, ip, sizeof(ip));
     printf("\nBroadcast is: %s\n", ip);
 
+    in_addr target;
+    target.S_un.S_un_b.s_b1 = 10;
+    target.S_un.S_un_b.s_b2 = 100;
+    target.S_un.S_un_b.s_b3 = 102;
+    target.S_un.S_un_b.s_b4 = 1;
+
+    Sender::SendARPRequest(target);
+
     return 0;
 }

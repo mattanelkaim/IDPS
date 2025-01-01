@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
+#include <iostream>
 
 // Link with Ws2_32.lib and Iphlpapi.lib (for GetAdaptersInfo)
 #pragma comment(lib, "Ws2_32.lib")
@@ -61,5 +62,24 @@ namespace Sender
 
         free(AdapterInfo);
         return false;
+    }
+
+
+    int SendARPRequest(const in_addr target)
+    {
+        // Prepare the ARP request structure
+        uint8_t macAddress[6];
+        ULONG macAddressLen = sizeof(macAddress); // Cannot be const (SendARP changes it)
+
+        // Send the ARP request
+        if (SendARP(target.s_addr, INADDR_ANY, macAddress, &macAddressLen) != NO_ERROR)
+        {
+            perror("Error sending ARP request.");
+            return 1;
+        }
+
+        std::cout << Helper::macToString(macAddress) << '\n';
+
+        return 0;
     }
 }; // namespace Sender
