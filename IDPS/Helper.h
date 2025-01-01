@@ -31,13 +31,21 @@ namespace Helper
         char buffer[16];
 
         // Extract and format directly into the buffer
-        std::snprintf(buffer, sizeof(buffer), "%u.%u.%u.%u",
+        sprintf_s(buffer, "%u.%u.%u.%u",
                       (ip >> 24) & 0xFF,
                       (ip >> 16) & 0xFF,
                       (ip >> 8) & 0xFF,
                       ip & 0xFF);
 
         // Return the formatted string (this is optimal)
+        return std::string(buffer);
+    }
+
+    inline std::string macToString(const uint8_t mac[6])
+    {
+        char buffer[18] = {0}; // 12 hex digits + 5 colons + 1 null terminator
+        sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         return std::string(buffer);
     }
 
