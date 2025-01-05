@@ -21,6 +21,8 @@ typedef struct blackList {
     unsigned int listLength;
 } blackList;
 
+blackList ipBlacklist = { 0 };
+
 // work item to operate at IRQL passive level
 typedef struct _WORK_CONTEXT {
     char WorkItem[128]; // A 128 byte buffer to replace _IO_WORKITEM (128 is based purely on hope and prayer)
@@ -77,6 +79,7 @@ NTSTATUS InitFileNames();
 VOID UnInitMutexes();
 IO_WORKITEM_ROUTINE WorkItemRoutine;
 void copyLayerData(PVOID layerData);
+void addRuleToBlacklist(unsigned int* ip);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -167,11 +170,17 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
         IDPS_PRINT("Read request!\n");
         break;
     case IRP_MJ_DEVICE_CONTROL:
-        if (IOCTL_SEND_HANDLES != irpSp->Parameters.DeviceIoControl.IoControlCode)
+        if (IOCTL_SEND_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
         {
-            IDPS_PRINT("Recevied invalid ioctl request");
+			addRuleToBlacklist((unsigned int*)Irp->AssociatedIrp.SystemBuffer);
             break;
         }
+		else if (IOCTL_SEND_HANDLES != irpSp->Parameters.DeviceIoControl.IoControlCode)
+		{
+			IDPS_PRINT("Received invalid IOCTL code!\n");
+			status = STATUS_INVALID_PARAMETER;
+			break;
+		}
 
         IDPS_PRINT("Received handles!\n");
         if (IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.InputBufferLength < sizeof(IOCTL_HANDLES)) {
@@ -570,6 +579,22 @@ void copyLayerData(PVOID layerData)
         // Move to the next NET_BUFFER in the list
         netBuffer = NET_BUFFER_NEXT_NB(netBuffer);
     }
+}
+
+void addRuleToBlacklist(unsigned int* ip)
+{
+	if (!ip)
+	{
+		IDPS_PRINT("addRuleToBlacklist received null IP");
+		return;
+	}
+	if (ipBlacklist.listLength == 1024)
+	{
+		IDPS_PRINT("IP blacklist is full");
+		return;
+	}
+	IDPS_PRINT("Adding rule to blacklist");
+	ipBlacklist.ipBlacklist[ipBlacklist.listLength++] = *ip;
 }
 
 VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
