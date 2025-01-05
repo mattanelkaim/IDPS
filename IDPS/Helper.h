@@ -22,25 +22,27 @@ enum ProtocolCode_8 : uint8_t
 struct mac
 {
 public:
-    union
-    {
-        struct { uint8_t s_b1, s_b2, s_b3, s_b4, s_b5, s_b6; } S_bytes;
-        uint64_t S_addr;
-    } S_un;
+    uint8_t bytes[6] = {0};
 
     inline std::string macToString() const noexcept
     {
-        const auto& bytes = this->S_un.S_bytes; // Renaming for convenience
         char buffer[18] = {0}; // 12 hex digits + 5 colons + 1 null terminator
         sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
-                  bytes.s_b1, bytes.s_b2, bytes.s_b3, bytes.s_b4, bytes.s_b5, bytes.s_b6);
+                  bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
         return std::string(buffer);
+    }
+
+    // Define a conversion to represent in an integer form
+    constexpr operator uint64_t() const noexcept
+    {
+        // Not using std::memcpy to make the function constexpr
+        uint64_t mac_as_uint64 = 0;
+        for (uint8_t i = 0; i < 6; ++i)
+            mac_as_uint64 |= static_cast<uint64_t>(this->bytes[i]) << (8 * i);
+        return mac_as_uint64; // std::bit_cast<std::uint64_t>(this)
     }
 };
 
-
-template <typename T>
-concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
 
 // For some reason, all functions MUST BE INLINE
 namespace Helper
@@ -60,6 +62,10 @@ namespace Helper
         // Return the formatted string (this is optimal)
         return std::string(buffer);
     }
+
+
+    template <typename T>
+    concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
 
     template <IntegralOrProtocolCode_16 T>
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline

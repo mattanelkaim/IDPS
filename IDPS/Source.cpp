@@ -69,39 +69,24 @@ int main()
  
     printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
 
-    //const std::vector<uint8_t> ethernet(rawData.cbegin(), rawData.cbegin() + sizeof(EthernetHeader));
-    //EthernetHeader ethHeader(ethernet);
-    //std::cout << "\n\033[41mEthernet:\033[0m\n" << ethHeader << '\n';
+    Packet packet(rawData);
 
-    //const std::vector<uint8_t> ipv4(rawData.cbegin() + sizeof(EthernetHeader), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header));
-    //IPv4Header ipHeader(ipv4);
-    //std::cout << "\033[42mIP:\033[0m\n" << ipHeader << '\n';
-
-    //const std::vector<uint8_t> tcp(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header), rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader));
-    //TCPHeader tcpHeader(tcp);
-    //std::cout << "\033[43mTCP:\033[0m\n" << tcpHeader << '\n';
-
-    //const std::string data(rawData.cbegin() + sizeof(EthernetHeader) + sizeof(IPv4Header) + sizeof(TCPHeader), rawData.cend());
-    //std::cout << "\033[7mData:\033[0m\n" << data << '\n';
-
-    //Packet packet(rawData);
-
-#include <winsock2.h>
-    in_addr broadcast;
-    Sender::GetBroadcastAddress("Intel(R) Wi-Fi 6 AX201 160MHz", broadcast);
-    
-    /*To print a ULONG ip addr*/
-    char ip[16] = {0};
-    inet_ntop(AF_INET, &broadcast, ip, sizeof(ip));
-    printf("\nBroadcast is: %s\n", ip);
-
-    in_addr target;
-    target.S_un.S_un_b.s_b1 = 10;
-    target.S_un.S_un_b.s_b2 = 100;
-    target.S_un.S_un_b.s_b3 = 102;
-    target.S_un.S_un_b.s_b4 = 1;
-
-    Sender::SendARPRequest(target);
+//#include <winsock2.h>
+//    in_addr broadcast;
+//    Sender::GetBroadcastAddress("Intel(R) Wi-Fi 6 AX201 160MHz", broadcast);
+//    
+//    /*To print a ULONG ip addr*/
+//    char ip[16] = {0};
+//    inet_ntop(AF_INET, &broadcast, ip, sizeof(ip));
+//    printf("\nBroadcast is: %s\n", ip);
+//
+//    in_addr target;
+//    target.S_un.S_un_b.s_b1 = 10;
+//    target.S_un.S_un_b.s_b2 = 100;
+//    target.S_un.S_un_b.s_b3 = 102;
+//    target.S_un.S_un_b.s_b4 = 1;
+//
+//    Sender::SendARPRequest(target);
 
     return 0;
 }
