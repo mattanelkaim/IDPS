@@ -19,6 +19,26 @@ enum ProtocolCode_8 : uint8_t
 };
 
 
+struct mac
+{
+public:
+    union
+    {
+        struct { uint8_t s_b1, s_b2, s_b3, s_b4, s_b5, s_b6; } S_bytes;
+        uint64_t S_addr;
+    } S_un;
+
+    inline std::string macToString() const noexcept
+    {
+        const auto& bytes = this->S_un.S_bytes; // Renaming for convenience
+        char buffer[18] = {0}; // 12 hex digits + 5 colons + 1 null terminator
+        sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
+                  bytes.s_b1, bytes.s_b2, bytes.s_b3, bytes.s_b4, bytes.s_b5, bytes.s_b6);
+        return std::string(buffer);
+    }
+};
+
+
 template <typename T>
 concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
 
@@ -38,14 +58,6 @@ namespace Helper
                       ip & 0xFF);
 
         // Return the formatted string (this is optimal)
-        return std::string(buffer);
-    }
-
-    inline std::string macToString(const uint8_t mac[6])
-    {
-        char buffer[18] = {0}; // 12 hex digits + 5 colons + 1 null terminator
-        sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
-                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         return std::string(buffer);
     }
 

@@ -78,7 +78,7 @@ namespace Sender
             return 1;
         }
 
-        std::cout << Helper::macToString(macAddress) << '\n';
+        //std::cout << Helper::macToString(macAddress) << '\n';
 
         return 0;
     }

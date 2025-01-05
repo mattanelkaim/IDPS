@@ -11,8 +11,8 @@
 
 struct EthernetHeader
 {
-    uint8_t dstMAC[6];
-    uint8_t srcMAC[6];
+    mac dstMAC;
+    mac srcMAC;
     ProtocolCode_16 etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
 public:
