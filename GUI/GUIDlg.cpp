@@ -77,6 +77,7 @@ BEGIN_MESSAGE_MAP(CGUIDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON3, &CGUIDlg::OnBnClickedButton3)
 	ON_BN_CLICKED(IDC_BUTTON4, &CGUIDlg::OnBnClickedButton4)
 	ON_BN_CLICKED(IDC_BUTTON5, &CGUIDlg::OnBnClickedButton5)
+	ON_BN_CLICKED(IDC_BUTTON7, &CGUIDlg::OnBnClickedButton7)
 END_MESSAGE_MAP()
 
 
@@ -195,12 +196,9 @@ void CGUIDlg::OnBnClickedButton3()
 	DWORD bytesReturned;
 
 	ioctlHandles.pid = GetCurrentProcessId();
-	ioctlHandles.mutexes.ethernet = CreateMutexW(NULL, FALSE, ETHERNET_MUTEX_PATH);
-	ioctlHandles.mutexes.internet = CreateMutexW(NULL, FALSE, INTERNET_MUTEX_PATH);
-	ioctlHandles.mutexes.transport = CreateMutexW(NULL, FALSE, TRANSPORT_MUTEX_PATH);
-	ioctlHandles.mutexes.application = CreateMutexW(NULL, FALSE, APPLICATION_MUTEX_PATH);
+	ioctlHandles.mutex = CreateMutexW(NULL, FALSE, PACKET_MUTEX_PATH);
 
-	if (ioctlHandles.mutexes.ethernet == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.internet == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.transport == INVALID_HANDLE_VALUE || ioctlHandles.mutexes.application == INVALID_HANDLE_VALUE)
+	if (ioctlHandles.mutex == INVALID_HANDLE_VALUE)
 	{
 		MessageBoxW(L"Failed to create or open mutex.", L":(", MB_ICONASTERISK);
 		return;
@@ -228,17 +226,37 @@ void CGUIDlg::OnBnClickedButton3()
 
 void CGUIDlg::OnBnClickedButton4()
 {
-	WaitForSingleObject(ioctlHandles.mutexes.ethernet, INFINITE);
-	WaitForSingleObject(ioctlHandles.mutexes.internet, INFINITE);
-	WaitForSingleObject(ioctlHandles.mutexes.transport, INFINITE);
-	WaitForSingleObject(ioctlHandles.mutexes.application, INFINITE);
+	WaitForSingleObject(ioctlHandles.mutex, INFINITE);
 }
 
 
 void CGUIDlg::OnBnClickedButton5()
 {
-	ReleaseMutex(ioctlHandles.mutexes.ethernet);
-	ReleaseMutex(ioctlHandles.mutexes.internet);
-	ReleaseMutex(ioctlHandles.mutexes.transport);
-	ReleaseMutex(ioctlHandles.mutexes.application);
+	ReleaseMutex(ioctlHandles.mutex);
+}
+
+
+void CGUIDlg::OnBnClickedButton7()
+{
+	DWORD bytesReturned;
+
+	uint32_t ip = 0x7F000001; // copilot please have my kids
+
+	BOOL success = DeviceIoControl(
+		deviceHandle,                       // Handle to the device
+		IOCTL_SEND_RULE,             // IOCTL code
+		&ip,                        // Input buffer (pointer to the struct)
+		sizeof(uint32_t),               // Size of input buffer
+		NULL,                          // Output buffer (not needed here)
+		0,                             // Size of output buffer
+		&bytesReturned,                // Bytes returned
+		NULL                           // Overlapped (optional, NULL for synchronous I/O)
+	);
+
+	if (!success) {
+		MessageBoxW(L"DeviceIoControl failed.", L":(", MB_ICONASTERISK);
+	}
+	else {
+		MessageBoxW(L"Struct sent successfully.", L":)", MB_ICONASTERISK);
+	}
 }
