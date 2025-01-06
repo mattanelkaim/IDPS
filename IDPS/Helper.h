@@ -80,4 +80,4 @@ namespace Helper
                 return std::byteswap(val);
         }
     }
-}
+} // namespace Helper

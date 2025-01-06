@@ -15,7 +15,7 @@ namespace Sender
     bool GetBroadcastAddress(const char* interfaceName, in_addr& broadcast)
     {
         ULONG ulOutBufLen = sizeof(IP_ADAPTER_INFO); // Cannot be const because GetAdaptersInfo changes it
-        PIP_ADAPTER_INFO AdapterInfo = (IP_ADAPTER_INFO*)malloc(ulOutBufLen);
+        PIP_ADAPTER_INFO AdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(malloc(ulOutBufLen));
         if (AdapterInfo == NULL) [[unlikely]]
         {
             perror("Error allocating memory needed to call GetAdaptersInfo");
@@ -27,7 +27,7 @@ namespace Sender
         {
             // Re-allocate the memory and try again (ulOutBufLen now has the correct size)
             free(AdapterInfo);
-            AdapterInfo = (IP_ADAPTER_INFO*)malloc(ulOutBufLen);
+            AdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(malloc(ulOutBufLen));
             if (AdapterInfo == NULL) [[unlikely]]
             {
                 perror("Error allocating memory needed to call GetAdaptersInfo");

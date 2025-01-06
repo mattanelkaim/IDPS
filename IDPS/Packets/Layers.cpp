@@ -1,5 +1,5 @@
 #include "Layers.h"
-#include <iomanip> // std::setw, std::setfill
+#include <ostream>
 #include <stdexcept> // std::runtime_error
 
 
