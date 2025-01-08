@@ -13,7 +13,7 @@
 
 namespace Sender
 {
-    bool GetBroadcastAddress(const char* interfaceName, in_addr& broadcast)
+    bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP)
     {
         ULONG ulOutBufLen = sizeof(IP_ADAPTER_INFO); // Cannot be const because GetAdaptersInfo changes it
         PIP_ADAPTER_INFO AdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(malloc(ulOutBufLen));
@@ -46,9 +46,7 @@ namespace Sender
                 printf("%s: %s\n", pAdapterInfo->Description, pAdapterInfo->IpAddressList.IpAddress.String); // TEMP FOR DEBUGGING
                 if (strcmp(pAdapterInfo->Description, interfaceName) == 0)
                 {
-                    // Convert string to in_addr and change last byte to 255
-                    inet_pton(AF_INET, pAdapterInfo->IpAddressList.IpAddress.String, &broadcast);
-                    broadcast.s_impno = 255;
+                    memcpy(localIP, &pAdapterInfo->IpAddressList, sizeof(IP_ADDR_STRING));
                     free(AdapterInfo);
                     return true;
                 }

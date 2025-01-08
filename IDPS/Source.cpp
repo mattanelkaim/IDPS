@@ -1,12 +1,15 @@
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
 #include "Sender.hpp"
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <string>
 #include <vector>
+#include <WinSock2.h>
 
-std::vector<uint8_t> readFile(const std::string& filename)
+static std::vector<uint8_t> readFile(const std::string& filename)
 {
     // Open raw packet file
     std::ifstream file(filename, std::ios::binary);
@@ -34,7 +37,7 @@ std::vector<uint8_t> readFile(const std::string& filename)
     return buffer;
 }
 
-void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, const size_t second = 0, const size_t third = 0)
+static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, const size_t second = 0, const size_t third = 0)
 {
     size_t i = 0, sectionEnd = first;
 
@@ -63,6 +66,7 @@ void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, 
     std::cout << std::dec << '\n';
 }
 
+
 int main()
 {
     //const std::vector<uint8_t> rawData = readFile("dns packet.bin");
@@ -71,34 +75,22 @@ int main()
 
     //Packet packet(rawData);
 
-#include <inaddr.h>
-    in_addr broadcast;
-    if (!Sender::GetBroadcastAddress("Realtek PCIe GbE Family Controller", broadcast))
+    IP_ADDR_STRING localIP;
+    if (!Sender::GetLocalIpAddress("Realtek PCIe GbE Family Controller", &localIP))
     {
-        std::cerr << "Failed to get broadcast address!\n";
+        std::cerr << "Failed to get local IP address!\n";
         return 1;
     }
-    
-    /*To print a ULONG ip addr*/
-    char ip[16] = {0};
-    inet_ntop(AF_INET, &broadcast, ip, sizeof(ip));
-    printf("\nBroadcast is: %s\n", ip);
-//
-//    in_addr target;
-//    target.S_un.S_un_b.s_b1 = 10;
-//    target.S_un.S_un_b.s_b2 = 100;
-//    target.S_un.S_un_b.s_b3 = 102;
-//    target.S_un.S_un_b.s_b4 = 1;
-//
-//    Sender::SendARPRequest(target);
 
-    in_addr target;
-    target.S_un.S_un_b.s_b1 = 10;
-    target.S_un.S_un_b.s_b2 = 100;
-    target.S_un.S_un_b.s_b3 = 102;
-    target.S_un.S_un_b.s_b4 = 1;
+    std::cout << "Broadcast: " << Helper::getBroadcastAddress(localIP);
 
-    std::cout << "Sending ping: " << Sender::SendPing(target) << '\n';
+    //in_addr target;
+    //target.S_un.S_un_b.s_b1 = 10;
+    //target.S_un.S_un_b.s_b2 = 100;
+    //target.S_un.S_un_b.s_b3 = 102;
+    //target.S_un.S_un_b.s_b4 = 1;
+
+    //std::cout << "Sending ping: " << Sender::SendPing(target) << '\n';
 
     return 0;
 }
