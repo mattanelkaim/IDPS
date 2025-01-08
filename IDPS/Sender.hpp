@@ -65,21 +65,16 @@ namespace Sender
     }
 
 
-    int SendARPRequest(const in_addr target)
+    mac SendARPRequest(const in_addr target)
     {
         // Prepare the ARP request structure
-        uint8_t macAddress[6];
+        mac macAddress;
         ULONG macAddressLen = sizeof(macAddress); // Cannot be const (SendARP changes it)
 
         // Send the ARP request
-        if (SendARP(target.s_addr, INADDR_ANY, macAddress, &macAddressLen) != NO_ERROR)
-        {
+        if (SendARP(target.s_addr, INADDR_ANY, macAddress.bytes, &macAddressLen) != NO_ERROR)
             perror("Error sending ARP request.");
-            return 1;
-        }
 
-        //std::cout << Helper::macToString(macAddress) << '\n';
-
-        return 0;
+        return macAddress;
     }
 }; // namespace Sender

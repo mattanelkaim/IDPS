@@ -37,9 +37,9 @@ public:
     {
         // Not using std::memcpy to make the function constexpr
         uint64_t mac_as_uint64 = 0;
-        for (uint8_t i = 0; i < 6; ++i)
-            mac_as_uint64 |= static_cast<uint64_t>(this->bytes[i]) << (8 * i);
-        return mac_as_uint64; // std::bit_cast<std::uint64_t>(this)
+        for (int8_t i = sizeof(bytes) - 1; i >= 0; --i)
+            mac_as_uint64 |= static_cast<uint64_t>(this->bytes[i]) << (8 * (sizeof(bytes) - 1 - i));
+        return mac_as_uint64;
     }
 };
 
