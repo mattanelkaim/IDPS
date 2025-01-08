@@ -4,6 +4,8 @@
 #include <concepts>
 #include <cstdint>
 #include <string>
+#include <WS2tcpip.h>
+#include <IPTypes.h>
 
 enum ProtocolCode_16 : uint16_t
 {
@@ -47,20 +49,33 @@ public:
 // For some reason, all functions MUST BE INLINE
 namespace Helper
 {
-    inline std::string ipToString(const uint32_t ip)
+    // Function to convert string IP to unsigned long
+    inline ULONG ipToLong(const std::string_view ip)
     {
-        // Allocate a buffer large enough for "255.255.255.255\0" (16 bytes max)
-        char buffer[16];
+        in_addr addr;
+        inet_pton(AF_INET, ip.data(), &addr);
+        return ntohl(addr.s_addr);
+    }
 
-        // Extract and format directly into the buffer
-        sprintf_s(buffer, "%u.%u.%u.%u",
-                      (ip >> 24) & 0xFF,
-                      (ip >> 16) & 0xFF,
-                      (ip >> 8) & 0xFF,
-                      ip & 0xFF);
+    // Function to convert unsigned long to string IP
+    inline std::string longToIp(const ULONG ip)
+    {
+        in_addr addr;
+        addr.s_addr = htonl(ip);
+        char ipStr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr, ipStr, INET_ADDRSTRLEN);
+        return std::string(ipStr);
+    }
 
-        // Return the formatted string (this is optimal)
-        return std::string(buffer);
+    inline std::string getBroadcastAddress(const IP_ADDR_STRING& ipAddrString)
+    {
+        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
+        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
+
+        // Calculate the broadcast address
+        const ULONG broadcastLong = ipLong | (~maskLong);
+
+        return longToIp(broadcastLong);
     }
 
 

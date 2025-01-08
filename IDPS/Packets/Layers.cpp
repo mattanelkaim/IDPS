@@ -54,8 +54,8 @@ std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
     os << "\033[4mTime to live\033[0m: " << static_cast<int>(obj.timeToLive) << '\n';
     os << "\033[4mProtocol\033[0m: " << static_cast<int>(obj.protocol) << '\n';
     os << "\033[4mChecksum\033[0m: " << obj.checksum << '\n';
-    os << "\033[4mSource IP\033[0m: " << Helper::ipToString(obj.srcIP) << '\n';
-    os << "\033[4mDestination IP\033[0m: " << Helper::ipToString(obj.dstIP) << '\n';
+    os << "\033[4mSource IP\033[0m: " << Helper::longToIp(obj.srcIP) << '\n';
+    os << "\033[4mDestination IP\033[0m: " << Helper::longToIp(obj.dstIP) << '\n';
     return os;
 }
 
