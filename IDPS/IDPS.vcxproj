@@ -135,6 +135,7 @@
     <ClInclude Include="Helper.h" />
     <ClInclude Include="Packets\Layers.h" />
     <ClInclude Include="Packets\Packet.h" />
+    <ClInclude Include="Sender.hpp" />
     <ClInclude Include="sqlite\sqlite3.h" />
   </ItemGroup>
   <ItemGroup>
