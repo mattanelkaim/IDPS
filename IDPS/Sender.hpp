@@ -1,9 +1,10 @@
 #pragma once
 
 // Do NOT sort these includes
-#include <winsock2.h>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
 #include <iphlpapi.h>
-#include <ws2tcpip.h>
+#include <IcmpAPI.h>
 #include <iostream>
 
 // Link with Ws2_32.lib and Iphlpapi.lib (for GetAdaptersInfo)
@@ -76,5 +77,42 @@ namespace Sender
             perror("Error sending ARP request.");
 
         return macAddress;
+    }
+
+
+    bool SendPing(const in_addr target)
+    {
+        // Create the ICMP context.
+        HANDLE icmpHandle = IcmpCreateFile();
+        if (icmpHandle == INVALID_HANDLE_VALUE)
+        {
+            perror("Error creating ICMP handle.");
+            return false;
+        }
+
+        // Payload to send.
+        constexpr WORD payloadSize = 1;
+        unsigned char payload[payloadSize]{0};
+
+        // Reply buffer for exactly 1 echo reply, payload data, and 8 bytes for ICMP error message.
+        constexpr DWORD replyBufSize = sizeof(ICMP_ECHO_REPLY) + payloadSize + 8;
+        unsigned char replyBuffer[replyBufSize]{0};
+
+        constexpr DWORD timeout = 10'000; // 10 seconds
+
+        const DWORD replyCount = IcmpSendEcho(icmpHandle, target.s_addr, payload, payloadSize, NULL, replyBuffer, replyBufSize, timeout);
+
+        if (replyCount == 0)
+        {
+            // Print error with errorCode
+            std::cerr << "Error sending ICMP echo request: " << GetLastError() << '\n';
+            IcmpCloseHandle(icmpHandle);
+            return false;
+        }
+
+
+        IcmpCloseHandle(icmpHandle);
+        const ICMP_ECHO_REPLY reply = *reinterpret_cast<ICMP_ECHO_REPLY*>(replyBuffer);
+        return reply.Status == IP_SUCCESS;
     }
 }; // namespace Sender

@@ -65,20 +65,24 @@ void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, 
 
 int main()
 {
-    const std::vector<uint8_t> rawData = readFile("dns packet.bin");
+    //const std::vector<uint8_t> rawData = readFile("dns packet.bin");
  
-    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
+    //printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
 
-    Packet packet(rawData);
+    //Packet packet(rawData);
 
-//#include <winsock2.h>
-//    in_addr broadcast;
-//    Sender::GetBroadcastAddress("Intel(R) Wi-Fi 6 AX201 160MHz", broadcast);
-//    
-//    /*To print a ULONG ip addr*/
-//    char ip[16] = {0};
-//    inet_ntop(AF_INET, &broadcast, ip, sizeof(ip));
-//    printf("\nBroadcast is: %s\n", ip);
+#include <inaddr.h>
+    in_addr broadcast;
+    if (!Sender::GetBroadcastAddress("Realtek PCIe GbE Family Controller", broadcast))
+    {
+        std::cerr << "Failed to get broadcast address!\n";
+        return 1;
+    }
+    
+    /*To print a ULONG ip addr*/
+    char ip[16] = {0};
+    inet_ntop(AF_INET, &broadcast, ip, sizeof(ip));
+    printf("\nBroadcast is: %s\n", ip);
 //
 //    in_addr target;
 //    target.S_un.S_un_b.s_b1 = 10;
@@ -87,6 +91,14 @@ int main()
 //    target.S_un.S_un_b.s_b4 = 1;
 //
 //    Sender::SendARPRequest(target);
+
+    in_addr target;
+    target.S_un.S_un_b.s_b1 = 10;
+    target.S_un.S_un_b.s_b2 = 100;
+    target.S_un.S_un_b.s_b3 = 102;
+    target.S_un.S_un_b.s_b4 = 1;
+
+    std::cout << "Sending ping: " << Sender::SendPing(target) << '\n';
 
     return 0;
 }
