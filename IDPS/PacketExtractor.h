@@ -5,11 +5,13 @@
 #include <queue>
 #include <mutex>
 
-typedef struct RawPacket
+using byte = unsigned char;
+
+struct RawPacket
 {
-	byte data[65536];
 	uint16_t size;
-} RawPacket;
+	byte data[65536];
+};
 
 class PacketExtractor
 {

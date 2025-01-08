@@ -6,9 +6,7 @@ RawPacket PacketExtractor::getPacket()
 
     if (this->packetQueue.empty())
     {
-        std::unique_lock<std::mutex> lock(this->queueMutex);
-        this->conditionVariable.wait(lock, [this] { return !this->packetQueue.empty(); });
-
+        
     }
 
     this->queueMutex.lock();
