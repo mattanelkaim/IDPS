@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../Driver/LayerHandles.h"
 #include "Helper.h"
 #include <thread>
 #include <queue>
@@ -13,7 +14,9 @@ private:
 	std::queue<std::vector<const uint8_t>> packetQueue;
 	std::thread ExtractorThread;
 
-	PacketExtractor() noexcept = default;
+	// private methods
+	PacketExtractor() noexcept;
+	void threadRoutine() noexcept;
 
 public:
 	// singelton functions
