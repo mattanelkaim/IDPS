@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <string>
 
+typedef unsigned char byte;
+
 enum ProtocolCode_16 : uint16_t
 {
     IPV4 = 0x0800,
