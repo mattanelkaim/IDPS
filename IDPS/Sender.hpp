@@ -47,6 +47,7 @@ namespace Sender
                 if (strcmp(pAdapterInfo->Description, interfaceName) == 0)
                 {
                     memcpy(localIP, &pAdapterInfo->IpAddressList, sizeof(IP_ADDR_STRING));
+                    localIP->Next = nullptr;
                     free(AdapterInfo);
                     return true;
                 }
@@ -96,14 +97,13 @@ namespace Sender
         constexpr DWORD replyBufSize = sizeof(ICMP_ECHO_REPLY) + payloadSize + 8;
         unsigned char replyBuffer[replyBufSize]{0};
 
-        constexpr DWORD timeout = 10'000; // 10 seconds
+        constexpr DWORD timeout = 2'000; // 10 seconds
 
-        const DWORD replyCount = IcmpSendEcho(icmpHandle, target.s_addr, payload, payloadSize, NULL, replyBuffer, replyBufSize, timeout);
+        const DWORD replyCount = IcmpSendEcho(icmpHandle, ntohl(target.s_addr), payload, payloadSize, NULL, replyBuffer, replyBufSize, timeout);
 
         if (replyCount == 0)
         {
-            // Print error with errorCode
-            std::cerr << "Error sending ICMP echo request: " << GetLastError() << '\n';
+            //std::cerr << "Error sending ICMP echo request: " << GetLastError() << '\n';
             IcmpCloseHandle(icmpHandle);
             return false;
         }
@@ -112,5 +112,23 @@ namespace Sender
         IcmpCloseHandle(icmpHandle);
         const ICMP_ECHO_REPLY reply = *reinterpret_cast<ICMP_ECHO_REPLY*>(replyBuffer);
         return reply.Status == IP_SUCCESS;
+    }
+
+    void mapLocalNetwork(const IP_ADDR_STRING& localIpData)
+    {
+        const auto maxAddr = Helper::getBroadcastAddress<ULONG>(localIpData);
+        const ULONG selfAddr = Helper::ipToLong(localIpData.IpAddress.String);
+        in_addr currAddr{};
+        currAddr.s_addr = Helper::getMinAddress(localIpData);
+
+        std::cout << "MIN: " << currAddr.s_addr << '\n';
+
+        for (currAddr; currAddr.s_addr < maxAddr; ++currAddr.s_addr)
+        {
+            std::cout << "Checking " << Helper::longToIp(currAddr.s_addr) << "...";
+            if (SendPing(currAddr))
+                std::cout << "ONLINE";
+            std::cout << '\n';
+        }
     }
 }; // namespace Sender

@@ -50,7 +50,7 @@ public:
 namespace Helper
 {
     // Function to convert string IP to unsigned long
-    inline ULONG ipToLong(const std::string_view ip)
+    inline ULONG ipToLong(const std::string_view ip) noexcept
     {
         in_addr addr;
         inet_pton(AF_INET, ip.data(), &addr);
@@ -58,7 +58,7 @@ namespace Helper
     }
 
     // Function to convert unsigned long to string IP
-    inline std::string longToIp(const ULONG ip)
+    inline std::string longToIp(const ULONG ip) noexcept
     {
         in_addr addr;
         addr.s_addr = htonl(ip);
@@ -67,7 +67,10 @@ namespace Helper
         return std::string(ipStr);
     }
 
-    inline std::string getBroadcastAddress(const IP_ADDR_STRING& ipAddrString)
+
+    template <typename T>
+    requires (std::same_as<T, ULONG> || std::same_as<T, std::string>)
+    inline T getBroadcastAddress(const IP_ADDR_STRING& ipAddrString) noexcept
     {
         const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
         const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
@@ -75,21 +78,33 @@ namespace Helper
         // Calculate the broadcast address
         const ULONG broadcastLong = ipLong | (~maskLong);
 
-        return longToIp(broadcastLong);
+        if constexpr (std::same_as<T, std::string>)
+            return longToIp(broadcastLong);
+        else
+            return broadcastLong;
+    }
+
+    inline ULONG getMinAddress(const IP_ADDR_STRING& ipAddrString) noexcept
+    {
+        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
+        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
+
+        // Calculate the minimum address
+        const ULONG min = (ipLong & maskLong) | 1;
+
+        return min;
     }
 
 
     template <typename T>
-    concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
-
-    template <IntegralOrProtocolCode_16 T>
+    requires (std::integral<T> || std::same_as<T, ProtocolCode_16>)
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
             return val;
         else // Swap bytes to Big Endian
         {
-            if constexpr (std::is_same_v<T, ProtocolCode_16>)
+            if constexpr (std::same_as<T, ProtocolCode_16>)
                 return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
             else
                 return std::byteswap(val);

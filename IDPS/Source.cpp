@@ -82,7 +82,16 @@ int main()
         return 1;
     }
 
-    std::cout << "Broadcast: " << Helper::getBroadcastAddress(localIP);
+    //std::cout << "Mask: " << localIP.IpMask.String << '\n';
+    //std::cout << "Broadcast: " << Helper::getBroadcastAddress<std::string>(localIP) << '\n';
+    //std::cout << "Minimum: " << Helper::longToIp(Helper::getMinAddress(localIP)) << '\n';
+
+    //in_addr addr;
+    //addr.s_addr = Helper::ipToLong("10.100.102.1");
+    //std::cout << addr.s_addr << '\n';
+    //std::cout << Sender::SendPing(addr);
+
+    Sender::mapLocalNetwork(localIP);
 
     //in_addr target;
     //target.S_un.S_un_b.s_b1 = 10;
