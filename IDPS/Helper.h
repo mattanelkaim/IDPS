@@ -19,8 +19,30 @@ enum ProtocolCode_8 : uint8_t
 };
 
 
-template <typename T>
-concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
+struct mac
+{
+public:
+    uint8_t bytes[6] = {0};
+
+    inline std::string macToString() const noexcept
+    {
+        char buffer[18] = {0}; // 12 hex digits + 5 colons + 1 null terminator
+        sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
+                  bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
+        return std::string(buffer);
+    }
+
+    // Define a conversion to represent in an integer form
+    constexpr operator uint64_t() const noexcept
+    {
+        // Not using std::memcpy to make the function constexpr
+        uint64_t mac_as_uint64 = 0;
+        for (uint8_t i = 0; i < 6; ++i)
+            mac_as_uint64 |= static_cast<uint64_t>(this->bytes[i]) << (8 * i);
+        return mac_as_uint64; // std::bit_cast<std::uint64_t>(this)
+    }
+};
+
 
 // For some reason, all functions MUST BE INLINE
 namespace Helper
@@ -31,7 +53,7 @@ namespace Helper
         char buffer[16];
 
         // Extract and format directly into the buffer
-        std::snprintf(buffer, sizeof(buffer), "%u.%u.%u.%u",
+        sprintf_s(buffer, "%u.%u.%u.%u",
                       (ip >> 24) & 0xFF,
                       (ip >> 16) & 0xFF,
                       (ip >> 8) & 0xFF,
@@ -40,6 +62,10 @@ namespace Helper
         // Return the formatted string (this is optimal)
         return std::string(buffer);
     }
+
+
+    template <typename T>
+    concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
 
     template <IntegralOrProtocolCode_16 T>
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
@@ -54,4 +80,4 @@ namespace Helper
                 return std::byteswap(val);
         }
     }
-}
+} // namespace Helper

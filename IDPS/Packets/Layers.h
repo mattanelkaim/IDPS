@@ -5,18 +5,16 @@
 #include <iosfwd> // std::ostream
 #include <span>
 
-// TODO: Implement constructors
-
 #pragma pack(push, 1) // All structs must be packed because of alignment
 
 struct EthernetHeader
 {
-    uint8_t dstMAC[6];
-    uint8_t srcMAC[6];
+    mac dstMAC;
+    mac srcMAC;
     ProtocolCode_16 etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
 public:
-    EthernetHeader(std::span<const uint8_t> rawData);
+    explicit EthernetHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
 
@@ -34,7 +32,7 @@ struct IPv4Header
     uint32_t dstIP;
 
 public:
-    IPv4Header(std::span<const uint8_t> rawData);
+    explicit IPv4Header(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
@@ -56,7 +54,7 @@ struct TCPHeader : public TransportHeader
     uint16_t urgentPointer;
 
 public:
-    TCPHeader(std::span<const uint8_t> rawData);
+    explicit TCPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const TCPHeader& obj);
 };
 
@@ -68,7 +66,7 @@ struct UDPHeader : public TransportHeader
     uint16_t checksum;
 
 public:
-    UDPHeader(std::span<const uint8_t> rawData);
+    explicit UDPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const UDPHeader& obj);
 };
 

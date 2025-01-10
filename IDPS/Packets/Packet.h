@@ -8,7 +8,7 @@
 class Packet
 {
 public:
-    Packet(std::span<const uint8_t> rawData);
+    explicit Packet(std::span<const uint8_t> rawData);
     ~Packet();
 
     std::string sourceIP;
