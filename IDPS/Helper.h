@@ -4,6 +4,8 @@
 #include <concepts>
 #include <cstdint>
 #include <string>
+#include <WS2tcpip.h>
+#include <IPTypes.h>
 
 enum ProtocolCode_16 : uint16_t
 {
@@ -37,9 +39,9 @@ public:
     {
         // Not using std::memcpy to make the function constexpr
         uint64_t mac_as_uint64 = 0;
-        for (uint8_t i = 0; i < 6; ++i)
-            mac_as_uint64 |= static_cast<uint64_t>(this->bytes[i]) << (8 * i);
-        return mac_as_uint64; // std::bit_cast<std::uint64_t>(this)
+        for (int8_t i = sizeof(bytes) - 1; i >= 0; --i)
+            mac_as_uint64 |= static_cast<uint64_t>(this->bytes[i]) << (8 * (sizeof(bytes) - 1 - i));
+        return mac_as_uint64;
     }
 };
 
@@ -47,34 +49,62 @@ public:
 // For some reason, all functions MUST BE INLINE
 namespace Helper
 {
-    inline std::string ipToString(const uint32_t ip)
+    // Function to convert string IP to unsigned long
+    inline ULONG ipToLong(const std::string_view ip) noexcept
     {
-        // Allocate a buffer large enough for "255.255.255.255\0" (16 bytes max)
-        char buffer[16];
+        in_addr addr;
+        inet_pton(AF_INET, ip.data(), &addr);
+        return ntohl(addr.s_addr);
+    }
 
-        // Extract and format directly into the buffer
-        sprintf_s(buffer, "%u.%u.%u.%u",
-                      (ip >> 24) & 0xFF,
-                      (ip >> 16) & 0xFF,
-                      (ip >> 8) & 0xFF,
-                      ip & 0xFF);
-
-        // Return the formatted string (this is optimal)
-        return std::string(buffer);
+    // Function to convert unsigned long to string IP
+    inline std::string longToIp(const ULONG ip) noexcept
+    {
+        in_addr addr;
+        addr.s_addr = htonl(ip);
+        char ipStr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr, ipStr, INET_ADDRSTRLEN);
+        return std::string(ipStr);
     }
 
 
     template <typename T>
-    concept IntegralOrProtocolCode_16 = std::integral<T> || std::is_same_v<T, ProtocolCode_16>;
+    requires (std::same_as<T, ULONG> || std::same_as<T, std::string>)
+    inline T getBroadcastAddress(const IP_ADDR_STRING& ipAddrString) noexcept
+    {
+        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
+        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
 
-    template <IntegralOrProtocolCode_16 T>
+        // Calculate the broadcast address
+        const ULONG broadcastLong = ipLong | (~maskLong);
+
+        if constexpr (std::same_as<T, std::string>)
+            return longToIp(broadcastLong);
+        else
+            return broadcastLong;
+    }
+
+    inline ULONG getMinAddress(const IP_ADDR_STRING& ipAddrString) noexcept
+    {
+        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
+        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
+
+        // Calculate the minimum address
+        const ULONG min = (ipLong & maskLong) | 1;
+
+        return min;
+    }
+
+
+    template <typename T>
+    requires (std::integral<T> || std::same_as<T, ProtocolCode_16>)
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
             return val;
         else // Swap bytes to Big Endian
         {
-            if constexpr (std::is_same_v<T, ProtocolCode_16>)
+            if constexpr (std::same_as<T, ProtocolCode_16>)
                 return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
             else
                 return std::byteswap(val);
