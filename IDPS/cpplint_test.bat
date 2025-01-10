@@ -1,0 +1,2 @@
+cpplint --quiet --recursive .
+pause

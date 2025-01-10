@@ -13,8 +13,8 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
     {
         layerEnd += sizeof(IPv4Header);
         this->ipv4Header = new IPv4Header(rawData.subspan(offset, layerEnd));
-        this->sourceIP = Helper::ipToString(ipv4Header->srcIP);
-        this->destinationIP = Helper::ipToString(ipv4Header->dstIP);
+        this->sourceIP = Helper::longToIp(ipv4Header->srcIP);
+        this->destinationIP = Helper::longToIp(ipv4Header->dstIP);
         std::cout << "\033[42mIP:\033[0m\n" << *ipv4Header << '\n';
     }
     else // Probably IPv6 or ARP
