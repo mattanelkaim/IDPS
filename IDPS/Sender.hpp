@@ -5,7 +5,9 @@
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
 #include <IcmpAPI.h>
+#include <vector>
 #include <iostream>
+#include <thread>
 
 // Link with Ws2_32.lib and Iphlpapi.lib (for GetAdaptersInfo)
 #pragma comment(lib, "Ws2_32.lib")
@@ -36,6 +38,7 @@ namespace Sender
             }
         }
         
+        puts("------ Available adapters ------");
         // Call function again with the correct buffer size
         if (GetAdaptersInfo(AdapterInfo, &ulOutBufLen) == NO_ERROR) [[likely]]
         {
@@ -97,7 +100,7 @@ namespace Sender
         constexpr DWORD replyBufSize = sizeof(ICMP_ECHO_REPLY) + payloadSize + 8;
         unsigned char replyBuffer[replyBufSize]{0};
 
-        constexpr DWORD timeout = 2'000; // 10 seconds
+        constexpr DWORD timeout = 10'000; // 10 seconds
 
         const DWORD replyCount = IcmpSendEcho(icmpHandle, ntohl(target.s_addr), payload, payloadSize, NULL, replyBuffer, replyBufSize, timeout);
 
@@ -114,21 +117,28 @@ namespace Sender
         return reply.Status == IP_SUCCESS;
     }
 
-    void mapLocalNetwork(const IP_ADDR_STRING& localIpData)
+    std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     {
         const auto maxAddr = Helper::getBroadcastAddress<ULONG>(localIpData);
-        const ULONG selfAddr = Helper::ipToLong(localIpData.IpAddress.String);
         in_addr currAddr{};
         currAddr.s_addr = Helper::getMinAddress(localIpData);
 
-        std::cout << "MIN: " << currAddr.s_addr << '\n';
+        std::vector<in_addr> onlineAddresses;
+        std::vector<std::thread> threads;
 
         for (currAddr; currAddr.s_addr < maxAddr; ++currAddr.s_addr)
         {
-            std::cout << "Checking " << Helper::longToIp(currAddr.s_addr) << "...";
-            if (SendPing(currAddr))
-                std::cout << "ONLINE";
-            std::cout << '\n';
+            threads.push_back(std::thread([&onlineAddresses, currAddr]() {
+                if (SendPing(currAddr)) onlineAddresses.push_back(currAddr);
+            }));
         }
+
+        // Wait for all threads to finish
+        for (auto& thread : threads)
+            thread.join();
+
+        // Remove self from online vector
+        //const ULONG selfAddr = Helper::ipToLong(localIpData.IpAddress.String);
+        return onlineAddresses;
     }
 }; // namespace Sender

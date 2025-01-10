@@ -82,24 +82,13 @@ int main()
         return 1;
     }
 
-    //std::cout << "Mask: " << localIP.IpMask.String << '\n';
-    //std::cout << "Broadcast: " << Helper::getBroadcastAddress<std::string>(localIP) << '\n';
-    //std::cout << "Minimum: " << Helper::longToIp(Helper::getMinAddress(localIP)) << '\n';
-
-    //in_addr addr;
-    //addr.s_addr = Helper::ipToLong("10.100.102.1");
-    //std::cout << addr.s_addr << '\n';
-    //std::cout << Sender::SendPing(addr);
-
-    Sender::mapLocalNetwork(localIP);
-
-    //in_addr target;
-    //target.S_un.S_un_b.s_b1 = 10;
-    //target.S_un.S_un_b.s_b2 = 100;
-    //target.S_un.S_un_b.s_b3 = 102;
-    //target.S_un.S_un_b.s_b4 = 1;
-
-    //std::cout << "Sending ping: " << Sender::SendPing(target) << '\n';
+    std::cout << "\n\nScanning network...\n";
+    const std::vector onlineHosts = Sender::mapLocalNetwork(localIP);
+    std::cout << "------ ONLINE ------\n";
+    for (const auto addr : onlineHosts)
+    {
+        std::cout << Helper::longToIp(addr.s_addr) << '\n';
+    }
 
     return 0;
 }
