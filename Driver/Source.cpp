@@ -186,6 +186,8 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
             break;
         }
 
+        goto initWfpLabel
+
         // Get the input buffer from the IRP
         userHandle = &(((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->mutex);
 
@@ -211,6 +213,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
         IDPS_PRINT("Succesfully duplicated handles");
 
+        initWfpLabel:
         IDPS_PRINT("Initializing WFP...\n");
 
         status = InitializeWfp();
@@ -338,7 +341,7 @@ NTSTATUS WfpRegisterCallout()
 
 VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
-    IDPS_PRINT("Received inbound IP packet...");
+    IDPS_PRINT("Received inbound packet...");
 
     if (layerData == NULL || classifyOut == NULL) {
         IDPS_PRINT("Layer data or classifyOut is NULL");
@@ -384,6 +387,7 @@ VOID UnInitWfp()
 
     UnInitMutexes();
 }
+
 void writeToFile(PUNICODE_STRING filePath, PVOID buffer, ULONG bufferSize)
 {
     NTSTATUS status = STATUS_SUCCESS;
