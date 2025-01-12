@@ -39,6 +39,8 @@ BOOL driverUnloading = FALSE;
 // IOCTL code for user-mode communication
 DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
 DEFINE_GUID(ETHERNET_SUBLAYER_GUID, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
+DEFINE_GUID(IP_CALLOUT_GUID, 0x13579bdf, 0x2468, 0xace0, 0x13, 0x57, 0x9b, 0xdf, 0x24, 0x68, 0xac, 0xe0);
+DEFINE_GUID(IP_SUBLAYER_GUID, 0xabcdef12, 0x3456, 0x7890, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90);
 
 // These cannot be const nor constexpr!
 UNICODE_STRING DEVICE_NAME = RTL_CONSTANT_STRING(L"\\Device\\IDPS Sniffer Device");
@@ -49,6 +51,9 @@ HANDLE engineHandle = NULL;
 UINT32 EthernetRegCalloutId;
 UINT32 EthernetAddCalloutId;
 UINT64 EthernetFilterId = 0;
+UINT32 IpRegCalloutId;
+UINT32 IpAddCalloutId;
+UINT64 IpFilterId = 0;
 HANDLE packetMutex = NULL;
 HANDLE workMutex = NULL;
 KERNEL_OBJECTS kernelMutexObjects = { NULL, NULL, NULL, NULL };
@@ -67,6 +72,7 @@ NTSTATUS WfpAddSublayer();
 NTSTATUS WfpAddFilter();
 NTSTATUS WfpRegisterCallout();
 VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
+VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 NTSTATUS NotifyCallback(__IGNORE FWPS_CALLOUT_NOTIFY_TYPE type, __IGNORE const GUID* filterKey, __IGNORE FWPS_FILTER* filter);
 VOID FlowDeleteCallback(__IGNORE UINT16 layerId, __IGNORE UINT32 calloutId, __IGNORE UINT64 flowContext);
 VOID UnInitWfp();
@@ -77,6 +83,7 @@ VOID UnInitMutexes();
 IO_WORKITEM_ROUTINE WorkItemRoutine;
 void copyLayerData(PVOID layerData);
 void addRuleToBlacklist(unsigned int* ip);
+BOOL isInBlacklist(UINT32 ip);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -186,7 +193,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, PIRP Irp)
             break;
         }
 
-        goto initWfpLabel
+        goto initWfpLabel;
 
         // Get the input buffer from the IRP
         userHandle = &(((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->mutex);
@@ -280,6 +287,10 @@ NTSTATUS WfpAddCallout()
     callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
     status = FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
 
+    callout.calloutKey = IP_CALLOUT_GUID;
+    callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // Ip Layer
+    status = FwpmCalloutAdd(engineHandle, &callout, NULL, &IpAddCalloutId);
+
 
     return status;
 }
@@ -295,6 +306,9 @@ NTSTATUS WfpAddSublayer()
     sublayer.weight = 65500;
 
     sublayer.subLayerKey = ETHERNET_SUBLAYER_GUID;
+    status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
+
+    sublayer.subLayerKey = IP_SUBLAYER_GUID;
     status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
 
     return status;
@@ -319,6 +333,10 @@ NTSTATUS WfpAddFilter()
     filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
     status = FwpmFilterAdd(engineHandle, &filter, NULL, &EthernetFilterId);
 
+    filter.subLayerKey = IP_SUBLAYER_GUID;
+    filter.action.calloutKey = IP_CALLOUT_GUID;
+    filter.layerKey = FWPM_LAYER_INBOUND_IPPACKET_V4; // Ip Layer
+    status = FwpmFilterAdd(engineHandle, &filter, NULL, &IpFilterId);
 
     return status;
 }
@@ -336,6 +354,11 @@ NTSTATUS WfpRegisterCallout()
     callout.classifyFn = PacketCallback;
     status = FwpsCalloutRegister(deviceObject, &callout, &EthernetRegCalloutId);
 
+    callout.calloutKey = IP_CALLOUT_GUID;
+    callout.classifyFn = IpCallback;
+    status = FwpsCalloutRegister(deviceObject, &callout, &IpRegCalloutId);
+
+
     return status;
 }
 
@@ -347,12 +370,34 @@ VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
         IDPS_PRINT("Layer data or classifyOut is NULL");
         return;
     }
-
     RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
     classifyOut->actionType = FWP_ACTION_PERMIT;
         
     IDPS_PRINT("queueing work item");
     TryQueueWorkItem(layerData);
+}
+
+VOID IpCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
+{
+    // blocking blacklisted ips
+    RtlZeroMemory(classifyOut, sizeof(FWPS_CLASSIFY_OUT));
+    &inFixedValues->incomingValue[FWPS_FIELD_INBOUND_IPPACKET_V4_IP_REMOTE_ADDRESS].value;
+    FWP_VALUE0* srcAddrValue = &inFixedValues->incomingValue[FWPS_FIELD_INBOUND_IPPACKET_V4_IP_REMOTE_ADDRESS].value;
+    UINT32 srcAddr = srcAddrValue->uint32; // Source IP
+    KdPrint(("IPv4 Source: %d.%d.%d.%d\n",
+        (srcAddr & 0xFF), (srcAddr >> 8) & 0xFF,
+        (srcAddr >> 16) & 0xFF, (srcAddr >> 24) & 0xFF));
+
+    if (isInBlacklist(srcAddr))
+    {
+        classifyOut->actionType = FWP_ACTION_BLOCK;
+        IDPS_PRINT("packet blocked!");
+    }
+    else
+    {
+        classifyOut->actionType = FWP_ACTION_PERMIT;
+        IDPS_PRINT("packet permitted");
+    }
 }
 
 // Boilerplate function without any use for now
@@ -376,11 +421,15 @@ VOID UnInitWfp()
         return;
 
     delFilter(EthernetFilterId);
+    delFilter(IpFilterId);
     FwpmSubLayerDeleteByKey(engineHandle, &ETHERNET_SUBLAYER_GUID);
+    FwpmSubLayerDeleteByKey(engineHandle, &IP_SUBLAYER_GUID);
 
     delCallout(EthernetAddCalloutId);
+    delCallout(IpAddCalloutId);
 
     unregCallout(EthernetRegCalloutId);
+    unregCallout(IpRegCalloutId);
 
     FwpmEngineClose(engineHandle);
     engineHandle = NULL;
@@ -596,6 +645,14 @@ void addRuleToBlacklist(unsigned int* ip)
 	}
 	IDPS_PRINT("Adding rule to blacklist");
 	ipBlacklist.ipBlacklist[ipBlacklist.listLength++] = *ip;
+}
+
+BOOL isInBlacklist(UINT32 ip)
+{
+    for (int i = 0; i < ipBlacklist.listLength; i++)
+        if (ip == ipBlacklist.ipBlacklist[i])
+            return TRUE;
+    return FALSE;
 }
 
 VOID WorkItemRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
