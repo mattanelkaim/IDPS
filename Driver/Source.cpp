@@ -650,8 +650,11 @@ void addRuleToBlacklist(unsigned int* ip)
 BOOL isInBlacklist(UINT32 ip)
 {
     for (int i = 0; i < ipBlacklist.listLength; i++)
+    {
         if (ip == ipBlacklist.ipBlacklist[i])
             return TRUE;
+    }
+        
     return FALSE;
 }
 
