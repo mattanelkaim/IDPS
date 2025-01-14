@@ -26,7 +26,18 @@ struct mac
 public:
     uint8_t bytes[6] = {0};
 
-    inline std::string macToString() const noexcept
+    mac() noexcept = default;
+    mac(const std::string& macStr)
+    {
+        int pos = 0;
+        for (int i = 0; i < sizeof(bytes); ++i)
+        {
+            bytes[i] = std::stoi(macStr.substr(pos, 2), nullptr, 16); // Convert hex str to integer
+            pos += 3; // Skip the ':'
+        }
+    }
+
+    std::string macToString() const noexcept
     {
         char buffer[18] = {0}; // 12 hex digits + 5 colons + 1 null terminator
         sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
