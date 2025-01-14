@@ -131,6 +131,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ArpTable.h" />
     <ClInclude Include="Handlers\DBHandler.h" />
     <ClInclude Include="Helper.h" />
     <ClInclude Include="PacketExtractor.h" />
@@ -140,6 +141,7 @@
     <ClInclude Include="sqlite\sqlite3.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ArpTable.cpp" />
     <ClCompile Include="Handlers\DBHandler.cpp" />
     <ClCompile Include="PacketExtractor.cpp" />
     <ClCompile Include="Packets\Layers.cpp" />
