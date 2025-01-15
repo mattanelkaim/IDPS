@@ -28,7 +28,7 @@ public:
     uint8_t bytes[6] = {0};
 
     mac() noexcept = default;
-    mac(const std::string& macStr)
+    explicit mac(const std::string& macStr)
     {
         int pos = 0;
         for (int i = 0; i < sizeof(bytes); ++i)

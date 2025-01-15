@@ -1,35 +1,34 @@
 #pragma once
 
 #include "../Driver/LayerHandles.h"
-#include <thread>
-#include <queue>
-#include <vector>
+#include <cstdint>
 #include <mutex>
-#include <atomic>
+#include <queue>
+#include <thread>
+#include <vector>
 
 class PacketExtractor final
 {
 private:
-	std::queue<std::vector<char>> packetQueue;
-	std::thread extractorThread;
-	std::mutex queueMutex;
-	HANDLE deviceHandle;
+	std::mutex m_queueMutex;
+	std::queue<std::vector<char>> m_packetQueue;
+	std::thread m_extractorThread;
+	HANDLE m_deviceHandle;
 
 	// private methods
-	PacketExtractor() noexcept;
+	PacketExtractor();
 	void threadRoutine();
-	void truncatePacketFile() const noexcept;
-	static bool bytesAvailable(std::ifstream& file, uint16_t numBytes) noexcept;
+	void truncatePacketFile() const;
+	static bool areBytesAvailable(std::ifstream& file, uint16_t numBytes) noexcept;
 
 public:
-
 	// singelton methods
+	~PacketExtractor() noexcept;
+	static PacketExtractor& getInstance() noexcept;
 	PacketExtractor(const PacketExtractor& other) = delete;
 	void operator=(const PacketExtractor& other) = delete;
-	~PacketExtractor() noexcept;
 
 	// methods
-	static PacketExtractor& getInstance() noexcept;
 	std::vector<char> getPacket() noexcept;
 };
 

@@ -111,13 +111,12 @@ bool Sender::SendPing(const in_addr target)
 std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
 {
     const auto maxAddr = Helper::getBroadcastAddress<ULONG>(localIpData);
-    in_addr currAddr{};
-    currAddr.s_addr = Helper::getMinAddress(localIpData);
+    in_addr currAddr = std::bit_cast<in_addr>(Helper::getMinAddress(localIpData)); // Need to bit_cast because of union
 
     std::vector<in_addr> onlineAddresses;
     std::vector<std::thread> threads;
 
-    for (currAddr; currAddr.s_addr < maxAddr; ++currAddr.s_addr)
+    for (; currAddr.s_addr < maxAddr; ++currAddr.s_addr)
     {
         threads.push_back(std::thread([&onlineAddresses, currAddr]() {
             if (SendPing(currAddr)) onlineAddresses.push_back(currAddr);
@@ -128,7 +127,5 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     for (auto& thread : threads)
         thread.join();
 
-    // Remove self from online vector
-    //const ULONG selfAddr = Helper::ipToLong(localIpData.IpAddress.String);
     return onlineAddresses;
 }

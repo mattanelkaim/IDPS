@@ -76,15 +76,16 @@ int main()
 
     //Packet packet(rawData);
 
-    IP_ADDR_STRING localIP;
-    if (!Sender::GetLocalIpAddress("Realtek PCIe GbE Family Controller", &localIP))
-    {
-        std::cerr << "Failed to get local IP address!\n";
-        return 1;
-    }
+    //IP_ADDR_STRING localIP;
+    //if (!Sender::GetLocalIpAddress("Realtek PCIe GbE Family Controller", &localIP))
+    //{
+    //    std::cerr << "Failed to get local IP address!\n";
+    //    return 1;
+    //}
 
-    ArpTable at(&localIP, "ARP.csv");
-    at.updateTable();
+    //ArpTable at(&localIP, "ARP.csv");
+    //at.updateTable();
+
 
     return 0;
 }
