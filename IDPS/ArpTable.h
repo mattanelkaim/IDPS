@@ -18,4 +18,5 @@ private:
     PIP_ADDR_STRING m_localAddress;
 
     void readFileToTable();
+    void writeTableToFile();
 };

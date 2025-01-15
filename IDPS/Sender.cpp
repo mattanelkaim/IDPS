@@ -66,7 +66,7 @@ mac Sender::SendARPRequest(const in_addr target)
 
     // Send the ARP request
     if (SendARP(ntohl(target.s_addr), INADDR_ANY, macAddress.bytes, &macAddressLen) != NO_ERROR)
-        perror("Error sending ARP request.");
+        puts("Error sending ARP request");
 
     return macAddress;
 }

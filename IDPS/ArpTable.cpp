@@ -16,9 +16,7 @@ ArpTable::ArpTable(PIP_ADDR_STRING localAddress, const std::string_view fileName
         tableFile << "IP,MAC\n"; // Write CSV header
     }
 
-    this->readFileToTable();
-    puts("--------------------------------------");
-    this->updateTable();
+    readFileToTable();
 }
 
 
@@ -29,21 +27,17 @@ void ArpTable::updateTable()
 
     // Get all IPs in network
     const std::vector<in_addr> ipAddresses = Sender::mapLocalNetwork(*m_localAddress);
-    std::cout << "Total of IPs online: " << ipAddresses.size() << '\n';
-
-    Sleep(5000);
+    std::cout << "\nOnline IPs:" << '\n';
 
     // Then resolve each IP to its MAC
     for (const in_addr currentIP : ipAddresses)
     {
+        std::cout << Helper::longToIp(currentIP.s_addr) << '\n';
         const mac currentMAC = Sender::SendARPRequest(currentIP);
         this->m_table.emplace(currentIP.s_addr, currentMAC);
     }
 
-    // TODO REMOVE
-    for (const auto& pair : m_table) {
-        std::cout << Helper::longToIp(pair.first) << ": " << pair.second.macToString() << '\n';
-    }
+    this->writeTableToFile();
 }
 
 
@@ -61,16 +55,23 @@ void ArpTable::readFileToTable()
     while (std::getline(tableFile, ipStr, ','))
     {
         std::getline(tableFile, macStr, '\n');
-        //std::cout << "IP is: " << ipStr << " | MAC is: " << macStr << '\n';
         
         const ULONG ipAddr = Helper::ipToLong(ipStr);
         const mac macAddr(macStr);
 
         m_table.insert_or_assign(ipAddr, macAddr);
     }
+}
 
-    // TODO REMOVE
-    for (const auto& pair : m_table) {
-        std::cout << Helper::longToIp(pair.first) << ": " << pair.second.macToString() << '\n';
-    }
+
+void ArpTable::writeTableToFile()
+{
+    // Open table file and delete its previous contents
+    std::ofstream tableFile(m_fileName, std::ios_base::trunc);
+
+    tableFile << "IP,MAC\n"; // Insert CSV header
+
+    // Write each IP&MAC pair as a new line
+    for (const auto& [ip, mac] : m_table)
+        tableFile << Helper::longToIp(ip) << ',' << mac.macToString() << '\n';
 }

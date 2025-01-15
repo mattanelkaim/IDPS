@@ -83,15 +83,8 @@ int main()
         return 1;
     }
 
-    //std::cout << "\n\nScanning network...\n";
-    //const std::vector onlineHosts = Sender::mapLocalNetwork(localIP);
-    //std::cout << "------ ONLINE ------\n";
-    //for (const auto addr : onlineHosts)
-    //{
-    //    std::cout << Helper::longToIp(addr.s_addr) << '\n';
-    //}
-
     ArpTable at(&localIP, "ARP.csv");
+    at.updateTable();
 
     return 0;
 }
