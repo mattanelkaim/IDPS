@@ -1,6 +1,6 @@
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
-#include "Sender.hpp"
+#include "Sender.h"
 #include "ArpTable.h"
 #include <cstdint>
 #include <fstream>
@@ -76,12 +76,12 @@ int main()
 
     //Packet packet(rawData);
 
-    //IP_ADDR_STRING localIP;
-    //if (!Sender::GetLocalIpAddress("Realtek PCIe GbE Family Controller", &localIP))
-    //{
-    //    std::cerr << "Failed to get local IP address!\n";
-    //    return 1;
-    //}
+    IP_ADDR_STRING localIP;
+    if (!Sender::GetLocalIpAddress("Realtek PCIe GbE Family Controller", &localIP))
+    {
+        std::cerr << "Failed to get local IP address!\n";
+        return 1;
+    }
 
     //std::cout << "\n\nScanning network...\n";
     //const std::vector onlineHosts = Sender::mapLocalNetwork(localIP);
@@ -91,7 +91,7 @@ int main()
     //    std::cout << Helper::longToIp(addr.s_addr) << '\n';
     //}
 
-    ArpTable at("ARP.csv");
+    ArpTable at(&localIP, "ARP.csv");
 
     return 0;
 }
