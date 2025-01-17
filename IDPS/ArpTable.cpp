@@ -43,14 +43,8 @@ void ArpTable::updateTable()
 
 mac ArpTable::getMac(const in_addr ipAddr)
 {
-    try
-    {
-        return m_table.at(ipAddr.s_addr);
-    }
-    catch (const std::out_of_range&)
-    {
-        return invalidMac;
-    }
+    const auto it = m_table.find(ipAddr.s_addr);
+    return (it == m_table.cend()) ? invalidMac : it->second;
 }
 
 
