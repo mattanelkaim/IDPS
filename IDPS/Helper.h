@@ -22,6 +22,13 @@ enum ProtocolCode_8 : uint8_t
     UDP = 0x11,
 };
 
+enum ArpOpcode : uint16_t
+{
+    REQUEST = 1,
+    REPLY,
+    // Other currently useless opcodes until #25
+};
+
 
 struct mac
 {
@@ -110,17 +117,17 @@ namespace Helper
 
 
     template <typename T>
-    requires (std::integral<T> || std::same_as<T, ProtocolCode_16>)
+    requires (std::integral<T> || std::same_as<T, ProtocolCode_16> || std::same_as<T, ArpOpcode>)
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
             return val;
         else // Swap bytes to Big Endian
         {
-            if constexpr (std::same_as<T, ProtocolCode_16>)
-                return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
-            else
+            if constexpr (std::integral<T>)
                 return std::byteswap(val);
+            else
+                return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
         }
     }
 } // namespace Helper

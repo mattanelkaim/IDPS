@@ -47,7 +47,7 @@ struct ArpHeader : NetworkHeader
     ProtocolCode_16 protocolType; // Format of requested IP (v4/v6)
     uint8_t hardwareLength;
     uint8_t protocolLength;
-    uint16_t opcode; // 1 = request, 2 = reply
+    ArpOpcode opcode; // 1 = request, 2 = reply
     mac senderMAC;
     in_addr senderIP;
     mac targetMAC;

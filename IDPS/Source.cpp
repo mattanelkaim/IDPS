@@ -70,7 +70,7 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    const std::vector<uint8_t> rawData = readFile("Example Sniffs/ArpRequest");
+    const std::vector<uint8_t> rawData = readFile("Example Sniffs/ArpRequest.bin");
  
     printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
 
