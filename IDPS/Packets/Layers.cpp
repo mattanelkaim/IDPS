@@ -20,7 +20,7 @@ std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
     os << "\033[4mDestination MAC\033[0m: " << obj.dstMAC.macToString();
     os << "\n\033[4mSource MAC\033[0m:      " << obj.srcMAC.macToString();
 
-    os << "\n\033[4mEthernet type\033[0m:   " << obj.etherType << '\n';
+    os << "\n\033[4mEthernet type\033[0m:   0x" << std::hex << obj.etherType << std::dec << '\n';
     return os;
 }
 
@@ -53,7 +53,7 @@ std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
     os << "\033[4mFragment offset\033[0m: " << (obj.flagsAndFragmentOffset & 0x1FFF) << '\n'; // Low 13 bits
     os << "\033[4mTime to live\033[0m: " << static_cast<int>(obj.timeToLive) << '\n';
     os << "\033[4mProtocol\033[0m: " << static_cast<int>(obj.protocol) << '\n';
-    os << "\033[4mChecksum\033[0m: " << obj.checksum << '\n';
+    os << "\033[4mChecksum\033[0m: 0x" << std::hex << obj.checksum << std::dec << '\n';
     os << "\033[4mSource IP\033[0m: " << Helper::longToIp(obj.srcIP) << '\n';
     os << "\033[4mDestination IP\033[0m: " << Helper::longToIp(obj.dstIP) << '\n';
     return os;
@@ -78,16 +78,16 @@ ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
 {
-    os << "Hardware Type: " << std::hex << obj.hardwareType << std::dec << '\n';
-    os << "Protocol Type: " << std::hex << obj.protocolType << std::dec << '\n';
-    os << "Hardware Address Length: " << static_cast<int>(obj.hardwareLength) << '\n';
-    os << "Protocol Address Length: " << static_cast<int>(obj.protocolLength) << '\n';
-    os << "Opcode: " << std::hex << obj.opcode << std::dec << '\n';
+    os << "\033[4mHardware type\033[0m: 0x" << std::hex << obj.hardwareType << '\n';
+    os << "\033[4mIP format type\033[0m: 0x" << obj.protocolType << std::dec << '\n';
+    os << "\033[4mHardware length\033[0m: " << static_cast<int>(obj.hardwareLength) << '\n';
+    os << "\033[4mProtocol length\033[0m: " << static_cast<int>(obj.protocolLength) << '\n';
+    os << "\033[4mOpcode\033[0m: 0x" << std::hex << obj.opcode << std::dec << '\n';
 
-    os << "Sender MAC: " << obj.senderMAC.macToString() << '\n';
-    os << "Sender IP: " << Helper::longToIp(obj.senderIP.s_addr) << '\n';
-    os << "Target MAC: " << obj.targetMAC.macToString() << '\n';
-    os << "Target IP: " << Helper::longToIp(obj.targetIP.s_addr) << '\n';
+    os << "\033[4mSender MAC\033[0m: " << obj.senderMAC.macToString() << '\n';
+    os << "\033[4mSender IP\033[0m: " << Helper::longToIp(obj.senderIP.s_addr) << '\n';
+    os << "\033[4mTarget MAC\033[0m: " << obj.targetMAC.macToString() << '\n';
+    os << "\033[4mTarget IP\033[0m: " << Helper::longToIp(obj.targetIP.s_addr) << '\n';
 
     return os;
 }
@@ -133,7 +133,7 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
     if (obj.dataOffsetAndReserved & 0x01) os << "Reserved ";  // The 9th flag bit
 
     os << "\n\033[4mWindow size\033[0m: " << obj.windowSize << '\n';
-    os << "\033[4mChecksum\033[0m: " << obj.checksum << '\n';
+    os << "\033[4mChecksum\033[0m: 0x" << std::hex << obj.checksum << std::dec << '\n';
     os << "\033[4mUrgent pointer\033[0m: " << obj.urgentPointer << '\n';
 
     return os;
@@ -160,6 +160,6 @@ std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
     os << "\033[4mSource port\033[0m: " << obj.srcPort << '\n';
     os << "\033[4mDestination port\033[0m: " << obj.dstPort << '\n';
     os << "\033[4mLength\033[0m: " << obj.length << '\n';
-    os << "\033[4mChecksum\033[0m: " << obj.checksum << '\n';
+    os << "\033[4mChecksum\033[0m: 0x" << std::hex << obj.checksum << std::dec << '\n';
     return os;
 }
