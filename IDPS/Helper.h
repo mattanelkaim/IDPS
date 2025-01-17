@@ -59,11 +59,11 @@ public:
         return std::string(buffer);
     }
 
-    constexpr bool isInvalid() const noexcept
+    constexpr bool operator==(const mac& other) const noexcept
     {
         for (uint8_t i = 0; i < sizeof(bytes); ++i)
         {
-            if (bytes[i] != 0)
+            if (bytes[i] != other.bytes[i])
                 return false;
         }
 
