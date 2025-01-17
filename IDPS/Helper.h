@@ -5,8 +5,12 @@
 #include <concepts>
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <charconv>
 #include <WS2tcpip.h>
 #include <IPTypes.h>
+
+constexpr std::string_view INTERFACE_NAME = "Intel(R) Wi-Fi 6 AX201 160MHz";
 
 enum ProtocolCode_16 : uint16_t
 {
@@ -22,6 +26,13 @@ enum ProtocolCode_8 : uint8_t
     UDP = 0x11,
 };
 
+enum ArpOpcode : uint16_t
+{
+    REQUEST = 1,
+    REPLY,
+    // Other currently useless opcodes until #25
+};
+
 
 struct mac
 {
@@ -29,13 +40,14 @@ public:
     uint8_t bytes[6] = {0};
 
     mac() noexcept = default;
-    explicit mac(const std::string& macStr)
+    constexpr explicit mac(const std::string_view macStr) noexcept
     {
-        int pos = 0;
+        const char* currentByte = macStr.data();
         for (int i = 0; i < sizeof(bytes); ++i)
         {
-            bytes[i] = std::stoi(macStr.substr(pos, 2), nullptr, 16); // Convert hex str to integer
-            pos += 3; // Skip the ':'
+            // Using from_chars because it is constexpr
+            std::from_chars(currentByte, currentByte + 2, bytes[i], 16); // Convert hex str to integer
+            currentByte += 3; // Skip the ':'
         }
     }
 
@@ -45,6 +57,17 @@ public:
         sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
                   bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
         return std::string(buffer);
+    }
+
+    constexpr bool operator==(const mac& other) const noexcept
+    {
+        for (uint8_t i = 0; i < sizeof(bytes); ++i)
+        {
+            if (bytes[i] != other.bytes[i])
+                return false;
+        }
+
+        return true;
     }
 
     // Define a conversion to represent in an integer form
@@ -57,6 +80,8 @@ public:
         return mac_as_uint64;
     }
 };
+
+constexpr mac invalidMac("00:00:00:00:00:00");
 
 
 // For some reason, all functions MUST BE INLINE
@@ -110,17 +135,17 @@ namespace Helper
 
 
     template <typename T>
-    requires (std::integral<T> || std::same_as<T, ProtocolCode_16>)
+    requires (std::integral<T> || std::same_as<T, ProtocolCode_16> || std::same_as<T, ArpOpcode>)
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
             return val;
         else // Swap bytes to Big Endian
         {
-            if constexpr (std::same_as<T, ProtocolCode_16>)
-                return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
-            else
+            if constexpr (std::integral<T>)
                 return std::byteswap(val);
+            else
+                return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
         }
     }
 } // namespace Helper

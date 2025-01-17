@@ -2,6 +2,7 @@
 #include "Packets/Packet.h"
 #include "Sender.h"
 #include "ArpTable.h"
+#include "Detector.h"
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
@@ -70,22 +71,14 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    const std::vector<uint8_t> rawData = readFile("Example Sniffs/ArpRequest");
+    const std::vector<uint8_t> rawData = readFile("Example Sniffs/ArpReply.bin");
  
-    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
+    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(ArpHeader));
 
     Packet packet(rawData);
 
-    //IP_ADDR_STRING localIP;
-    //if (!Sender::GetLocalIpAddress("Realtek PCIe GbE Family Controller", &localIP))
-    //{
-    //    std::cerr << "Failed to get local IP address!\n";
-    //    return 1;
-    //}
-
-    //ArpTable at(&localIP, "ARP.csv");
-    //at.updateTable();
-
-
+    std::cout << Detector::getInstance().isArpReplyLikeTable(packet);
+    
+    //std::cout << (mac{"AA:AA:AA:BB:BB:BB"} == mac{"BB:BB:BB:AA:AA:AA"});
     return 0;
 }

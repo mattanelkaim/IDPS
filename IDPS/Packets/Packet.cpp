@@ -15,18 +15,18 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
         offset += sizeof(IPv4Header);
         this->sourceIP = Helper::longToIp(static_cast<IPv4Header*>(networkHeader)->srcIP);
         this->destinationIP = Helper::longToIp(static_cast<IPv4Header*>(networkHeader)->dstIP);
-        this->protocol = static_cast<IPv4Header*>(networkHeader)->protocol;
+        this->transportProtocol = static_cast<IPv4Header*>(networkHeader)->protocol;
         std::cout << "\033[42mIP:\033[0m\n" << *static_cast<IPv4Header*>(networkHeader) << '\n';
     }
     else if (ethernetHeader->etherType == ARP)
     {
         this->networkHeader = new ArpHeader(rawData.subspan(offset, sizeof(ArpHeader)));
-        offset += sizeof(ArpHeader);
         this->sourceIP = "";
         this->destinationIP = "";
-        this->protocol = NONE;
+        this->transportProtocol = NONE;
         this->sourcePort = 0;
         this->destinationPort = 0;
+        this->transportHeader = nullptr;
         std::cout << "\033[42mIP:\033[0m\n" << *static_cast<ArpHeader*>(networkHeader) << '\n';
         return; // No transport layer!
     }
@@ -35,7 +35,7 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
         throw std::runtime_error("Unsupported protocol");
     }
 
-    if (this->protocol == TCP)
+    if (this->transportProtocol == TCP)
     {
         this->transportHeader = new TCPHeader(rawData.subspan(offset, sizeof(TCPHeader)));
         offset += sizeof(TCPHeader);
@@ -43,7 +43,7 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
         this->destinationPort = static_cast<TCPHeader*>(transportHeader)->dstPort;
         std::cout << "\033[43mTCP:\033[0m\n" << *static_cast<TCPHeader*>(transportHeader) << '\n';
     }
-    else if (this->protocol == UDP)
+    else if (this->transportProtocol == UDP)
     {
         this->transportHeader = new UDPHeader(rawData.subspan(offset, sizeof(UDPHeader)));
         offset += sizeof(UDPHeader);
