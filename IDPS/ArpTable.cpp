@@ -41,7 +41,7 @@ void ArpTable::updateTable()
 }
 
 
-mac ArpTable::getMac(const in_addr ipAddr)
+mac ArpTable::getMac(const in_addr ipAddr) const noexcept
 {
     const auto it = m_table.find(ipAddr.s_addr);
     return (it == m_table.cend()) ? invalidMac : it->second;
