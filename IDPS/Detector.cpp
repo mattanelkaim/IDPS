@@ -14,17 +14,25 @@ Detector::Detector()
 }
 
 
-bool Detector::isArpReplyLikeTable(const Packet& packet)
+bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const
 {
-    if (packet.ethernetHeader->etherType != ARP)
+    if (arpPacket.ethernetHeader->etherType != ARP)
         throw std::invalid_argument("Packet does not have an ARP header!");
     
-    const ArpHeader* arpHeader = reinterpret_cast<ArpHeader*>(packet.networkHeader);
+    const ArpHeader* arpHeader = reinterpret_cast<ArpHeader*>(arpPacket.networkHeader);
     if (arpHeader->opcode != REPLY)
         throw std::invalid_argument("ARP packet must be a reply!");
 
     // TODO define behavior if MAC is not in table
     return arpHeader->senderMAC == m_arpTable.getMac(arpHeader->senderIP);
+}
+
+bool Detector::isTcpNullScan(const Packet& tcpPacket)
+{
+    if (tcpPacket.transportProtocol != TCP)
+        throw std::invalid_argument("Packet does not use the TCP protocol!");
+
+    return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
 

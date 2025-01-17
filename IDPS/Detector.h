@@ -18,5 +18,6 @@ public:
     Detector(const Detector& other) = delete;
     void operator=(const Detector& other) = delete;
 
-    bool isArpReplyLikeTable(const Packet& arpPacket);
+    bool isArpReplyLikeTable(const Packet& arpPacket) const;
+    static bool isTcpNullScan(const Packet& tcpPacket);
 };

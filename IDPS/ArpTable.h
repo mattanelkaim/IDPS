@@ -12,7 +12,7 @@ public:
     ArpTable() noexcept = default;
     ArpTable(PIP_ADDR_STRING localAddress, std::string_view fileName);
     void updateTable();
-    mac getMac(in_addr ipAddr);
+    mac getMac(in_addr ipAddr) const noexcept;
 
 private:
     std::unordered_map<unsigned long, mac> m_table;
