@@ -36,6 +36,23 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
+struct ArpHeader
+{
+    uint16_t hardwareType;        // 1 = Ethernet, 6 = IEEE 802
+    ProtocolCode_16 protocolType; // Format of requested IP (v4/v6)
+    uint8_t hardwareLength;
+    uint8_t protocolLength;
+    uint16_t opcode;            // 1 = request, 2 = reply
+    mac senderMAC;
+    in_addr senderIP;
+    mac targetMAC;
+    in_addr targetIP;
+
+public:
+    explicit ArpHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const ArpHeader& obj);
+};
+
 struct TransportHeader
 {
     //TransportHeader() = delete;

@@ -60,6 +60,39 @@ std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
 }
 
 
+ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(ArpHeader)) [[unlikely]]
+        throw std::runtime_error("Invalid ARP header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const ArpHeader*>(rawData.data());
+
+    // Convert to big endian if needed
+    this->hardwareType = Helper::toBigEndian(this->hardwareType);
+    this->protocolType = Helper::toBigEndian(this->protocolType);
+    this->opcode = Helper::toBigEndian(this->opcode);
+    this->senderIP.s_addr = Helper::toBigEndian(this->senderIP.s_addr);
+    this->targetIP.s_addr = Helper::toBigEndian(this->targetIP.s_addr);
+}
+
+std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
+{
+    os << "Hardware Type: " << std::hex << obj.hardwareType << std::dec << '\n';
+    os << "Protocol Type: " << std::hex << obj.protocolType << std::dec << '\n';
+    os << "Hardware Address Length: " << static_cast<int>(obj.hardwareLength) << '\n';
+    os << "Protocol Address Length: " << static_cast<int>(obj.protocolLength) << '\n';
+    os << "Opcode: " << std::hex << obj.opcode << std::dec << '\n';
+
+    os << "Sender MAC: " << obj.senderMAC.macToString() << '\n';
+    os << "Sender IP: " << Helper::longToIp(obj.senderIP.s_addr) << '\n';
+    os << "Target MAC: " << obj.targetMAC.macToString() << '\n';
+    os << "Target IP: " << Helper::longToIp(obj.targetIP.s_addr) << '\n';
+
+    return os;
+}
+
+
 TCPHeader::TCPHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(TCPHeader)) [[unlikely]]
