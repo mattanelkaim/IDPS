@@ -5,8 +5,11 @@
 #include <concepts>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <WS2tcpip.h>
 #include <IPTypes.h>
+
+constexpr std::string_view INTERFACE_NAME = "Intel(R) Wi-Fi 6 AX201 160MHz";
 
 enum ProtocolCode_16 : uint16_t
 {

@@ -9,6 +9,7 @@
 class ArpTable
 {
 public:
+    ArpTable() noexcept = default;
     ArpTable(PIP_ADDR_STRING localAddress, std::string_view fileName);
     void updateTable();
 
