@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <charconv>
 #include <WS2tcpip.h>
 #include <IPTypes.h>
 
@@ -39,13 +40,14 @@ public:
     uint8_t bytes[6] = {0};
 
     mac() noexcept = default;
-    explicit mac(const std::string& macStr)
+    constexpr explicit mac(const std::string_view macStr) noexcept
     {
-        int pos = 0;
+        const char* currentByte = macStr.data();
         for (int i = 0; i < sizeof(bytes); ++i)
         {
-            bytes[i] = std::stoi(macStr.substr(pos, 2), nullptr, 16); // Convert hex str to integer
-            pos += 3; // Skip the ':'
+            // Using from_chars because it is constexpr
+            std::from_chars(currentByte, currentByte + 2, bytes[i], 16); // Convert hex str to integer
+            currentByte += 3; // Skip the ':'
         }
     }
 
@@ -67,6 +69,8 @@ public:
         return mac_as_uint64;
     }
 };
+
+constexpr mac INVALID_MAC("FF:FF:FF:FF:FF:FF");
 
 
 // For some reason, all functions MUST BE INLINE
