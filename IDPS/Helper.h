@@ -59,25 +59,11 @@ public:
         return std::string(buffer);
     }
 
-    constexpr bool operator==(const mac& other) const noexcept
-    {
-        for (uint8_t i = 0; i < sizeof(bytes); ++i)
-        {
-            if (bytes[i] != other.bytes[i])
-                return false;
-        }
-
-        return true;
-    }
-
-    // Define a conversion to represent in an integer form
+    // Define an implicit conversion to represent in an integer value
     constexpr operator uint64_t() const noexcept
     {
-        // Not using std::memcpy to make the function constexpr
-        uint64_t mac_as_uint64 = 0;
-        for (int8_t i = sizeof(bytes) - 1; i >= 0; --i)
-            mac_as_uint64 |= static_cast<uint64_t>(this->bytes[i]) << (8 * (sizeof(bytes) - 1 - i));
-        return mac_as_uint64;
+        // This MUST be C-style cast because reinterpret_cast isn't constexpr
+        return *(const uint64_t*)bytes & 0x0000FFFFFFFFFFFF;
     }
 };
 
