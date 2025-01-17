@@ -59,6 +59,17 @@ public:
         return std::string(buffer);
     }
 
+    constexpr bool isInvalid() const noexcept
+    {
+        for (uint8_t i = 0; i < sizeof(bytes); ++i)
+        {
+            if (bytes[i] != 0)
+                return false;
+        }
+
+        return true;
+    }
+
     // Define a conversion to represent in an integer form
     constexpr operator uint64_t() const noexcept
     {
@@ -70,7 +81,7 @@ public:
     }
 };
 
-constexpr mac INVALID_MAC("FF:FF:FF:FF:FF:FF");
+constexpr mac invalidMac("00:00:00:00:00:00");
 
 
 // For some reason, all functions MUST BE INLINE

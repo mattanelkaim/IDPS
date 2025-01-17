@@ -41,6 +41,19 @@ void ArpTable::updateTable()
 }
 
 
+mac ArpTable::getMac(const in_addr ipAddr)
+{
+    try
+    {
+        return m_table.at(ipAddr.s_addr);
+    }
+    catch (const std::out_of_range&)
+    {
+        return invalidMac;
+    }
+}
+
+
 void ArpTable::readFileToTable()
 {
     std::ifstream tableFile(m_fileName);
