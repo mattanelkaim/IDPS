@@ -21,12 +21,12 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
     else if (ethernetHeader->etherType == ARP)
     {
         this->networkHeader = new ArpHeader(rawData.subspan(offset, sizeof(ArpHeader)));
-        offset += sizeof(ArpHeader);
         this->sourceIP = "";
         this->destinationIP = "";
         this->transportProtocol = NONE;
         this->sourcePort = 0;
         this->destinationPort = 0;
+        this->transportHeader = nullptr;
         std::cout << "\033[42mIP:\033[0m\n" << *static_cast<ArpHeader*>(networkHeader) << '\n';
         return; // No transport layer!
     }
