@@ -70,11 +70,11 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    //const std::vector<uint8_t> rawData = readFile("dns packet.bin");
+    const std::vector<uint8_t> rawData = readFile("Example Sniffs/ArpRequest");
  
-    //printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
+    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
 
-    //Packet packet(rawData);
+    Packet packet(rawData);
 
     //IP_ADDR_STRING localIP;
     //if (!Sender::GetLocalIpAddress("Realtek PCIe GbE Family Controller", &localIP))

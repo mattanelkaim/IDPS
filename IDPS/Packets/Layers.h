@@ -18,7 +18,12 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
 
-struct IPv4Header
+struct NetworkHeader // Solely for grouping protocols
+{
+    //NetworkHeader() = delete;
+};
+
+struct IPv4Header : NetworkHeader
 {
     uint8_t versionAndHeaderLength;
     uint8_t typeOfService;
@@ -36,7 +41,24 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
-struct TransportHeader
+struct ArpHeader : NetworkHeader
+{
+    uint16_t hardwareType; // 1 = Ethernet, 6 = IEEE 802
+    ProtocolCode_16 protocolType; // Format of requested IP (v4/v6)
+    uint8_t hardwareLength;
+    uint8_t protocolLength;
+    uint16_t opcode; // 1 = request, 2 = reply
+    mac senderMAC;
+    in_addr senderIP;
+    mac targetMAC;
+    in_addr targetIP;
+
+public:
+    explicit ArpHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const ArpHeader& obj);
+};
+
+struct TransportHeader // Solely for grouping protocols
 {
     //TransportHeader() = delete;
 };

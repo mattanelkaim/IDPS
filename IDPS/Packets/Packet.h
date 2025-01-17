@@ -20,6 +20,6 @@ public:
 
     // Parsed protocol layers
     EthernetHeader* ethernetHeader = nullptr;
-    IPv4Header* ipv4Header = nullptr;
+    NetworkHeader* networkHeader = nullptr;
     TransportHeader* transportHeader = nullptr;
 };
