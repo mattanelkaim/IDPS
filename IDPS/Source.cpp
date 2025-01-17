@@ -77,7 +77,8 @@ int main()
 
     Packet packet(rawData);
 
-    Detector::getInstance().isArpReplyLikeTable(packet);
-
+    std::cout << Detector::getInstance().isArpReplyLikeTable(packet);
+    
+    //std::cout << (mac{"AA:AA:AA:BB:BB:BB"} == mac{"BB:BB:BB:AA:AA:AA"});
     return 0;
 }

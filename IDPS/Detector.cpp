@@ -23,7 +23,8 @@ bool Detector::isArpReplyLikeTable(const Packet& packet)
     if (arpHeader->opcode != REPLY)
         throw std::invalid_argument("ARP packet must be a reply!");
 
-    return true;
+    // TODO define behavior if MAC is not in table
+    return arpHeader->senderMAC == m_arpTable.getMac(arpHeader->senderIP);
 }
 
 
