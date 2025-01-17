@@ -15,8 +15,7 @@ public:
     std::string destinationIP;
     uint16_t sourcePort;
     uint16_t destinationPort;
-    // TCP | UDP
-    ProtocolCode_8 protocol;
+    ProtocolCode_8 transportProtocol;
 
     // Parsed protocol layers
     EthernetHeader* ethernetHeader = nullptr;
