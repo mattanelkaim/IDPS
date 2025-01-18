@@ -2,25 +2,26 @@
 #include <ostream>
 #include <stdexcept> // std::runtime_error
 
+// 4m=underline, 0m=reset ANSI
+#define FIELD(name) "\033[4m" name "\033[0m: "
 
 EthernetHeader::EthernetHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(EthernetHeader)) [[unlikely]]
         throw std::runtime_error("Invalid Ethernet header size");
-    
+
     // Copy raw data into the struct
     *this = *reinterpret_cast<const EthernetHeader*>(rawData.data());
 
-    // Convert to big endian if needed
+    // Convert to big endian if larger than a byte
     this->etherType = Helper::toBigEndian(this->etherType);
 }
 
 std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
 {
-    os << "\033[4mDestination MAC\033[0m: " << obj.dstMAC.macToString();
-    os << "\n\033[4mSource MAC\033[0m:      " << obj.srcMAC.macToString();
-
-    os << "\n\033[4mEthernet type\033[0m:   0x" << std::hex << obj.etherType << std::dec << '\n';
+    os << FIELD("Destination MAC") << obj.dstMAC.macToString() << '\n';
+    os << FIELD("Source MAC") << obj.srcMAC.macToString() << '\n';
+    os << FIELD("Ethernet type") << "0x" << std::hex << obj.etherType << std::dec << '\n';
     return os;
 }
 
@@ -29,11 +30,11 @@ IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(IPv4Header)) [[unlikely]]
         throw std::runtime_error("Invalid IPv4 header size");
-    
+
     // Copy raw data into the struct
     *this = *reinterpret_cast<const IPv4Header*>(rawData.data());
 
-    // Convert to big endian if needed
+    // Convert to big endian if larger than a byte
     this->totalLength = Helper::toBigEndian(this->totalLength);
     this->identification = Helper::toBigEndian(this->identification);
     this->flagsAndFragmentOffset = Helper::toBigEndian(this->flagsAndFragmentOffset);
@@ -44,18 +45,20 @@ IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
 {
-    os << "\033[4mVersion\033[0m: " << static_cast<int>(obj.versionAndHeaderLength >> 4) << '\n'; // High nibble
-    os << "\033[4mHeader length\033[0m: " << static_cast<int>(obj.versionAndHeaderLength & 0x0F) << '\n'; // Low nibble
-    os << "\033[4mType of service\033[0m: " << static_cast<int>(obj.typeOfService) << '\n';
-    os << "\033[4mTotal length\033[0m: " << obj.totalLength << '\n';
-    os << "\033[4mIdentification\033[0m: " << obj.identification << '\n';
-    os << "\033[4mFlags\033[0m: " << static_cast<int>(obj.flagsAndFragmentOffset >> 13) << '\n'; // High 3 bits
-    os << "\033[4mFragment offset\033[0m: " << (obj.flagsAndFragmentOffset & 0x1FFF) << '\n'; // Low 13 bits
-    os << "\033[4mTime to live\033[0m: " << static_cast<int>(obj.timeToLive) << '\n';
-    os << "\033[4mProtocol\033[0m: " << static_cast<int>(obj.protocol) << '\n';
-    os << "\033[4mChecksum\033[0m: 0x" << std::hex << obj.checksum << std::dec << '\n';
-    os << "\033[4mSource IP\033[0m: " << Helper::longToIp(obj.srcIP) << '\n';
-    os << "\033[4mDestination IP\033[0m: " << Helper::longToIp(obj.dstIP) << '\n';
+    os << FIELD("Version") << static_cast<int>(obj.versionAndHeaderLength >> 4) << '\n'; // High nibble
+    os << FIELD("Header length") << static_cast<int>(obj.versionAndHeaderLength & 0x0F) << '\n'; // Low nibble
+    os << FIELD("Type of service") << static_cast<int>(obj.typeOfService) << '\n';
+    os << FIELD("Total length") << obj.totalLength << '\n';
+    os << FIELD("Identification") << obj.identification << '\n';
+    os << FIELD("Flags") << static_cast<int>(obj.flagsAndFragmentOffset >> 13) << '\n'; // High 3 bits
+    os << FIELD("Fragment offset") << (obj.flagsAndFragmentOffset & 0x1FFF) << '\n'; // Low 13 bits
+    os << FIELD("Time to live") << static_cast<int>(obj.timeToLive) << '\n';
+    os << FIELD("Protocol") << static_cast<int>(obj.protocol) << '\n';
+    os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
+    
+    os << FIELD("Source IP") << Helper::longToIp(obj.srcIP) << '\n';
+    os << FIELD("Destination IP") << Helper::longToIp(obj.dstIP) << '\n';
+    
     return os;
 }
 
@@ -68,7 +71,7 @@ ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
     // Copy raw data into the struct
     *this = *reinterpret_cast<const ArpHeader*>(rawData.data());
 
-    // Convert to big endian if needed
+    // Convert to big endian if larger than a byte
     this->hardwareType = Helper::toBigEndian(this->hardwareType);
     this->protocolType = Helper::toBigEndian(this->protocolType);
     this->opcode = Helper::toBigEndian(this->opcode);
@@ -78,17 +81,18 @@ ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
 {
-    os << "\033[4mHardware type\033[0m: 0x" << std::hex << obj.hardwareType << '\n';
-    os << "\033[4mIP format type\033[0m: 0x" << obj.protocolType << std::dec << '\n';
-    os << "\033[4mHardware length\033[0m: " << static_cast<int>(obj.hardwareLength) << '\n';
-    os << "\033[4mProtocol length\033[0m: " << static_cast<int>(obj.protocolLength) << '\n';
-    os << "\033[4mOpcode\033[0m: 0x" << std::hex << obj.opcode << std::dec << '\n';
-
-    os << "\033[4mSender MAC\033[0m: " << obj.senderMAC.macToString() << '\n';
-    os << "\033[4mSender IP\033[0m: " << Helper::longToIp(obj.senderIP.s_addr) << '\n';
-    os << "\033[4mTarget MAC\033[0m: " << obj.targetMAC.macToString() << '\n';
-    os << "\033[4mTarget IP\033[0m: " << Helper::longToIp(obj.targetIP.s_addr) << '\n';
-
+    os << FIELD("Hardware type") << "0x" << std::hex << obj.hardwareType << '\n';
+    os << FIELD("IP format type") << "0x" << obj.protocolType << std::dec << '\n';
+    os << FIELD("Hardware length") << static_cast<int>(obj.hardwareLength) << '\n';
+    os << FIELD("Protocol length") << static_cast<int>(obj.protocolLength) << '\n';
+    os << FIELD("Opcode") << "0x" << std::hex << obj.opcode << std::dec << '\n';
+    
+    os << FIELD("Sender MAC") << obj.senderMAC.macToString() << '\n';
+    os << FIELD("Sender IP") << Helper::longToIp(obj.senderIP.s_addr) << '\n';
+    
+    os << FIELD("Target MAC") << obj.targetMAC.macToString() << '\n';
+    os << FIELD("Target IP") << Helper::longToIp(obj.targetIP.s_addr) << '\n';
+    
     return os;
 }
 
@@ -101,7 +105,7 @@ TCPHeader::TCPHeader(const std::span<const uint8_t> rawData)
     // Copy raw data into the struct
     *this = *reinterpret_cast<const TCPHeader*>(rawData.data());
 
-    // Convert to big endian if needed
+    // Convert to big endian if larger than a byte
     this->srcPort = Helper::toBigEndian(this->srcPort);
     this->dstPort = Helper::toBigEndian(this->dstPort);
     this->checksum = Helper::toBigEndian(this->checksum);
@@ -109,21 +113,19 @@ TCPHeader::TCPHeader(const std::span<const uint8_t> rawData)
     this->ackNumber = Helper::toBigEndian(this->ackNumber);
     this->windowSize = Helper::toBigEndian(this->windowSize);
     this->urgentPointer = Helper::toBigEndian(this->urgentPointer);
-
-    return;
 }
 
 std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
 {
-    os << "\033[4mSource port\033[0m: " << obj.srcPort << '\n';
-    os << "\033[4mDestination port\033[0m: " << obj.dstPort << '\n';
-    os << "\033[4mSequence number\033[0m: " << obj.seqNumber << '\n';
-    os << "\033[4mAcknowledgment Number\033[0m: " << obj.ackNumber << '\n';
-    os << "\033[4mData Offset\033[0m: " << static_cast<int>(obj.dataOffsetAndReserved >> 4) << '\n'; // High nibble
-    os << "\033[4mReserved\033[0m: " << static_cast<int>((obj.dataOffsetAndReserved & 0b00001110) >> 1) << '\n'; // 3 high bits in lower nibble
+    os << FIELD("Source port") << obj.srcPort << '\n';
+    os << FIELD("Destination port") << obj.dstPort << '\n';
+    os << FIELD("Sequence number") << obj.seqNumber << '\n';
+    os << FIELD("Acknowledgment Number") << obj.ackNumber << '\n';
+    os << FIELD("Data Offset") << static_cast<int>(obj.dataOffsetAndReserved >> 4) << '\n'; // High nibble
+    os << FIELD("Reserved") << static_cast<int>((obj.dataOffsetAndReserved & 0b00001110) >> 1) << '\n'; // 3 high bits in lower nibble
 
     // Flags
-    os << "\033[4mFlags\033[0m: ";
+    os << FIELD("Flags");
     if (obj.flags & 0x01) os << "FIN ";
     if (obj.flags & 0x02) os << "SYN ";
     if (obj.flags & 0x04) os << "RST ";
@@ -132,9 +134,9 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
     if (obj.flags & 0x20) os << "URG ";
     if (obj.dataOffsetAndReserved & 0x01) os << "Reserved ";  // The 9th flag bit
 
-    os << "\n\033[4mWindow size\033[0m: " << obj.windowSize << '\n';
-    os << "\033[4mChecksum\033[0m: 0x" << std::hex << obj.checksum << std::dec << '\n';
-    os << "\033[4mUrgent pointer\033[0m: " << obj.urgentPointer << '\n';
+    os << '\n' << FIELD("Window size") << obj.windowSize << '\n';
+    os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
+    os << FIELD("Urgent pointer") << obj.urgentPointer << '\n';
 
     return os;
 }
@@ -148,7 +150,7 @@ UDPHeader::UDPHeader(const std::span<const uint8_t> rawData)
     // Copy raw data into the struct
     *this = *reinterpret_cast<const UDPHeader*>(rawData.data());
 
-    // Convert to big endian if needed
+    // Convert to big endian if larger than a byte
     this->srcPort = Helper::toBigEndian(this->srcPort);
     this->dstPort = Helper::toBigEndian(this->dstPort);
     this->length = Helper::toBigEndian(this->length);
@@ -157,10 +159,12 @@ UDPHeader::UDPHeader(const std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
 {
-    os << "\033[4mSource port\033[0m: " << obj.srcPort << '\n';
-    os << "\033[4mDestination port\033[0m: " << obj.dstPort << '\n';
-    os << "\033[4mLength\033[0m: " << obj.length << '\n';
-    os << "\033[4mChecksum\033[0m: 0x" << std::hex << obj.checksum << std::dec << '\n';
+    os << FIELD("Source port") << obj.srcPort << '\n';
+    os << FIELD("Destination port") << obj.dstPort << '\n';
+
+    os << FIELD("Length") << obj.length << '\n';
+    os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
+    
     return os;
 }
 
@@ -173,6 +177,7 @@ DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
     // Copy raw data into the struct
     *this = *reinterpret_cast<const DNSHeader*>(rawData.data());
 
+    // Convert to big endian if larger than a byte
     this->transactionID = Helper::toBigEndian(this->transactionID);
     this->flags = Helper::toBigEndian(this->flags);
     this->questionCount = Helper::toBigEndian(this->questionCount);
@@ -183,11 +188,13 @@ DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
 {
-    os << "\033[4mTransaction ID\033[0m: 0x" << std::hex << obj.transactionID << '\n';
-    os << "\033[4mFlags\033[0m: 0x" << obj.flags << std::dec << '\n';
-    os << "\033[4mQuestions\033[0m: " << obj.questionCount << '\n';
-    os << "\033[4mAnswers\033[0m: " << obj.answerCount << '\n';
-    os << "\033[4mAuthority records\033[0m: " << obj.authorityCount << '\n';
-    os << "\033[4mAdditional records\033[0m: " << obj.additionalCount << '\n';
+    os << FIELD("Transaction ID") << "0x" << std::hex << obj.transactionID << '\n';
+    os << FIELD("Flags") << "0x" << obj.flags << std::dec << '\n';
+    
+    os << FIELD("Questions") << obj.questionCount << '\n';
+    os << FIELD("Answers") << obj.answerCount << '\n';
+    os << FIELD("Authority records") << obj.authorityCount << '\n';
+    os << FIELD("Additional records") << obj.additionalCount << '\n';
+    
     return os;
 }
