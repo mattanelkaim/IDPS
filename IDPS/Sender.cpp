@@ -1,6 +1,7 @@
 // Do NOT sort these includes
 #include "Sender.h"
 #include <iphlpapi.h>
+#include <winhttp.h>
 #include <IcmpAPI.h>
 #include <thread>
 
@@ -128,4 +129,55 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
         thread.join();
 
     return onlineAddresses;
+}
+
+std::string Sender::SendHTTP(const std::string_view& url) 
+{
+    std::wstring wurl(url.begin(), url.end());  // Convert URL to wstring
+    std::wstring host, path;
+
+    // Parse URL (Extract host and path)
+    size_t pos = wurl.find(L"//");
+    if (pos != std::wstring::npos) wurl = wurl.substr(pos + 2);
+    pos = wurl.find(L"/");
+    host = (pos == std::wstring::npos) ? wurl : wurl.substr(0, pos);
+    path = (pos == std::wstring::npos) ? L"/" : wurl.substr(pos);
+
+    HINTERNET hSession = WinHttpOpen(L"SimpleHTTP/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0);
+    if (!hSession) 
+        return "";
+
+    HINTERNET hConnect = WinHttpConnect(hSession, host.c_str(), INTERNET_DEFAULT_HTTP_PORT, 0);
+    if (!hConnect) 
+    {
+        WinHttpCloseHandle(hSession);
+        return "";
+    }
+
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", path.c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
+    if (!hRequest) 
+    {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return "";
+    }
+
+    std::string response;
+    if (WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, NULL, 0, 0, 0) &&
+        WinHttpReceiveResponse(hRequest, NULL)) 
+    {
+        char buffer[4096];
+        DWORD bytesRead = 0;
+        while (WinHttpReadData(hRequest, buffer, sizeof(buffer) - 1, &bytesRead) && bytesRead > 0) 
+        {
+            buffer[bytesRead] = '\0';
+            response += buffer;
+        }
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+
+    return response;
 }

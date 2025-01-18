@@ -35,6 +35,12 @@ bool Detector::isTcpNullScan(const Packet& tcpPacket)
     return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
+bool Detector::isDNSSpoofing(const Packet& dnsPacket)
+{
+    const std::string apiKey = ""; // TODO replace
+    return false;
+}
+
 
 // SINGLETON METHODS
 

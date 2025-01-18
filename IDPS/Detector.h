@@ -20,4 +20,5 @@ public:
 
     bool isArpReplyLikeTable(const Packet& arpPacket) const;
     static bool isTcpNullScan(const Packet& tcpPacket);
+    static bool isDNSSpoofing(const Packet& dnsPacket);
 };
