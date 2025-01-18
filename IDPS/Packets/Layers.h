@@ -18,10 +18,12 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
 
+
 struct NetworkHeader // Solely for grouping protocols
 {
     //NetworkHeader() = delete;
 };
+
 
 struct IPv4Header : NetworkHeader
 {
@@ -58,10 +60,12 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const ArpHeader& obj);
 };
 
+
 struct TransportHeader // Solely for grouping protocols
 {
     //TransportHeader() = delete;
 };
+
 
 struct TCPHeader : public TransportHeader
 {
@@ -90,6 +94,28 @@ struct UDPHeader : public TransportHeader
 public:
     explicit UDPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const UDPHeader& obj);
+};
+
+
+struct ApplicationHeader // Solely for grouping protocols
+{
+    //ApplicationHeader() = delete;
+};
+
+
+struct DNSHeader : public ApplicationHeader
+{
+    uint16_t transactionID;
+    uint16_t flags;
+    uint16_t questionCount;
+    uint16_t answerCount;
+    uint16_t authorityCount;
+    uint16_t additionalCount;
+
+public:
+    explicit DNSHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
+    static constexpr uint16_t DEFAULT_PORT = 53;
 };
 
 #pragma pack(pop)

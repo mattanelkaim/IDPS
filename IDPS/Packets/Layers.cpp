@@ -163,3 +163,31 @@ std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
     os << "\033[4mChecksum\033[0m: 0x" << std::hex << obj.checksum << std::dec << '\n';
     return os;
 }
+
+
+DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(DNSHeader)) [[unlikely]]
+        throw std::runtime_error("Invalid DNS header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const DNSHeader*>(rawData.data());
+
+    this->transactionID = Helper::toBigEndian(this->transactionID);
+    this->flags = Helper::toBigEndian(this->flags);
+    this->questionCount = Helper::toBigEndian(this->questionCount);
+    this->answerCount = Helper::toBigEndian(this->answerCount);
+    this->authorityCount = Helper::toBigEndian(this->authorityCount);
+    this->additionalCount = Helper::toBigEndian(this->additionalCount);
+}
+
+std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
+{
+    os << "\033[4mTransaction ID\033[0m: 0x" << std::hex << obj.transactionID << '\n';
+    os << "\033[4mFlags\033[0m: 0x" << obj.flags << std::dec << '\n';
+    os << "\033[4mQuestions\033[0m: " << obj.questionCount << '\n';
+    os << "\033[4mAnswers\033[0m: " << obj.answerCount << '\n';
+    os << "\033[4mAuthority records\033[0m: " << obj.authorityCount << '\n';
+    os << "\033[4mAdditional records\033[0m: " << obj.additionalCount << '\n';
+    return os;
+}
