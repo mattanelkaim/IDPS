@@ -37,7 +37,10 @@ bool Detector::isTcpNullScan(const Packet& tcpPacket)
 
 bool Detector::isDNSSpoofing(const Packet& dnsPacket)
 {
-    const std::string apiKey = ""; // TODO replace
+
+    // validate ip.src to be a trusted DNS address
+    // send the same DNS request *OVER HTTPS* and validate the responses
+
     return false;
 }
 
