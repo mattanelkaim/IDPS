@@ -290,7 +290,7 @@ NTSTATUS WfpAddCallout()
     callout.displayData.description = displayName;
 
     callout.calloutKey = ETHERNET_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
+    callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet Layer
     status = FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
 
     callout.calloutKey = IP_CALLOUT_GUID;
@@ -336,7 +336,7 @@ NTSTATUS WfpAddFilter()
 
     filter.subLayerKey = ETHERNET_SUBLAYER_GUID;
     filter.action.calloutKey = ETHERNET_CALLOUT_GUID;
-    filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_ETHERNET; // Ethernet Layer
+    filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet Layer
     status = FwpmFilterAdd(engineHandle, &filter, NULL, &EthernetFilterId);
 
     filter.subLayerKey = IP_SUBLAYER_GUID;
@@ -576,74 +576,44 @@ VOID UnInitMutexes()
 
 void copyLayerData(PVOID layerData)
 {
-    // Handle edge-case of empty layerData
     if (!layerData)
+    {
+        IDPS_PRINT(__FUNCTION__ " received null pointer");
         return;
-
-    // Calculate the total length of data in the Net Buffer List
-    const PNET_BUFFER_LIST netBufferList = layerData;
-    PNET_BUFFER netBuffer = netBufferList->FirstNetBuffer;
-    USHORT totalDataLength = 0; // To store the full packet length as 8 bytes
-    while (netBuffer)
-    {
-        totalDataLength += (USHORT)netBuffer->DataLength;
-        netBuffer = netBuffer->Next;
     }
 
-    workContext.layerDataLength = totalDataLength;
+    UCHAR* buffer = workContext.layerData; // For convenience
 
-    if (totalDataLength == 0)
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    NET_BUFFER* nb = nbl->FirstNetBuffer;
+    SIZE_T totalCopied = 0;
+
+    while (nb)
     {
-        IDPS_PRINT("Work item received no data!");
-        return; // Nothing to write
-    }
+        // Getting the current packet data buffer length
+        USHORT dataLength = (USHORT)nb->DataLength;
 
-    // Traverse each NET_BUFFER in the NET_BUFFER_LIST again to write the actual data
-    netBuffer = netBufferList->FirstNetBuffer;
-    NTSTATUS status = STATUS_SUCCESS;
-    USHORT currPos = 0; // Current position in the buffer
-    while (netBuffer)
-    {
-        ULONG dataLength = netBuffer->DataLength;
-        PVOID dataPointer = NULL;
-        PMDL mdl = netBuffer->MdlChain;
-        ULONG offset = netBuffer->CurrentMdlOffset;
-
-        // Traverse the MDL chain for this NET_BUFFER
-        while (mdl && dataLength > 0)
+        // Extracting the packet data buffer
+        UCHAR* packetData = (UCHAR*)NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
+        if (!packetData)
         {
-            const ULONG mdlLength = mdl->ByteCount - offset;
-            const ULONG bytesToProcess = min(dataLength, mdlLength);
-
-            // Map the MDL to a virtual address
-            dataPointer = MmGetSystemAddressForMdlSafe(mdl, NormalPagePriority);
-            if (!dataPointer)
-            {
-                status = STATUS_INSUFFICIENT_RESOURCES;
-                break;
-            }
-
-            // Adjust the pointer for the offset
-            dataPointer = (PUCHAR)dataPointer + offset;
-
-            // Write this chunk of data to the file
-            memcpy(workContext.layerData + currPos, dataPointer, bytesToProcess);
-            currPos += (USHORT)bytesToProcess;
-
-            // Update the remaining data length
-            dataLength -= (USHORT)bytesToProcess;
-            offset = 0; // Offset is only applicable to the first MDL
-
-            // Move to the next MDL
-            mdl = mdl->Next;
+            IDPS_PRINT("could not read packet data from net buffer");
+            break;
         }
 
-        if (!NT_SUCCESS(status))
-            break;
+        // Writing the packet size as a 2-byte value
+        memcpy(buffer, &dataLength, sizeof(SHORT));
+        totalCopied += sizeof(SHORT);
 
-        // Move to the next NET_BUFFER in the list
-        netBuffer = netBuffer->Next;
+        // Writing the actual packet data
+        memcpy(buffer + totalCopied, packetData, dataLength);
+
+        // Preparing for next packet
+        totalCopied += dataLength;
+        nb = nb->Next;
     }
+
+    workContext.layerDataLength = (USHORT)totalCopied; // Store the actual copied size
 }
 
 void addRuleToBlacklist(unsigned int* ip)
@@ -698,10 +668,7 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
 
     IDPS_PRINT("Started work item routine!");
 
-    // Write the total length (2 bytes) to the file
-    writeToFile(&packetFilePath, &workContext.layerDataLength, sizeof(workContext.layerDataLength));
-
-    // Write the actual data to the file
+    // Write the packet data to the file
     USHORT i;
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
         IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
