@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iosfwd> // std::ostream
 #include <span>
+#include <vector>
 
 #pragma pack(push, 1) // All structs must be packed because of alignment
 
@@ -116,6 +117,18 @@ public:
     explicit DNSHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
     static constexpr uint16_t DEFAULT_PORT = 53;
+};
+
+struct DNSRecord
+{
+    uint16_t name;
+    uint16_t type;
+    uint16_t recordClass;
+    uint32_t ttl;
+    //uint16_t dataLength;
+    std::vector<uint8_t> data;
+
+    explicit DNSRecord(std::span<const uint8_t> rawData);
 };
 
 #pragma pack(pop)

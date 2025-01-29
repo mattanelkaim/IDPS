@@ -198,3 +198,22 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
     
     return os;
 }
+
+DNSRecord::DNSRecord(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(DNSRecord)) [[unlikely]]
+        throw std::runtime_error("Invalid DNS record size");
+
+
+    // Parse manually name, type, class, ttl
+    name = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()));
+    type = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2));
+    recordClass = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 4));
+    ttl = Helper::toBigEndian(*reinterpret_cast<const uint32_t*>(rawData.data() + 6));
+
+    // Temporary data length
+    const uint16_t dataLength = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
+
+    // Extract the data
+    data.assign(rawData.data() + 12, rawData.data() + 12 + dataLength);
+}
