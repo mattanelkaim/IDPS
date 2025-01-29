@@ -98,13 +98,13 @@ public:
 };
 
 
-struct ApplicationHeader // Solely for grouping protocols
+struct ApplicationData // Solely for grouping protocols
 {
-    //ApplicationHeader() = delete;
+    //ApplicationData() = delete;
 };
 
 
-struct DNSHeader : public ApplicationHeader
+struct DNSHeader
 {
     uint16_t transactionID;
     uint16_t flags;
@@ -128,7 +128,24 @@ struct DNSRecord
     //uint16_t dataLength;
     std::vector<uint8_t> data;
 
+public:
     explicit DNSRecord(std::span<const uint8_t> rawData);
+};
+
+class DNSMessage : public ApplicationData
+{
+public:
+    DNSHeader header;
+    std::vector<std::string> questions;
+    std::vector<DNSRecord> answers;
+    std::vector<DNSRecord> authorities;
+    std::vector<DNSRecord> additionalRecords;
+
+    explicit DNSMessage(std::span<const uint8_t> rawData);
+
+private:
+    std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
+    void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records);
 };
 
 #pragma pack(pop)

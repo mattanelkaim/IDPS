@@ -21,5 +21,5 @@ public:
     EthernetHeader* ethernetHeader = nullptr;
     NetworkHeader* networkHeader = nullptr;
     TransportHeader* transportHeader = nullptr;
-    ApplicationHeader* applicationHeader = nullptr;
+    ApplicationData* applicationData = nullptr;
 };

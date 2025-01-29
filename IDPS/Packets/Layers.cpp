@@ -169,7 +169,7 @@ std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
 }
 
 
-DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
+DNSHeader::DNSHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(DNSHeader)) [[unlikely]]
         throw std::runtime_error("Invalid DNS header size");
@@ -199,12 +199,8 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
     return os;
 }
 
-DNSRecord::DNSRecord(std::span<const uint8_t> rawData)
+DNSRecord::DNSRecord(const std::span<const uint8_t> rawData)
 {
-    if (rawData.size() < sizeof(DNSRecord)) [[unlikely]]
-        throw std::runtime_error("Invalid DNS record size");
-
-
     // Parse manually name, type, class, ttl
     name = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()));
     type = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2));
@@ -216,4 +212,49 @@ DNSRecord::DNSRecord(std::span<const uint8_t> rawData)
 
     // Extract the data
     data.assign(rawData.data() + 12, rawData.data() + 12 + dataLength);
+}
+
+DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
+    header(rawData)
+{
+    size_t offset = sizeof(DNSHeader);
+
+    // Parse Questions
+    for (int i = 0; i < header.questionCount; ++i)
+    {
+        questions.push_back(parseDomainName(rawData, offset));
+        offset += 4;  // Skip type and class
+    }
+
+    // Parse Answers, Authorities, and Additional Records
+    parseRecords(rawData, offset, header.answerCount, answers);
+    parseRecords(rawData, offset, header.authorityCount, authorities);
+    parseRecords(rawData, offset, header.additionalCount, additionalRecords);
+}
+
+std::string DNSMessage::parseDomainName(const std::span<const uint8_t> rawData, size_t& offset)
+{
+    std::string domainName;
+
+    // Append each label to the domain name, separated by dots
+    while (rawData[offset] != 0) // Loop until null terminator
+    {
+        const uint8_t labelLength = rawData[offset]; // A single byte indicates the label length
+        domainName.append(reinterpret_cast<const char*>(rawData.data() + offset + 1), labelLength);
+        domainName += ".";
+        offset += labelLength + 1;
+    }
+
+    ++offset; // Skip the null terminator
+    domainName.pop_back(); // Remove the trailing dot
+    return domainName;
+}
+
+void DNSMessage::parseRecords(const std::span<const uint8_t> rawData, size_t& offset, const uint16_t count, std::vector<DNSRecord>& records)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        records.emplace_back(rawData.subspan(offset));
+        offset += 12 + records.back().data.size(); // Skip the header and data part
+    }
 }

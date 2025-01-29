@@ -60,8 +60,8 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
     // Parse APPLICATION layer
     if (this->srcPort == DNSHeader::DEFAULT_PORT || this->dstPort == DNSHeader::DEFAULT_PORT)
     {
-        this->applicationHeader = new DNSHeader(rawData.subspan(offset, sizeof(DNSHeader)));
-        std::cout << "\033[44mDNS:\033[0m\n" << *static_cast<DNSHeader*>(applicationHeader);
+        this->applicationData = new DNSMessage(rawData.subspan(offset));
+        std::cout << "\033[44mDNS (header):\033[0m\n" << (*static_cast<DNSMessage*>(applicationData)).header;
     }
 }
 
