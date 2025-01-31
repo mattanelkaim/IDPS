@@ -43,7 +43,7 @@ void DBHandler::addAttacker(const std::string& ip, const std::string& mac)
 
 void DBHandler::addAttack(const std::string& attacker_id, const attack_type attack_id)
 {
-	const std::string sql = "INSERT INTO Attacks (attacker_id, attack_id) VALUES (\""s + attacker_id + "\", "s + std::to_string(static_cast<short>(attack_id)) + ")";
+	const std::string sql = "INSERT INTO Attacks (attacker_id, attack_id) VALUES (\""s + attacker_id + "\", "s + std::to_string(static_cast<int16_t>(attack_id)) + ")";
 	runQuery(sql);
 }
 

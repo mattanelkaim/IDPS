@@ -4,23 +4,29 @@
 #include <cstdint>
 #include <iosfwd> // std::ostream
 #include <span>
-
-// TODO: Implement constructors
+#include <vector>
 
 #pragma pack(push, 1) // All structs must be packed because of alignment
 
 struct EthernetHeader
 {
-    uint8_t dstMAC[6];
-    uint8_t srcMAC[6];
+    mac dstMAC;
+    mac srcMAC;
     ProtocolCode_16 etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
 public:
-    EthernetHeader(std::span<const uint8_t> rawData);
+    explicit EthernetHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
 
-struct IPv4Header
+
+struct NetworkHeader // Solely for grouping protocols
+{
+    //NetworkHeader() = delete;
+};
+
+
+struct IPv4Header : NetworkHeader
 {
     uint8_t versionAndHeaderLength;
     uint8_t typeOfService;
@@ -34,14 +40,33 @@ struct IPv4Header
     uint32_t dstIP;
 
 public:
-    IPv4Header(std::span<const uint8_t> rawData);
+    explicit IPv4Header(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
 
-struct TransportHeader
+struct ArpHeader : NetworkHeader
+{
+    uint16_t hardwareType; // 1 = Ethernet, 6 = IEEE 802
+    ProtocolCode_16 protocolType; // Format of requested IP (v4/v6)
+    uint8_t hardwareLength;
+    uint8_t protocolLength;
+    ArpOpcode opcode; // 1 = request, 2 = reply
+    mac senderMAC;
+    in_addr senderIP;
+    mac targetMAC;
+    in_addr targetIP;
+
+public:
+    explicit ArpHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const ArpHeader& obj);
+};
+
+
+struct TransportHeader // Solely for grouping protocols
 {
     //TransportHeader() = delete;
 };
+
 
 struct TCPHeader : public TransportHeader
 {
@@ -56,7 +81,7 @@ struct TCPHeader : public TransportHeader
     uint16_t urgentPointer;
 
 public:
-    TCPHeader(std::span<const uint8_t> rawData);
+    explicit TCPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const TCPHeader& obj);
 };
 
@@ -68,8 +93,59 @@ struct UDPHeader : public TransportHeader
     uint16_t checksum;
 
 public:
-    UDPHeader(std::span<const uint8_t> rawData);
+    explicit UDPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const UDPHeader& obj);
+};
+
+
+struct ApplicationData // Solely for grouping protocols
+{
+    //ApplicationData() = delete;
+};
+
+
+struct DNSHeader
+{
+    uint16_t transactionID;
+    uint16_t flags;
+    uint16_t questionCount;
+    uint16_t answerCount;
+    uint16_t authorityCount;
+    uint16_t additionalCount;
+
+public:
+    explicit DNSHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
+    static constexpr uint16_t DEFAULT_PORT = 53;
+};
+
+struct DNSRecord
+{
+    uint16_t name;
+    uint16_t type;
+    uint16_t recordClass;
+    uint32_t ttl;
+    //uint16_t dataLength;
+    std::vector<uint8_t> data;
+
+public:
+    explicit DNSRecord(std::span<const uint8_t> rawData);
+};
+
+class DNSMessage : public ApplicationData
+{
+public:
+    DNSHeader header;
+    std::vector<std::string> questions;
+    std::vector<DNSRecord> answers;
+    std::vector<DNSRecord> authorities;
+    std::vector<DNSRecord> additionalRecords;
+
+    explicit DNSMessage(std::span<const uint8_t> rawData);
+
+private:
+    std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
+    void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records);
 };
 
 #pragma pack(pop)

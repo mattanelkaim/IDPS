@@ -8,18 +8,18 @@
 class Packet
 {
 public:
-    Packet(std::span<const uint8_t> rawData);
+    explicit Packet(std::span<const uint8_t> rawData);
     ~Packet();
 
-    std::string sourceIP;
-    std::string destinationIP;
-    uint16_t sourcePort;
-    uint16_t destinationPort;
-    // TCP | UDP
-    ProtocolCode_8 protocol;
+    std::string srcIP;
+    std::string dstIP;
+    uint16_t srcPort;
+    uint16_t dstPort;
+    ProtocolCode_8 transportProtocol;
 
     // Parsed protocol layers
     EthernetHeader* ethernetHeader = nullptr;
-    IPv4Header* ipv4Header = nullptr;
+    NetworkHeader* networkHeader = nullptr;
     TransportHeader* transportHeader = nullptr;
+    ApplicationData* applicationData = nullptr;
 };

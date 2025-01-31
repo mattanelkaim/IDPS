@@ -131,14 +131,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ArpTable.h" />
+    <ClInclude Include="Detector.h" />
     <ClInclude Include="Handlers\DBHandler.h" />
     <ClInclude Include="Helper.h" />
+    <ClInclude Include="PacketExtractor.h" />
     <ClInclude Include="Packets\Layers.h" />
     <ClInclude Include="Packets\Packet.h" />
+    <ClInclude Include="Sender.hpp" />
+    <ClInclude Include="Sender.h" />
     <ClInclude Include="sqlite\sqlite3.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ArpTable.cpp" />
+    <ClCompile Include="Detector.cpp" />
     <ClCompile Include="Handlers\DBHandler.cpp" />
+    <ClCompile Include="Sender.cpp" />
+    <ClCompile Include="PacketExtractor.cpp" />
     <ClCompile Include="Packets\Layers.cpp" />
     <ClCompile Include="Packets\Packet.cpp" />
     <ClCompile Include="Source.cpp" />
