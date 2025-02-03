@@ -1,4 +1,4 @@
-﻿// do NOT change order of includation
+﻿// do NOT change order of includationing
 #include "LayerHandles.h"
 #include <ntifs.h>
 #include <ntddk.h>
@@ -7,6 +7,7 @@
 #define INITGUID
 #include <guiddef.h>
 #include <fwpmu.h>
+#include <Netiodef.h>
 
 // Helper Definitions
 #define __IGNORE [[maybe_unused]]
@@ -20,13 +21,21 @@
 #define SUBLAYER_DISPLAY_NAME L"EstablishedSublayerName"
 
 #define MAX_BLACKLIST_SIZE 1024U
-typedef struct blackList
+typedef struct ipList
 {
-    unsigned int ips[MAX_BLACKLIST_SIZE]; // 1KB buffer to store the IP blacklist
-    unsigned int listLength;
-} blackList;
+    UINT32 ips[MAX_BLACKLIST_SIZE]; // 4KB buffer to store the IP blacklist
+    UINT8 listLength;
+} ipList;
 
-blackList ipBlacklist = { 0 };
+typedef struct macList
+{
+    DL_EUI48 macs[MAX_BLACKLIST_SIZE]; // 6KB buffer to store the IP blacklist
+    UINT8 listLength;
+} macList;
+
+// Initializing the blacklists
+ipList ipBlacklist = { 0 };
+macList macBlacklist = { 0 };
 
 // work item to operate at IRQL passive level
 typedef struct _WORK_CONTEXT
@@ -67,7 +76,6 @@ KERNEL_OBJECTS kernelMutexObjects = { NULL, NULL, NULL, NULL };
 UNICODE_STRING packetMutexPath;
 UNICODE_STRING packetFilePath;
 
-
 // Function declarations
 VOID DriverUnload(PDRIVER_OBJECT DriverObject);
 NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp);
@@ -78,7 +86,6 @@ NTSTATUS WfpAddCallout();
 NTSTATUS WfpAddSublayer();
 NTSTATUS WfpAddFilter();
 VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
-VOID IpCallback(const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, __IGNORE void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterKey, FWPS_FILTER* filter);
 VOID FlowDeleteCallback(UINT16 layerId, UINT32 calloutId, UINT64 flowContext);
 VOID UnInitWfp();
@@ -89,7 +96,9 @@ VOID UnInitMutexes();
 IO_WORKITEM_ROUTINE WorkItemRoutine;
 void copyLayerData(const PVOID layerData);
 void addRuleToBlacklist(const unsigned int* ip);
-BOOL isInBlacklist(UINT32 ip);
+BOOL isIpInBlacklist(UINT32 ip);
+BOOL isMacInBlacklist(PDL_EUI48 mac);
+BOOL doesPassFirewall(PVOID layerData);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -294,14 +303,7 @@ NTSTATUS WfpRegisterCallout()
     // Register callout for sniffing
     callout.calloutKey = ETHERNET_CALLOUT_GUID;
     callout.classifyFn = PacketCallback;
-    const NTSTATUS status = FwpsCalloutRegister(deviceObject, &callout, &EthernetRegCalloutId);
-    if (!NT_SUCCESS(status))
-        return status;
-
-    // Register callout for firewall
-    callout.calloutKey = IP_CALLOUT_GUID;
-    callout.classifyFn = IpCallback;
-    return FwpsCalloutRegister(deviceObject, &callout, &IpRegCalloutId); // Returns error OR success
+    return FwpsCalloutRegister(deviceObject, &callout, &EthernetRegCalloutId);
 }
 
 NTSTATUS WfpAddCallout()
@@ -314,17 +316,10 @@ NTSTATUS WfpAddCallout()
     callout.displayData.name = CALLOUT_DISPLAY_NAME;
     callout.displayData.description = CALLOUT_DISPLAY_NAME;
 
-    // Add callout for sniffing
+    // Add callout for sniffing and blocking
     callout.calloutKey = ETHERNET_CALLOUT_GUID;
     callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet layer
-    const NTSTATUS status = FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
-    if (!NT_SUCCESS(status))
-        return status;
-
-    // Add callout for firewall
-    callout.calloutKey = IP_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4; // IP layer
-    return FwpmCalloutAdd(engineHandle, &callout, NULL, &IpAddCalloutId); // Returns error OR success
+    return FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
 }
 
 NTSTATUS WfpAddSublayer()
@@ -339,20 +334,14 @@ NTSTATUS WfpAddSublayer()
 
     // Add subLayer for sniffing
     sublayer.subLayerKey = ETHERNET_SUBLAYER_GUID;
-    const NTSTATUS status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
-    if (!NT_SUCCESS(status))
-        return status;
-
-    // Add subLayer for firewall
-    sublayer.subLayerKey = IP_SUBLAYER_GUID;
-    return FwpmSubLayerAdd(engineHandle, &sublayer, NULL); // Returns error OR success
+    return FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
 }
 
 NTSTATUS WfpAddFilter()
 {
     IDPS_PRINT("Adding filter...\n");
 
-    // Creating template for 2 filters
+    // Creating template for the filter
     FWPM_FILTER filter = { 0 };
     filter.displayData.name = SUBLAYER_DISPLAY_NAME;
     filter.displayData.description = SUBLAYER_DISPLAY_NAME;
@@ -365,15 +354,7 @@ NTSTATUS WfpAddFilter()
     filter.subLayerKey = ETHERNET_SUBLAYER_GUID;
     filter.action.calloutKey = ETHERNET_CALLOUT_GUID;
     filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet layer
-    const NTSTATUS status = FwpmFilterAdd(engineHandle, &filter, NULL, &EthernetFilterId);
-    if (!NT_SUCCESS(status))
-        return status;
-
-    // Add filter for firewall
-    filter.subLayerKey = IP_SUBLAYER_GUID;
-    filter.action.calloutKey = IP_CALLOUT_GUID;
-    filter.layerKey = FWPM_LAYER_INBOUND_IPPACKET_V4; // IP layer
-    return FwpmFilterAdd(engineHandle, &filter, NULL, &IpFilterId); // Returns error OR success
+    return FwpmFilterAdd(engineHandle, &filter, NULL, &EthernetFilterId);
 }
 
 VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
@@ -387,33 +368,17 @@ VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
     }
 
     memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
+
+	// Checking if the packet should be blocked
+    if (!doesPassFirewall(layerData))
+    {
+        classifyOut->actionType = FWP_ACTION_BLOCK;
+        return;
+    }
     classifyOut->actionType = FWP_ACTION_PERMIT;
         
     IDPS_PRINT("queueing work item");
     TryQueueWorkItem(layerData);
-}
-
-// Firewall callback
-VOID IpCallback(const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, __IGNORE void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
-{
-    // Extract source IP address from inFixedValues
-    const UINT32 srcAddr = (&inFixedValues->incomingValue[FWPS_FIELD_INBOUND_IPPACKET_V4_IP_REMOTE_ADDRESS].value)->uint32;
-    KdPrint(("IPv4 Source: %d.%d.%d.%d\n",
-        (srcAddr & 0xFF), (srcAddr >> 8) & 0xFF,
-        (srcAddr >> 16) & 0xFF, (srcAddr >> 24) & 0xFF));
-
-    // Blocking blacklisted IPs
-    memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
-    if (isInBlacklist(srcAddr))
-    {
-        classifyOut->actionType = FWP_ACTION_BLOCK;
-        IDPS_PRINT("packet blocked!");
-    }
-    else
-    {
-        classifyOut->actionType = FWP_ACTION_PERMIT;
-        IDPS_PRINT("packet permitted");
-    }
 }
 
 // Boilerplate function without any use for now
@@ -584,7 +549,7 @@ VOID UnInitMutexes()
 
 void copyLayerData(const PVOID layerData)
 {
-    if (!layerData)
+    if (!layerData) // Theoretically impossible
     {
         IDPS_PRINT(__FUNCTION__ " received null pointer");
         return;
@@ -642,10 +607,19 @@ void addRuleToBlacklist(const unsigned int* ip)
     ipBlacklist.ips[ipBlacklist.listLength++] = *ip;
 }
 
-BOOL isInBlacklist(UINT32 ip)
+BOOL isIpInBlacklist(UINT32 ip)
 {
     for (unsigned int i = 0; i < ipBlacklist.listLength; ++i)
         if (ip == ipBlacklist.ips[i])
+            return TRUE;
+
+    return FALSE;
+}
+
+BOOL isMacInBlacklist(PDL_EUI48 mac)
+{
+    for (UINT8 i = 0; i < macBlacklist.listLength; ++i)
+        if (!memcmp(mac, macBlacklist.macs + i, 6))
             return TRUE;
 
     return FALSE;
@@ -685,3 +659,60 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
     context->ongoing = FALSE;
     IDPS_PRINT("Finished work item routine");
 }
+
+BOOL doesPassFirewall(PVOID layerData)
+{
+    if (!layerData) // Theoretically impossible
+    {
+        IDPS_PRINT("doesPassFirewall received null layerData");
+        return FALSE;
+    }
+
+    NET_BUFFER* nb = ((NET_BUFFER_LIST*)layerData)->FirstNetBuffer;
+
+    ULONG dataLength = nb->DataLength;
+    UCHAR* packetData = (UCHAR*)NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
+
+    if (!packetData)
+    {
+        IDPS_PRINT("Failed to retrieve packet data");
+        return FALSE;
+    }
+
+    // Checking if the packet is an IP packet
+    if (!dataLength >= sizeof(ETHERNET_HEADER))
+    {
+		IDPS_PRINT("Packet is too short to be an IP packet");
+		return TRUE;
+    }
+
+	// Extracting the Ethernet header
+	ETHERNET_HEADER* ethHeader = (ETHERNET_HEADER*)packetData;
+
+    // Check if the packet is an IPv4 packet (EtherType == 0x0800)
+    if (ethHeader->Type != 0x0008) // 0x0008 is RtlUshortByteSwap(0x0800)
+    {
+        IDPS_PRINT("Packet is not an IPv4 packet");
+        return TRUE;
+    }
+
+	// Extracting the IPv4 header
+    IPV4_HEADER* ipHeader = (IPV4_HEADER*)(packetData + sizeof(ETHERNET_HEADER));
+
+    // Check if the source IP is in the blacklist
+    if (isIpInBlacklist(ipHeader->SourceAddress.S_un.S_addr))
+    {
+        IDPS_PRINT("Packet blocked by IP blacklist");
+        return FALSE;
+    }
+
+    // Check if the source MAC address is in the blacklist
+    if (isMacInBlacklist(&ethHeader->Source))
+    {
+        IDPS_PRINT("Packet blocked by MAC blacklist");
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
