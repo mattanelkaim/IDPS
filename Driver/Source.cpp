@@ -95,7 +95,8 @@ NTSTATUS InitFileNames();
 VOID UnInitMutexes();
 IO_WORKITEM_ROUTINE WorkItemRoutine;
 void copyLayerData(const PVOID layerData);
-void addRuleToBlacklist(const unsigned int* ip);
+void addIpRuleToBlacklist(PUINT32 ip);
+void addMacRuleToBlacklist(PDL_EUI48 mac);
 BOOL isIpInBlacklist(UINT32 ip);
 BOOL isMacInBlacklist(PDL_EUI48 mac);
 BOOL doesPassFirewall(PVOID layerData);
@@ -185,11 +186,16 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
         IDPS_PRINT("Read request!\n");
         break;
     case IRP_MJ_DEVICE_CONTROL:
-        if (IOCTL_SEND_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
+        if (IOCTL_SEND_IP_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
         {
-            addRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
+            addIpRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
             break;
         }
+		else if (IOCTL_SEND_MAC_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
+		{
+			addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
+			break;
+		}
         else if (IOCTL_SEND_HANDLES != irpSp->Parameters.DeviceIoControl.IoControlCode)
         {
             IDPS_PRINT("Received invalid IOCTL code!\n");
@@ -587,7 +593,7 @@ void copyLayerData(const PVOID layerData)
     workContext.layerDataLength = (USHORT)totalCopied; // Store the actual copied size
 }
 
-void addRuleToBlacklist(const unsigned int* ip)
+void addIpRuleToBlacklist(PUINT32 ip)
 {
     // Handle edge-case of null IP
     if (!ip)
@@ -607,9 +613,29 @@ void addRuleToBlacklist(const unsigned int* ip)
     ipBlacklist.ips[ipBlacklist.listLength++] = *ip;
 }
 
+void addMacRuleToBlacklist(PDL_EUI48 mac)
+{
+    // Handle edge-case of null IP
+    if (!mac)
+    {
+        IDPS_PRINT("addRuleToBlacklist received null IP");
+        return;
+    }
+
+    // Handle edge-case of full blacklisted IPs
+    if (macBlacklist.listLength == MAX_BLACKLIST_SIZE)
+    {
+        IDPS_PRINT("IP blacklist is full");
+        return;
+    }
+
+    IDPS_PRINT("Adding rule to blacklist");
+    memcpy(macBlacklist.macs + macBlacklist.listLength++, mac, sizeof(DL_EI48));
+}
+
 BOOL isIpInBlacklist(UINT32 ip)
 {
-    for (unsigned int i = 0; i < ipBlacklist.listLength; ++i)
+    for (UINT8 i = 0; i < ipBlacklist.listLength; ++i)
         if (ip == ipBlacklist.ips[i])
             return TRUE;
 
