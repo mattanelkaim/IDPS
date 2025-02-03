@@ -95,11 +95,11 @@ NTSTATUS InitFileNames();
 VOID UnInitMutexes();
 IO_WORKITEM_ROUTINE WorkItemRoutine;
 void copyLayerData(const PVOID layerData);
-void addIpRuleToBlacklist(PUINT32 ip);
-void addMacRuleToBlacklist(PDL_EUI48 mac);
+void addIpRuleToBlacklist(const PUINT32 ip);
+void addMacRuleToBlacklist(const PDL_EUI48 mac);
 BOOL isIpInBlacklist(UINT32 ip);
-BOOL isMacInBlacklist(PDL_EUI48 mac);
-BOOL doesPassFirewall(PVOID layerData);
+BOOL isMacInBlacklist(const DL_EUI48 mac);
+BOOL doesPassFirewall(const PVOID layerData);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -191,11 +191,11 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
             addIpRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
             break;
         }
-		else if (IOCTL_SEND_MAC_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
-		{
-			addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
-			break;
-		}
+        else if (IOCTL_SEND_MAC_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
+        {
+            addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
+            break;
+        }
         else if (IOCTL_SEND_HANDLES != irpSp->Parameters.DeviceIoControl.IoControlCode)
         {
             IDPS_PRINT("Received invalid IOCTL code!\n");
@@ -375,7 +375,7 @@ VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
 
     memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
 
-	// Checking if the packet should be blocked
+    // Checking if the packet should be blocked
     if (!doesPassFirewall(layerData))
     {
         classifyOut->actionType = FWP_ACTION_BLOCK;
@@ -593,7 +593,7 @@ void copyLayerData(const PVOID layerData)
     workContext.layerDataLength = (USHORT)totalCopied; // Store the actual copied size
 }
 
-void addIpRuleToBlacklist(PUINT32 ip)
+void addIpRuleToBlacklist(const PUINT32 ip)
 {
     // Handle edge-case of null IP
     if (!ip)
@@ -613,7 +613,7 @@ void addIpRuleToBlacklist(PUINT32 ip)
     ipBlacklist.ips[ipBlacklist.listLength++] = *ip;
 }
 
-void addMacRuleToBlacklist(PDL_EUI48 mac)
+void addMacRuleToBlacklist(const PDL_EUI48 mac)
 {
     // Handle edge-case of null IP
     if (!mac)
@@ -642,10 +642,10 @@ BOOL isIpInBlacklist(UINT32 ip)
     return FALSE;
 }
 
-BOOL isMacInBlacklist(PDL_EUI48 mac)
+BOOL isMacInBlacklist(const DL_EUI48 mac)
 {
     for (UINT8 i = 0; i < macBlacklist.listLength; ++i)
-        if (!memcmp(mac, macBlacklist.macs + i, 6))
+        if (!memcmp(mac.Byte, macBlacklist.macs + i, sizeof(DL_EUI48)))
             return TRUE;
 
     return FALSE;
@@ -679,6 +679,7 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
         IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
     IDPS_PRINT3("%.*s", workContext.layerDataLength - i, workContext.layerData + i);
+
     writeToFile(&packetFilePath, workContext.layerData, workContext.layerDataLength);
 
     context->queued = FALSE;
@@ -686,7 +687,7 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
     IDPS_PRINT("Finished work item routine");
 }
 
-BOOL doesPassFirewall(PVOID layerData)
+BOOL doesPassFirewall(const PVOID layerData)
 {
     if (!layerData) // Theoretically impossible
     {
@@ -694,10 +695,11 @@ BOOL doesPassFirewall(PVOID layerData)
         return FALSE;
     }
 
+    // This 1 sadly CANNOT be const :(
     NET_BUFFER* nb = ((NET_BUFFER_LIST*)layerData)->FirstNetBuffer;
 
-    ULONG dataLength = nb->DataLength;
-    UCHAR* packetData = (UCHAR*)NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
+    const ULONG dataLength = nb->DataLength;
+    const UCHAR* packetData = (UCHAR*)NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
 
     if (!packetData)
     {
@@ -708,12 +710,12 @@ BOOL doesPassFirewall(PVOID layerData)
     // Checking if the packet is an IP packet
     if (!dataLength >= sizeof(ETHERNET_HEADER))
     {
-		IDPS_PRINT("Packet is too short to be an IP packet");
-		return TRUE;
+        IDPS_PRINT("Packet is too short to be an IP packet");
+        return TRUE;
     }
 
-	// Extracting the Ethernet header
-	ETHERNET_HEADER* ethHeader = (ETHERNET_HEADER*)packetData;
+    // Extracting the Ethernet header
+    const ETHERNET_HEADER* ethHeader = (ETHERNET_HEADER*)packetData;
 
     // Check if the packet is an IPv4 packet (EtherType == 0x0800)
     if (ethHeader->Type != 0x0008) // 0x0008 is RtlUshortByteSwap(0x0800)
@@ -722,18 +724,18 @@ BOOL doesPassFirewall(PVOID layerData)
         return TRUE;
     }
 
-	// Extracting the IPv4 header
-    IPV4_HEADER* ipHeader = (IPV4_HEADER*)(packetData + sizeof(ETHERNET_HEADER));
+    // Extracting the IPv4 header
+    const IPV4_HEADER* ipHeader = (IPV4_HEADER*)(packetData + sizeof(ETHERNET_HEADER));
 
     // Check if the source IP is in the blacklist
-    if (isIpInBlacklist(ipHeader->SourceAddress.S_un.S_addr))
+    if (isIpInBlacklist(ipHeader->SourceAddress.s_addr))
     {
         IDPS_PRINT("Packet blocked by IP blacklist");
         return FALSE;
     }
 
     // Check if the source MAC address is in the blacklist
-    if (isMacInBlacklist(&ethHeader->Source))
+    if (isMacInBlacklist(ethHeader->Source))
     {
         IDPS_PRINT("Packet blocked by MAC blacklist");
         return FALSE;
@@ -741,4 +743,3 @@ BOOL doesPassFirewall(PVOID layerData)
 
     return TRUE;
 }
-
