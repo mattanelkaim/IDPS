@@ -121,8 +121,8 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
     os << FIELD("Destination port") << obj.dstPort << '\n';
     os << FIELD("Sequence number") << obj.seqNumber << '\n';
     os << FIELD("Acknowledgment Number") << obj.ackNumber << '\n';
-    os << FIELD("Data Offset") << static_cast<int>(obj.dataOffsetAndReserved >> 4) << '\n'; // High nibble
-    os << FIELD("Reserved") << static_cast<int>((obj.dataOffsetAndReserved & 0b00001110) >> 1) << '\n'; // 3 high bits in lower nibble
+    os << FIELD("Data Offset") << static_cast<int>(obj.dataOffset) << '\n';
+    os << FIELD("Reserved") << static_cast<int>((obj.reserved & 0b1110) >> 1) << '\n'; // 3 high bits in lower nibble
 
     // Flags
     os << FIELD("Flags");
@@ -132,7 +132,7 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
     if (obj.flags & 0x08) os << "PSH ";
     if (obj.flags & 0x10) os << "ACK ";
     if (obj.flags & 0x20) os << "URG ";
-    if (obj.dataOffsetAndReserved & 0x01) os << "Reserved ";  // The 9th flag bit
+    if (obj.reserved & 0x01) os << "Reserved "; // The 9th flag bit
 
     os << '\n' << FIELD("Window size") << obj.windowSize << '\n';
     os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';

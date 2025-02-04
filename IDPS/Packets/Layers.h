@@ -29,10 +29,8 @@ struct NetworkHeader // Solely for grouping protocols
 struct IPv4Header : NetworkHeader
 {
     // uint8_t versionAndHeaderLength;
-    struct {
-        uint8_t headerLength : 4;
-        uint8_t version : 4;
-    };
+    uint8_t headerLength : 4; // Higher nibble
+    uint8_t version : 4; // Lower nibble
     uint8_t typeOfService;
     uint16_t totalLength;
     uint16_t identification;
@@ -85,7 +83,8 @@ struct TCPHeader : public TransportHeader
     //uint16_t dstPort;
     uint32_t seqNumber;
     uint32_t ackNumber;
-    uint8_t dataOffsetAndReserved;
+    uint8_t reserved : 4; // Lower nibble
+    uint8_t dataOffset : 4; // Higher nibble
     uint8_t flags;
     uint16_t windowSize;
     uint16_t checksum;
