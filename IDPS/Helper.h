@@ -2,11 +2,11 @@
 
 // Do NOT sort these includes
 #include <bit>
+#include <charconv>
 #include <concepts>
 #include <cstdint>
-#include <string>
 #include <string_view>
-#include <charconv>
+#include <string>
 #include <WS2tcpip.h>
 #include <IPTypes.h>
 
@@ -32,6 +32,9 @@ enum ArpOpcode : uint16_t
     REPLY,
     // Other currently useless opcodes until #25
 };
+
+template <typename T, typename... U>
+concept IsAnyOf = (std::same_as<T, U> || ...);
 
 
 struct mac
@@ -74,7 +77,7 @@ constexpr mac invalidMac("00:00:00:00:00:00");
 namespace Helper
 {
     template <typename T>
-    requires (std::integral<T> || std::same_as<T, ProtocolCode_16> || std::same_as<T, ArpOpcode>)
+    requires (std::integral<T> || IsAnyOf<T, ProtocolCode_16, ArpOpcode>)
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
@@ -98,8 +101,7 @@ namespace Helper
     }
 
     // Function to convert unsigned long to string IP
-    template <typename T>
-    requires (std::same_as<T, ULONG> || std::same_as<T, in_addr>)
+    template <IsAnyOf<ULONG, in_addr> T>
     constexpr std::string ipToStr(T ip) noexcept
     {
         if constexpr (std::same_as<T, in_addr>)
@@ -113,8 +115,7 @@ namespace Helper
     }
 
 
-    template <typename T>
-    requires (std::same_as<T, ULONG> || std::same_as<T, std::string>)
+    template <IsAnyOf<ULONG, std::string> T>
     inline T getBroadcastAddress(const IP_ADDR_STRING& ipAddrString) noexcept
     {
         const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
