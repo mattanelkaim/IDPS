@@ -58,8 +58,6 @@ void PacketExtractor::threadRoutine()
         this->m_packetQueue.push(rawPacket);
         this->m_queueMutex.unlock();
     }
-
-    packetFile.close();
 }
 
 
