@@ -73,6 +73,22 @@ constexpr mac invalidMac("00:00:00:00:00:00");
 // For some reason, all functions MUST BE INLINE
 namespace Helper
 {
+    template <typename T>
+    requires (std::integral<T> || std::same_as<T, ProtocolCode_16> || std::same_as<T, ArpOpcode>)
+    constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
+    {
+        if constexpr (std::endian::native == std::endian::big)
+            return val; // Already Big Endian
+        else // Swap bytes to Big Endian
+        {
+            if constexpr (std::integral<T>)
+                return std::byteswap(val);
+            else
+                return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
+        }
+    }
+
+
     // Function to convert string IP to unsigned long
     inline ULONG ipToLong(const std::string_view ip) noexcept
     {
@@ -82,12 +98,17 @@ namespace Helper
     }
 
     // Function to convert unsigned long to string IP
-    inline std::string longToIp(const ULONG ip) noexcept
+    template <typename T>
+    requires (std::same_as<T, ULONG> || std::same_as<T, in_addr>)
+    constexpr std::string ipToStr(T ip) noexcept
     {
-        in_addr addr;
-        addr.s_addr = htonl(ip);
-        char ipStr[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &addr, ipStr, INET_ADDRSTRLEN);
+        if constexpr (std::same_as<T, in_addr>)
+            ip.s_addr = ntohl(ip.s_addr);
+        else
+            ip = ntohl(ip);
+
+        char ipStr[INET_ADDRSTRLEN] = {0};
+        inet_ntop(AF_INET, &ip, ipStr, INET_ADDRSTRLEN);
         return std::string(ipStr);
     }
 
@@ -103,7 +124,7 @@ namespace Helper
         const ULONG broadcastLong = ipLong | (~maskLong);
 
         if constexpr (std::same_as<T, std::string>)
-            return longToIp(broadcastLong);
+            return ipToStr(broadcastLong);
         else
             return broadcastLong;
     }
@@ -114,24 +135,6 @@ namespace Helper
         const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
 
         // Calculate the minimum address
-        const ULONG min = (ipLong & maskLong) | 1;
-
-        return min;
-    }
-
-
-    template <typename T>
-    requires (std::integral<T> || std::same_as<T, ProtocolCode_16> || std::same_as<T, ArpOpcode>)
-    constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
-    {
-        if constexpr (std::endian::native == std::endian::big)
-            return val;
-        else // Swap bytes to Big Endian
-        {
-            if constexpr (std::integral<T>)
-                return std::byteswap(val);
-            else
-                return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
-        }
+        return (ipLong & maskLong) | 1;
     }
 } // namespace Helper

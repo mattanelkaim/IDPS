@@ -28,16 +28,26 @@ struct NetworkHeader // Solely for grouping protocols
 
 struct IPv4Header : NetworkHeader
 {
-    uint8_t versionAndHeaderLength;
+    // uint8_t versionAndHeaderLength;
+    struct {
+        uint8_t headerLength : 4;
+        uint8_t version : 4;
+    };
     uint8_t typeOfService;
     uint16_t totalLength;
     uint16_t identification;
-    uint16_t flagsAndFragmentOffset;
-    uint8_t timeToLive;
+    union {
+        uint16_t flagsAndFragmentOffset;
+        struct {
+            uint16_t fragmentOffset : 13;
+            uint16_t flags : 3;
+        };
+    };
+    uint8_t ttl;
     ProtocolCode_8 protocol; // Indicates upper-layer (TCP | UDP)
     uint16_t checksum;
-    uint32_t srcIP;
-    uint32_t dstIP;
+    in_addr srcIP;
+    in_addr dstIP;
 
 public:
     explicit IPv4Header(std::span<const uint8_t> rawData);
@@ -130,7 +140,7 @@ struct DNSRecord
     std::vector<uint8_t> data;
 
 public:
-    explicit DNSRecord(std::span<const uint8_t> rawData);
+    explicit constexpr DNSRecord(std::span<const uint8_t> rawData) noexcept;
 };
 
 class DNSMessage : public ApplicationData
@@ -145,8 +155,8 @@ public:
     explicit DNSMessage(std::span<const uint8_t> rawData);
 
 private:
-    std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
-    void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records);
+    constexpr std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset) noexcept;
+    constexpr void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records) noexcept;
 };
 
 #pragma pack(pop)

@@ -39,31 +39,31 @@ IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
     this->identification = Helper::toBigEndian(this->identification);
     this->flagsAndFragmentOffset = Helper::toBigEndian(this->flagsAndFragmentOffset);
     this->checksum = Helper::toBigEndian(this->checksum);
-    this->srcIP = Helper::toBigEndian(this->srcIP);
-    this->dstIP = Helper::toBigEndian(this->dstIP);
+    this->srcIP.s_addr = Helper::toBigEndian(this->srcIP.s_addr);
+    this->dstIP.s_addr = Helper::toBigEndian(this->dstIP.s_addr);
 }
 
 std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
 {
-    os << FIELD("Version") << static_cast<int>(obj.versionAndHeaderLength >> 4) << '\n'; // High nibble
-    os << FIELD("Header length") << static_cast<int>(obj.versionAndHeaderLength & 0x0F) << '\n'; // Low nibble
+    os << FIELD("Version") << static_cast<int>(obj.version) << '\n'; // High nibble
+    os << FIELD("Header length") << static_cast<int>(obj.headerLength) << '\n'; // Low nibble
     os << FIELD("Type of service") << static_cast<int>(obj.typeOfService) << '\n';
     os << FIELD("Total length") << obj.totalLength << '\n';
     os << FIELD("Identification") << obj.identification << '\n';
-    os << FIELD("Flags") << static_cast<int>(obj.flagsAndFragmentOffset >> 13) << '\n'; // High 3 bits
-    os << FIELD("Fragment offset") << (obj.flagsAndFragmentOffset & 0x1FFF) << '\n'; // Low 13 bits
-    os << FIELD("Time to live") << static_cast<int>(obj.timeToLive) << '\n';
+    os << FIELD("Flags") << static_cast<int>(obj.flags) << '\n'; // High 3 bits
+    os << FIELD("Fragment offset") << (obj.fragmentOffset) << '\n'; // Low 13 bits
+    os << FIELD("Time to live") << static_cast<int>(obj.ttl) << '\n';
     os << FIELD("Protocol") << static_cast<int>(obj.protocol) << '\n';
     os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
     
-    os << FIELD("Source IP") << Helper::longToIp(obj.srcIP) << '\n';
-    os << FIELD("Destination IP") << Helper::longToIp(obj.dstIP) << '\n';
+    os << FIELD("Source IP") << Helper::ipToStr(obj.srcIP) << '\n';
+    os << FIELD("Destination IP") << Helper::ipToStr(obj.dstIP) << '\n';
     
     return os;
 }
 
 
-ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
+ArpHeader::ArpHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(ArpHeader)) [[unlikely]]
         throw std::runtime_error("Invalid ARP header size");
@@ -88,10 +88,10 @@ std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
     os << FIELD("Opcode") << "0x" << std::hex << obj.opcode << std::dec << '\n';
     
     os << FIELD("Sender MAC") << obj.senderMAC.macToString() << '\n';
-    os << FIELD("Sender IP") << Helper::longToIp(obj.senderIP.s_addr) << '\n';
+    os << FIELD("Sender IP") << Helper::ipToStr(obj.senderIP) << '\n';
     
     os << FIELD("Target MAC") << obj.targetMAC.macToString() << '\n';
-    os << FIELD("Target IP") << Helper::longToIp(obj.targetIP.s_addr) << '\n';
+    os << FIELD("Target IP") << Helper::ipToStr(obj.targetIP) << '\n';
     
     return os;
 }
@@ -199,7 +199,11 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
     return os;
 }
 
-DNSRecord::DNSRecord(const std::span<const uint8_t> rawData)
+
+// HELPER FUNCTIONS
+
+
+constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept
 {
     // Parse manually name, type, class, ttl
     name = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()));
@@ -232,7 +236,7 @@ DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
     parseRecords(rawData, offset, header.additionalCount, additionalRecords);
 }
 
-std::string DNSMessage::parseDomainName(const std::span<const uint8_t> rawData, size_t& offset)
+constexpr std::string DNSMessage::parseDomainName(const std::span<const uint8_t> rawData, size_t& offset) noexcept
 {
     std::string domainName;
 
@@ -250,7 +254,7 @@ std::string DNSMessage::parseDomainName(const std::span<const uint8_t> rawData, 
     return domainName;
 }
 
-void DNSMessage::parseRecords(const std::span<const uint8_t> rawData, size_t& offset, const uint16_t count, std::vector<DNSRecord>& records)
+constexpr void DNSMessage::parseRecords(const std::span<const uint8_t> rawData, size_t& offset, const uint16_t count, std::vector<DNSRecord>& records) noexcept
 {
     for (int i = 0; i < count; ++i)
     {
