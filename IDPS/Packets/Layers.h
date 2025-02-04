@@ -62,16 +62,17 @@ public:
 };
 
 
-struct TransportHeader // Solely for grouping protocols
+struct TransportHeader
 {
-    //TransportHeader() = delete;
+    uint16_t srcPort;
+    uint16_t dstPort;
 };
 
 
 struct TCPHeader : public TransportHeader
 {
-    uint16_t srcPort;
-    uint16_t dstPort;
+    //uint16_t srcPort;
+    //uint16_t dstPort;
     uint32_t seqNumber;
     uint32_t ackNumber;
     uint8_t dataOffsetAndReserved;
@@ -87,8 +88,8 @@ public:
 
 struct UDPHeader : public TransportHeader
 {
-    uint16_t srcPort;
-    uint16_t dstPort;
+    //uint16_t srcPort;
+    //uint16_t dstPort;
     uint16_t length;
     uint16_t checksum;
 
