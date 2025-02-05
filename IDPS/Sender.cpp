@@ -5,7 +5,7 @@
 #include <thread>
 
 
-bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP)
+bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept
 {
     ULONG ulOutBufLen = sizeof(IP_ADAPTER_INFO); // Cannot be const because GetAdaptersInfo changes it
     PIP_ADAPTER_INFO AdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(malloc(ulOutBufLen));
@@ -40,7 +40,7 @@ bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localI
             if (strcmp(pAdapterInfo->Description, interfaceName) == 0)
             {
                 memcpy(localIP, &pAdapterInfo->IpAddressList, sizeof(IP_ADDR_STRING));
-                localIP->Next = nullptr;
+                localIP->Next = nullptr; // Would be a dangling pointer
                 free(AdapterInfo);
                 return true;
             }
@@ -58,7 +58,7 @@ bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localI
 }
 
 
-mac Sender::SendARPRequest(const in_addr target)
+mac Sender::SendARPRequest(const in_addr target) noexcept
 {
     // Prepare the ARP request structure
     mac macAddress;
@@ -72,7 +72,7 @@ mac Sender::SendARPRequest(const in_addr target)
 }
 
 
-bool Sender::SendPing(const in_addr target)
+bool Sender::SendPing(const in_addr target) noexcept
 {
     // Create the ICMP context.
     HANDLE icmpHandle = IcmpCreateFile();
@@ -88,7 +88,7 @@ bool Sender::SendPing(const in_addr target)
 
     // Reply buffer for exactly 1 echo reply, payload data, and 8 bytes for ICMP error message.
     constexpr DWORD replyBufSize = sizeof(ICMP_ECHO_REPLY) + payloadSize + 8;
-    unsigned char replyBuffer[replyBufSize]{0};
+    ICMP_ECHO_REPLY replyBuffer[replyBufSize]{0};
 
     constexpr DWORD timeout = 30'000; // 30 seconds
 
@@ -101,10 +101,8 @@ bool Sender::SendPing(const in_addr target)
         return false;
     }
 
-
     IcmpCloseHandle(icmpHandle);
-    const ICMP_ECHO_REPLY reply = *reinterpret_cast<ICMP_ECHO_REPLY*>(replyBuffer);
-    return reply.Status == IP_SUCCESS;
+    return replyBuffer->Status == IP_SUCCESS;
 }
 
 

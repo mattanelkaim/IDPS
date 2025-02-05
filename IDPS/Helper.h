@@ -10,7 +10,8 @@
 #include <WS2tcpip.h>
 #include <IPTypes.h>
 
-constexpr std::string_view INTERFACE_NAME = "Intel(R) Wi-Fi 6 AX201 160MHz";
+constexpr std::string_view INTERFACE_NAME1 = "Intel(R) Wi-Fi 6 AX201 160MHz";
+constexpr std::string_view INTERFACE_NAME2 = "Realtek PCIe GbE Family Controller";
 
 enum ProtocolCode_16 : uint16_t
 {
