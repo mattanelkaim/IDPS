@@ -569,7 +569,7 @@ void copyLayerData(const PVOID layerData)
     while (nb)
     {
         // Getting the current packet data buffer length
-        const USHORT dataLength = (USHORT)nb->DataLength;
+        const USHORT dataLength = (USHORT)nb->DataLength + sizeof(ULONG64); // Adding timestamp size
 
         // Extracting the packet data buffer
         UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
@@ -579,14 +579,14 @@ void copyLayerData(const PVOID layerData)
             break;
         }
 
+        // Writing the packet size as a 2-byte value
+        memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(USHORT));
+        totalCopied += sizeof(SHORT);
+
         // Writing current timestamp as an 8-byte value
         timestamp = KeQueryUnbiasedInterruptTime();
         memcpy(workContext.layerData + totalCopied, &timestamp, sizeof(ULONG64));
         totalCopied += sizeof(ULONG64);
-
-        // Writing the packet size as a 2-byte value
-        memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(SHORT));
-        totalCopied += sizeof(SHORT);
 
         // Writing the actual packet data
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
