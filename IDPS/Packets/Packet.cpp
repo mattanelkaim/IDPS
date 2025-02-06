@@ -4,8 +4,10 @@
 
 
 Packet::Packet(const std::span<const uint8_t> rawData) :
-    ethernetHeader(new EthernetHeader(rawData.subspan(0, sizeof(EthernetHeader))))
+    ethernetHeader(new EthernetHeader(rawData.subspan(0, sizeof(EthernetHeader)))),
+	timestamp(*reinterpret_cast<const uint64_t*>(rawData.data()))
 {
+	std::cout << "\033[31mTimestamp:\033[0m " << timestamp << '\n';
     std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
     size_t offset = sizeof(EthernetHeader);
 
