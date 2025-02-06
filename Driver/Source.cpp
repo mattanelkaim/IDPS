@@ -564,6 +564,7 @@ void copyLayerData(const PVOID layerData)
     const NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
     NET_BUFFER* nb = nbl->FirstNetBuffer;
     SIZE_T totalCopied = 0;
+    ULONG64 timestamp = 0;
 
     while (nb)
     {
@@ -578,15 +579,20 @@ void copyLayerData(const PVOID layerData)
             break;
         }
 
+        // Writing current timestamp as an 8-byte value
+        timestamp = KeQueryUnbiasedInterruptTime();
+        memcpy(workContext.layerData + totalCopied, &timestamp, sizeof(ULONG64));
+        totalCopied += sizeof(ULONG64);
+
         // Writing the packet size as a 2-byte value
         memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(SHORT));
         totalCopied += sizeof(SHORT);
 
         // Writing the actual packet data
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
-
-        // Preparing for next packet
         totalCopied += dataLength;
+
+        // Advancing to next NET-BUFFER
         nb = nb->Next;
     }
 
