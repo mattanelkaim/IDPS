@@ -645,7 +645,7 @@ BOOL isIpInBlacklist(UINT32 ip)
 BOOL isMacInBlacklist(const DL_EUI48 mac)
 {
     for (UINT8 i = 0; i < macBlacklist.listLength; ++i)
-        if (!memcmp(mac.Byte, macBlacklist.macs + i, sizeof(DL_EUI48)))
+        if (!memcmp(&mac.Byte, macBlacklist.macs + i, sizeof(DL_EUI48)))
             return TRUE;
 
     return FALSE;
