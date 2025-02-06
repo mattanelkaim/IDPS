@@ -9,7 +9,7 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
 {
 	std::cout << "\033[31mTimestamp:\033[0m " << timestamp << '\n';
     std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
-    size_t offset = sizeof(EthernetHeader);
+    size_t offset = sizeof(uint64_t) + sizeof(EthernetHeader);
 
     // Parse NETWORK layer
     if (ethernetHeader->etherType == IPV4)
