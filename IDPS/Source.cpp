@@ -71,14 +71,47 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    const std::vector<uint8_t> rawData = readFile("Example Sniffs/ArpReply.bin");
+    //const std::vector<uint8_t> rawData = readFile("Example Sniffs/dns packet.bin");
  
-    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(ArpHeader));
+    //printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
 
-    Packet packet(rawData);
+    //Packet packet(rawData);
 
-    std::cout << Detector::getInstance().isArpReplyLikeTable(packet);
+    //std::cout << Detector::getInstance().isArpReplyLikeTable(packet);
     
     //std::cout << (mac{"AA:AA:AA:BB:BB:BB"} == mac{"BB:BB:BB:AA:AA:AA"});
+    IP_ADDR_STRING localIpData;
+    if (Sender::GetLocalIpAddress(INTERFACE_NAME2.data(), &localIpData))
+        std::cout << "\nLocal IP: " << localIpData.IpAddress.String << '\n';
+    else
+        std::cerr << "\nFailed to get local IP address!\n";
     return 0;
 }
+
+/*
+IP:
+Version: 4
+Header length: 5
+Type of service: 136
+Total length: 68
+Identification: 46027
+Flags: 2
+Fragment offset: 0
+Time to live: 59
+Protocol: 17
+Checksum: 0x18a8
+Source IP: 1.1.1.1
+Destination IP: 10.100.102.72
+
+TCP:
+Source port: 80
+Destination port: 21119
+Sequence number: 2120307519
+Acknowledgment Number: 4065945401
+Data Offset: 5
+Reserved: 0
+Flags: PSH ACK
+Window size: 501
+Checksum: 0xb49a
+Urgent pointer: 0
+*/

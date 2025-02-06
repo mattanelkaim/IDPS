@@ -28,16 +28,24 @@ struct NetworkHeader // Solely for grouping protocols
 
 struct IPv4Header : NetworkHeader
 {
-    uint8_t versionAndHeaderLength;
+    // uint8_t versionAndHeaderLength;
+    uint8_t headerLength : 4; // Higher nibble
+    uint8_t version : 4; // Lower nibble
     uint8_t typeOfService;
     uint16_t totalLength;
     uint16_t identification;
-    uint16_t flagsAndFragmentOffset;
-    uint8_t timeToLive;
+    union {
+        uint16_t flagsAndFragmentOffset;
+        struct {
+            uint16_t fragmentOffset : 13;
+            uint16_t flags : 3;
+        };
+    };
+    uint8_t ttl;
     ProtocolCode_8 protocol; // Indicates upper-layer (TCP | UDP)
     uint16_t checksum;
-    uint32_t srcIP;
-    uint32_t dstIP;
+    in_addr srcIP;
+    in_addr dstIP;
 
 public:
     explicit IPv4Header(std::span<const uint8_t> rawData);
@@ -62,19 +70,21 @@ public:
 };
 
 
-struct TransportHeader // Solely for grouping protocols
+struct TransportHeader
 {
-    //TransportHeader() = delete;
+    uint16_t srcPort;
+    uint16_t dstPort;
 };
 
 
 struct TCPHeader : public TransportHeader
 {
-    uint16_t srcPort;
-    uint16_t dstPort;
+    //uint16_t srcPort;
+    //uint16_t dstPort;
     uint32_t seqNumber;
     uint32_t ackNumber;
-    uint8_t dataOffsetAndReserved;
+    uint8_t reserved : 4; // Lower nibble
+    uint8_t dataOffset : 4; // Higher nibble
     uint8_t flags;
     uint16_t windowSize;
     uint16_t checksum;
@@ -87,8 +97,8 @@ public:
 
 struct UDPHeader : public TransportHeader
 {
-    uint16_t srcPort;
-    uint16_t dstPort;
+    //uint16_t srcPort;
+    //uint16_t dstPort;
     uint16_t length;
     uint16_t checksum;
 
@@ -129,7 +139,7 @@ struct DNSRecord
     std::vector<uint8_t> data;
 
 public:
-    explicit DNSRecord(std::span<const uint8_t> rawData);
+    explicit constexpr DNSRecord(std::span<const uint8_t> rawData) noexcept;
 };
 
 class DNSMessage : public ApplicationData
@@ -144,8 +154,8 @@ public:
     explicit DNSMessage(std::span<const uint8_t> rawData);
 
 private:
-    std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
-    void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records);
+    constexpr std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset) noexcept;
+    constexpr void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records) noexcept;
 };
 
 #pragma pack(pop)

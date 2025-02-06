@@ -11,8 +11,8 @@
 class Sender final
 {
 public:
-    static bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP);
-    static mac SendARPRequest(const in_addr target);
-    static bool SendPing(const in_addr target);
+    static bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept;
+    static mac SendARPRequest(const in_addr target) noexcept;
+    static bool SendPing(const in_addr target) noexcept;
     static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
 };
