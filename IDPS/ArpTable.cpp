@@ -32,7 +32,7 @@ void ArpTable::updateTable()
     // Then resolve each IP to its MAC
     for (const in_addr currentIP : ipAddresses)
     {
-        std::cout << Helper::longToIp(currentIP.s_addr) << '\n';
+        std::cout << Helper::ipToStr(currentIP) << '\n';
         const mac currentMAC = Sender::SendARPRequest(currentIP);
         this->m_table.emplace(currentIP.s_addr, currentMAC);
     }
@@ -80,5 +80,5 @@ void ArpTable::writeTableToFile()
 
     // Write each IP&MAC pair as a new line
     for (const auto& [ip, mac] : m_table)
-        tableFile << Helper::longToIp(ip) << ',' << mac.macToString() << '\n';
+        tableFile << Helper::ipToStr(ip) << ',' << mac.macToString() << '\n';
 }

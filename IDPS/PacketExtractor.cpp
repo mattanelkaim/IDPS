@@ -7,15 +7,15 @@ PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadR
     this->m_extractorThread.detach(); // letting packet extractor thread work in the background
 
     // obtaining a device handle to the driver
-    this->m_deviceHandle = CreateFileW(L"\\\\.\\SnifferDeviceLink", GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
+    /*this->m_deviceHandle = CreateFileW(L"\\\\.\\SnifferDeviceLink", GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
     if (this->m_deviceHandle == INVALID_HANDLE_VALUE)
-        throw std::runtime_error("Please run the driver prior to running the IDPS.");
+        throw std::runtime_error("Please run the driver prior to running the IDPS.");*/
 }
 
 
 void PacketExtractor::threadRoutine()
 {
-    std::ifstream packetFile(PACKET_FILE_PATH, std::ios::binary);
+    std::ifstream packetFile("C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", std::ios::binary);
     if (!packetFile.is_open())
         throw std::runtime_error("Error opening packet file.");
 
@@ -31,7 +31,7 @@ void PacketExtractor::threadRoutine()
 
             // truncate the file every time the thread reaches its end
             if (packetFile.tellg() != std::ios::beg)
-                truncatePacketFile();
+                //truncatePacketFile();
 
             packetFile.seekg(0, std::ios::beg);
             // locking the queue until new packets arrive
@@ -58,8 +58,6 @@ void PacketExtractor::threadRoutine()
         this->m_packetQueue.push(rawPacket);
         this->m_queueMutex.unlock();
     }
-
-    packetFile.close();
 }
 
 
@@ -73,6 +71,7 @@ void PacketExtractor::truncatePacketFile() const
 std::vector<char> PacketExtractor::getPacket() noexcept
 {
     // loading new packet
+	while (this->m_packetQueue.empty()); { (void)0; }
     this->m_queueMutex.lock();
     const std::vector<char> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
     this->m_packetQueue.pop();
