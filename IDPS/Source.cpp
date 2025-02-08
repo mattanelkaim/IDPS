@@ -1,5 +1,6 @@
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
+#include "PacketExtractor.h"
 #include "Sender.h"
 #include "ArpTable.h"
 #include "Detector.h"
@@ -71,21 +72,18 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    //const std::vector<uint8_t> rawData = readFile("Example Sniffs/dns packet.bin");
- 
-    //printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(IPv4Header), sizeof(UDPHeader));
-
-    //Packet packet(rawData);
-
-    //std::cout << Detector::getInstance().isArpReplyLikeTable(packet);
-    
-    //std::cout << (mac{"AA:AA:AA:BB:BB:BB"} == mac{"BB:BB:BB:AA:AA:AA"});
-    IP_ADDR_STRING localIpData;
-    if (Sender::GetLocalIpAddress(INTERFACE_NAME2.data(), &localIpData))
-        std::cout << "\nLocal IP: " << localIpData.IpAddress.String << '\n';
-    else
-        std::cerr << "\nFailed to get local IP address!\n";
-    return 0;
+    while (true)
+    {
+		auto packet = PacketExtractor::getInstance().getPacket();
+        try
+        {
+            Packet{ *reinterpret_cast<std::vector<uint8_t>*>(&packet) };
+        }
+        catch (const std::exception& e)
+        {
+            std::cout << "Could not parse!!!!!!!!!!!!!!!" << std::endl;
+        }
+    }
 }
 
 /*

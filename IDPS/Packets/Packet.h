@@ -11,6 +11,7 @@ public:
     ~Packet();
 
     ProtocolCode_8 transportProtocol;
+	uint64_t timestamp;
 
     // Parsed protocol layers
     EthernetHeader* ethernetHeader = nullptr;

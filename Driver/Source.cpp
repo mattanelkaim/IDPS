@@ -564,29 +564,37 @@ void copyLayerData(const PVOID layerData)
     const NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
     NET_BUFFER* nb = nbl->FirstNetBuffer;
     SIZE_T totalCopied = 0;
+    ULONG64 timestamp = 0;
 
     while (nb)
     {
         // Getting the current packet data buffer length
-        const USHORT dataLength = (USHORT)nb->DataLength;
+        USHORT dataLength = (USHORT)nb->DataLength;
 
         // Extracting the packet data buffer
         UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
         if (!packetData)
         {
             IDPS_PRINT("could not read packet data from net buffer");
-            break;
+            return;
         }
 
         // Writing the packet size as a 2-byte value
-        memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(SHORT));
-        totalCopied += sizeof(SHORT);
+		dataLength += sizeof(timestamp); // Adding timestamp size
+        memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(dataLength));
+        totalCopied += sizeof(dataLength);
+
+        // Writing current timestamp as an 8-byte value
+        timestamp = KeQueryUnbiasedInterruptTime();
+        memcpy(workContext.layerData + totalCopied, &timestamp, sizeof(timestamp));
+        totalCopied += sizeof(timestamp);
 
         // Writing the actual packet data
+		dataLength -= sizeof(timestamp); // Removing timestamp size
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
-
-        // Preparing for next packet
         totalCopied += dataLength;
+
+        // Advancing to next NET-BUFFER
         nb = nb->Next;
     }
 
@@ -674,12 +682,13 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
 
     IDPS_PRINT("Started work item routine!");
 
-    // Write the packet data to the file
+	// Printing the packet data
     USHORT i;
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
         IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
     IDPS_PRINT3("%.*s", workContext.layerDataLength - i, workContext.layerData + i);
 
+    // Writing the packet data to the file
     writeToFile(&packetFilePath, workContext.layerData, workContext.layerDataLength);
 
     context->queued = FALSE;
@@ -708,7 +717,7 @@ BOOL doesPassFirewall(const PVOID layerData)
     }
 
     // Checking if the packet is an IP packet
-    if (!dataLength >= sizeof(ETHERNET_HEADER))
+    if (dataLength < sizeof(ETHERNET_HEADER))
     {
         IDPS_PRINT("Packet is too short to be an IP packet");
         return TRUE;
