@@ -569,26 +569,28 @@ void copyLayerData(const PVOID layerData)
     while (nb)
     {
         // Getting the current packet data buffer length
-        const USHORT dataLength = (USHORT)nb->DataLength + sizeof(ULONG64); // Adding timestamp size
+        USHORT dataLength = (USHORT)nb->DataLength;
 
         // Extracting the packet data buffer
         UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
         if (!packetData)
         {
             IDPS_PRINT("could not read packet data from net buffer");
-            break;
+            return;
         }
 
         // Writing the packet size as a 2-byte value
-        memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(USHORT));
-        totalCopied += sizeof(SHORT);
+		dataLength += sizeof(timestamp); // Adding timestamp size
+        memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(dataLength));
+        totalCopied += sizeof(dataLength);
 
         // Writing current timestamp as an 8-byte value
         timestamp = KeQueryUnbiasedInterruptTime();
-        memcpy(workContext.layerData + totalCopied, &timestamp, sizeof(ULONG64));
-        totalCopied += sizeof(ULONG64);
+        memcpy(workContext.layerData + totalCopied, &timestamp, sizeof(timestamp));
+        totalCopied += sizeof(timestamp);
 
         // Writing the actual packet data
+		dataLength -= sizeof(timestamp); // Removing timestamp size
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
         totalCopied += dataLength;
 
@@ -651,7 +653,7 @@ BOOL isIpInBlacklist(UINT32 ip)
 BOOL isMacInBlacklist(const DL_EUI48 mac)
 {
     for (UINT8 i = 0; i < macBlacklist.listLength; ++i)
-        if (!memcmp(&mac.Byte, macBlacklist.macs + i, sizeof(DL_EUI48)))
+        if (!memcmp(mac.Byte, macBlacklist.macs + i, sizeof(DL_EUI48)))
             return TRUE;
 
     return FALSE;
@@ -680,12 +682,13 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
 
     IDPS_PRINT("Started work item routine!");
 
-    // Write the packet data to the file
+	// Printing the packet data
     USHORT i;
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
         IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
     IDPS_PRINT3("%.*s", workContext.layerDataLength - i, workContext.layerData + i);
 
+    // Writing the packet data to the file
     writeToFile(&packetFilePath, workContext.layerData, workContext.layerDataLength);
 
     context->queued = FALSE;
