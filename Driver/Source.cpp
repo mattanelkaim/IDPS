@@ -717,7 +717,7 @@ BOOL doesPassFirewall(const PVOID layerData)
     }
 
     // Checking if the packet is an IP packet
-    if (!dataLength >= sizeof(ETHERNET_HEADER))
+    if (dataLength < sizeof(ETHERNET_HEADER))
     {
         IDPS_PRINT("Packet is too short to be an IP packet");
         return TRUE;
