@@ -152,6 +152,7 @@ public:
     std::vector<DNSRecord> additionalRecords;
 
     explicit DNSMessage(std::span<const uint8_t> rawData);
+    in_addr getResolvedIP() const noexcept;
 
 private:
     constexpr std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset) noexcept;
