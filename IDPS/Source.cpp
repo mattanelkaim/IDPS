@@ -73,5 +73,5 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 int main()
 {
     const in_addr ip = Sender::DoHQuery(L"walla.co.il");
-    std::cout << Helper::ipToStr(ip) << '\n';
+    std::cout << "walla.co.il: " << Helper::ipToStr(ip) << '\n';
 }

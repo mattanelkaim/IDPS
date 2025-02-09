@@ -136,7 +136,6 @@ in_addr Sender::DoHQuery(const std::wstring& domain)
     const std::wstring path = L"/dns-query?name=" + domain + L"&type=A"; // Type A is IPv4 resolve
 
     // Open a WinHTTP session with a custom user-agent
-    // TODO use WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY to update deprecated, AND FLAGS????
     WinHttpHandle session(WinHttpOpen(L"C++DoHClient/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
     // Connect to the server

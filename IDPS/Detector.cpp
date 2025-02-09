@@ -16,9 +16,11 @@ Detector::Detector()
 
 bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const
 {
+    // Validate that packet is ARP
     if (arpPacket.ethernetHeader->etherType != ARP)
         throw std::invalid_argument("Packet does not have an ARP header!");
     
+    // Extract the ARP header
     const ArpHeader* arpHeader = reinterpret_cast<ArpHeader*>(arpPacket.networkHeader);
     if (arpHeader->opcode != REPLY)
         throw std::invalid_argument("ARP packet must be a reply!");
@@ -29,6 +31,7 @@ bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const
 
 bool Detector::isTcpNullScan(const Packet& tcpPacket)
 {
+    // Validate that packet is TCP
     if (tcpPacket.transportProtocol != TCP)
         throw std::invalid_argument("Packet does not use the TCP protocol!");
 
