@@ -63,7 +63,7 @@ void ArpTable::readFileToTable()
     {
         std::getline(tableFile, macStr, '\n');
         
-        const ULONG ipAddr = Helper::ipToLong(ipStr);
+        const ULONG ipAddr = Helper::strToIp(ipStr).s_addr;
         const mac macAddr(macStr);
 
         m_table.insert_or_assign(ipAddr, macAddr);

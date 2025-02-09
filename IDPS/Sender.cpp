@@ -4,7 +4,6 @@
 #include <stdexcept>
 #include <IcmpAPI.h>
 #include <thread>
-#include <array>
 
 
 bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept
@@ -130,7 +129,7 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     return onlineAddresses;
 }
 
-std::string Sender::DoHQuery(const std::wstring& domain) 
+in_addr Sender::DoHQuery(const std::wstring& domain) 
 {
     // Cloudflare's DoH endpoint details
     constexpr std::wstring_view server = L"cloudflare-dns.com";
@@ -171,7 +170,26 @@ std::string Sender::DoHQuery(const std::wstring& domain)
         response.append(buffer.data(), bytesRead);
     }
 
-    return response;
+    return extractIpFromDoHResponse(response);
+}
+
+// Extract the IP address from the JSON response
+in_addr Sender::extractIpFromDoHResponse(const std::string& response)
+{
+    constexpr std::string_view key = "\"data\":\""; // "data":"
+    size_t start = response.find(key);
+    if (start == std::string::npos) // Key not found
+        throw std::runtime_error("Invalid JSON response!");
+
+    // Move past the key
+    start += key.size();
+    const size_t end = response.find('"', start);
+    if (end == std::string::npos) // No closing quote
+        throw std::runtime_error("Invalid JSON response!");
+
+    // Extract the actual IP address
+    const std::string ipStr = response.substr(start, end - start);
+    return Helper::strToIp(ipStr);
 }
 
 

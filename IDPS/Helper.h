@@ -94,11 +94,11 @@ namespace Helper
 
 
     // Function to convert string IP to unsigned long
-    inline ULONG ipToLong(const std::string_view ip) noexcept
+    inline in_addr strToIp(const std::string_view ip) noexcept
     {
         in_addr addr;
         inet_pton(AF_INET, ip.data(), &addr);
-        return ntohl(addr.s_addr);
+        return addr;
     }
 
     // Function to convert unsigned long to string IP
@@ -119,8 +119,8 @@ namespace Helper
     template <IsAnyOf<ULONG, std::string> T>
     inline T getBroadcastAddress(const IP_ADDR_STRING& ipAddrString) noexcept
     {
-        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
-        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
+        const ULONG ipLong = strToIp(ipAddrString.IpAddress.String).s_addr;
+        const ULONG maskLong = strToIp(ipAddrString.IpMask.String).s_addr;
 
         // Calculate the broadcast address
         const ULONG broadcastLong = ipLong | (~maskLong);
@@ -133,8 +133,8 @@ namespace Helper
 
     inline ULONG getMinAddress(const IP_ADDR_STRING& ipAddrString) noexcept
     {
-        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
-        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
+        const ULONG ipLong = strToIp(ipAddrString.IpAddress.String).s_addr;
+        const ULONG maskLong = strToIp(ipAddrString.IpMask.String).s_addr;
 
         // Calculate the minimum address
         return (ipLong & maskLong) | 1;
