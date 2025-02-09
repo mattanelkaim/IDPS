@@ -173,7 +173,11 @@ in_addr Sender::DoHQuery(const std::wstring& domain)
     return extractIpFromDoHResponse(response);
 }
 
-// Extract the IP address from the JSON response
+/*
+Extracts the IP address from the JSON response
+JSON response example:
+{"Status":0,"TC":false,"RD":true,"RA":true,"AD":false,"CD":false,"Question":[{"name":"walla.co.il","type":1}],"Answer":[{"name":"walla.co.il","type":1,"TTL":300,"data":"34.102.212.0"}]}
+*/
 in_addr Sender::extractIpFromDoHResponse(const std::string& response)
 {
     constexpr std::string_view key = "\"data\":\""; // "data":"

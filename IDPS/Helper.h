@@ -106,7 +106,7 @@ namespace Helper
     constexpr std::string ipToStr(T ip) noexcept
     {
         if constexpr (std::same_as<T, in_addr>)
-            ip.s_addr = ntohl(ip.s_addr);
+            ip.s_addr = ip.s_addr;
         else
             ip = ntohl(ip);
 
