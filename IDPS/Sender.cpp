@@ -129,11 +129,12 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     return onlineAddresses;
 }
 
-in_addr Sender::DoHQuery(const std::wstring& domain) 
+in_addr Sender::DoHQuery(const std::string& domain) 
 {
     // Cloudflare's DoH endpoint details
     constexpr std::wstring_view server = L"cloudflare-dns.com";
-    const std::wstring path = L"/dns-query?name=" + domain + L"&type=A"; // Type A is IPv4 resolve
+    const std::wstring wsDomain(domain.begin(), domain.end());
+    const std::wstring path = L"/dns-query?name=" + wsDomain + L"&type=A"; // Type A is IPv4 resolve
 
     // Open a WinHTTP session with a custom user-agent
     WinHttpHandle session(WinHttpOpen(L"C++DoHClient/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,

@@ -17,7 +17,7 @@ public:
     static mac SendARPRequest(const in_addr target) noexcept;
     static bool SendPing(const in_addr target) noexcept;
     static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
-    static in_addr DoHQuery(const std::wstring& domain);
+    static in_addr DoHQuery(const std::string& domain);
 
 private:
     static in_addr extractIpFromDoHResponse(const std::string& response);
