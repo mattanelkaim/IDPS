@@ -170,6 +170,7 @@ in_addr Sender::DoHQuery(const std::string& domain)
         response.append(buffer.data(), bytesRead);
     }
 
+    puts(response.c_str()); // TEMP FOR DEBUGGING
     return extractIpFromDoHResponse(response);
 }
 
@@ -180,13 +181,28 @@ JSON response example:
 */
 in_addr Sender::extractIpFromDoHResponse(const std::string& response)
 {
-    constexpr std::string_view key = "\"data\":\""; // "data":"
-    size_t start = response.find(key);
-    if (start == std::string::npos) // Key not found
+    // Constants for the JSON keys
+    constexpr std::string_view answerKey = "\"Answer\"";
+    constexpr std::string_view typeKey = "\"type\":1"; // "type":1
+    constexpr std::string_view dataKey = "\"data\":\""; // "data":"
+
+    // First find the "Answer" key
+    const size_t answerPos = response.find(answerKey);
+    if (answerPos == std::string::npos)
         throw std::runtime_error("Invalid JSON response!");
 
-    // Move past the key
-    start += key.size();
+    // Then find a "type":1
+    const size_t typePos = response.find(typeKey, answerPos);
+    if (typePos == std::string::npos)
+        throw std::runtime_error("Invalid JSON response!");
+
+    // Find "data" after type
+    const size_t dataPos = response.find(dataKey, typePos);
+    if (dataPos == std::string::npos)
+        throw std::runtime_error("Invalid JSON response!");
+
+    // Finally find the IP address (closing quote)
+    const size_t start = dataPos + dataKey.size();
     const size_t end = response.find('"', start);
     if (end == std::string::npos) // No closing quote
         throw std::runtime_error("Invalid JSON response!");
