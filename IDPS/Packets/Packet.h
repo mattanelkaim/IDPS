@@ -7,11 +7,11 @@
 class Packet
 {
 public:
-    explicit Packet(std::span<const uint8_t> rawData);
+    Packet(std::span<const uint8_t> rawData, bool hasTimestamp=true);
     ~Packet();
 
     ProtocolCode_8 transportProtocol;
-	uint64_t timestamp;
+    uint64_t timestamp;
 
     // Parsed protocol layers
     EthernetHeader* ethernetHeader = nullptr;

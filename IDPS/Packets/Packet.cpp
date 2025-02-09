@@ -3,13 +3,23 @@
 #include <stdexcept> // std::runtime_error
 
 
-Packet::Packet(const std::span<const uint8_t> rawData) :
-    ethernetHeader(new EthernetHeader(rawData.subspan(sizeof(timestamp), sizeof(EthernetHeader)))),
-	timestamp(*reinterpret_cast<const uint64_t*>(rawData.data()))
+Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
+    ethernetHeader(new EthernetHeader(rawData.subspan(hasTimestamp ? sizeof(timestamp) : 0, sizeof(EthernetHeader))))
 {
-	std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
+    size_t offset = sizeof(EthernetHeader);
+
+    if (hasTimestamp)
+    {
+        this->timestamp = *reinterpret_cast<const uint64_t*>(rawData.data());
+        std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
+        offset += sizeof(timestamp);
+    }
+    else
+    {
+        this->timestamp = 0;
+    }
+
     std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
-    size_t offset = sizeof(uint64_t) + sizeof(EthernetHeader);
 
     // Parse NETWORK layer
     if (ethernetHeader->etherType == IPV4)
