@@ -65,3 +65,11 @@ Packet::~Packet()
     delete transportHeader;
     delete applicationData;
 }
+
+in_addr Packet::getSrcIp() const noexcept
+{
+    if (this->ethernetHeader->etherType == IPV4)
+        return reinterpret_cast<IPv4Header*>(this->networkHeader)->srcIP;
+    else // else if (ipPacket.ethernetHeader->etherType == ARP)
+        return reinterpret_cast<ArpHeader*>(this->networkHeader)->senderIP;
+}

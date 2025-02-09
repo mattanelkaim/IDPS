@@ -35,6 +35,11 @@ bool Detector::isTcpNullScan(const Packet& tcpPacket)
     return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
+bool Detector::isDoS(const Packet& ipPacket) const
+{
+	const in_addr srcIp = ipPacket.getSrcIp();
+}
+
 
 // SINGLETON METHODS
 
