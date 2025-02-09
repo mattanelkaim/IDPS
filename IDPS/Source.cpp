@@ -72,44 +72,9 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    while (true)
-    {
-		auto packet = PacketExtractor::getInstance().getPacket();
-        try
-        {
-            Packet{ *reinterpret_cast<std::vector<uint8_t>*>(&packet) };
-        }
-        catch (const std::exception& e)
-        {
-            std::cout << "Could not parse!!!!!!!!!!!!!!!" << std::endl;
-        }
-    }
+    std::cout << Sender::DoHQuery(L"walla.co.il");
 }
 
 /*
-IP:
-Version: 4
-Header length: 5
-Type of service: 136
-Total length: 68
-Identification: 46027
-Flags: 2
-Fragment offset: 0
-Time to live: 59
-Protocol: 17
-Checksum: 0x18a8
-Source IP: 1.1.1.1
-Destination IP: 10.100.102.72
-
-TCP:
-Source port: 80
-Destination port: 21119
-Sequence number: 2120307519
-Acknowledgment Number: 4065945401
-Data Offset: 5
-Reserved: 0
-Flags: PSH ACK
-Window size: 501
-Checksum: 0xb49a
-Urgent pointer: 0
+{"Status":0,"TC":false,"RD":true,"RA":true,"AD":false,"CD":false,"Question":[{"name":"walla.co.il","type":1}],"Answer":[{"name":"walla.co.il","type":1,"TTL":300,"data":"34.102.212.0"}]}
 */

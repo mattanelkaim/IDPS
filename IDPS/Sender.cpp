@@ -1,9 +1,10 @@
 // Do NOT sort these includes
 #include "Sender.h"
 #include <iphlpapi.h>
-#include <winhttp.h>
+#include <stdexcept>
 #include <IcmpAPI.h>
 #include <thread>
+#include <array>
 
 
 bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept
@@ -129,53 +130,68 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     return onlineAddresses;
 }
 
-std::string Sender::SendHTTP(const std::string_view& url) 
+std::string Sender::DoHQuery(const std::wstring& domain) 
 {
-    std::wstring wurl(url.begin(), url.end());  // Convert URL to wstring
-    std::wstring host, path;
+    // Cloudflare's DoH endpoint details
+    constexpr std::wstring_view server = L"cloudflare-dns.com";
+    const std::wstring path = L"/dns-query?name=" + domain + L"&type=A"; // Type A is IPv4 resolve
 
-    // Parse URL (Extract host and path)
-    size_t pos = wurl.find(L"//");
-    if (pos != std::wstring::npos) wurl = wurl.substr(pos + 2);
-    pos = wurl.find(L"/");
-    host = (pos == std::wstring::npos) ? wurl : wurl.substr(0, pos);
-    path = (pos == std::wstring::npos) ? L"/" : wurl.substr(pos);
+    // Open a WinHTTP session with a custom user-agent
+    // TODO use WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY to update deprecated, AND FLAGS????
+    WinHttpHandle session(WinHttpOpen(L"C++DoHClient/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                      WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
+    // Connect to the server
+    WinHttpHandle connect(WinHttpConnect(session, server.data(), INTERNET_DEFAULT_HTTPS_PORT, 0));
+    
+    // Create a secure GET request
+    WinHttpHandle request(WinHttpOpenRequest(connect, NULL, path.c_str(), NULL, WINHTTP_NO_REFERER,
+                                             WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE));
+    
+    // Send the request with an Accept header for a JSON response
+    constexpr std::wstring_view acceptHeader = L"Accept: application/dns-json\r\n";
+    constexpr ULONG headerSize = static_cast<ULONG>(acceptHeader.size()); // To avoid conversion warnings
+    if (!WinHttpSendRequest(request, acceptHeader.data(), headerSize, NULL, NULL, 0, 0))
+        throw std::runtime_error("WinHttpSendRequest failed!");
 
-    HINTERNET hSession = WinHttpOpen(L"SimpleHTTP/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0);
-    if (!hSession) 
-        return "";
+    // Wait for the response
+    if (!WinHttpReceiveResponse(request, NULL))
+        throw std::runtime_error("WinHttpReceiveResponse failed!");
 
-    HINTERNET hConnect = WinHttpConnect(hSession, host.c_str(), INTERNET_DEFAULT_HTTP_PORT, 0);
-    if (!hConnect) 
-    {
-        WinHttpCloseHandle(hSession);
-        return "";
-    }
-
-    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", path.c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
-    if (!hRequest) 
-    {
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        return "";
-    }
-
+    // Read the response data (in loop in edge-case of large responses)
     std::string response;
-    if (WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, NULL, 0, 0, 0) &&
-        WinHttpReceiveResponse(hRequest, NULL)) 
+    DWORD bytesAvailable = 0;
+    while (WinHttpQueryDataAvailable(request, &bytesAvailable) && (bytesAvailable > 0))
     {
-        char buffer[4096];
+        // Using a char vector to store the raw bytes
+        std::vector<char> buffer(bytesAvailable);
         DWORD bytesRead = 0;
-        while (WinHttpReadData(hRequest, buffer, sizeof(buffer) - 1, &bytesRead) && bytesRead > 0) 
-        {
-            buffer[bytesRead] = '\0';
-            response += buffer;
-        }
-    }
+        if (!WinHttpReadData(request, buffer.data(), bytesAvailable, &bytesRead))
+            throw std::runtime_error("WinHttpReadData failed!");
 
-    WinHttpCloseHandle(hRequest);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
+        response.append(buffer.data(), bytesRead);
+    }
 
     return response;
+}
+
+
+// WinHttpHandle methods
+
+
+WinHttpHandle::WinHttpHandle(HINTERNET handle) :
+    m_handle(handle)
+{
+    if (!m_handle)
+        throw std::runtime_error("Failed to create WinHTTP handle!");
+}
+
+WinHttpHandle::~WinHttpHandle() noexcept
+{
+    if (m_handle)
+        WinHttpCloseHandle(m_handle);
+}
+
+constexpr WinHttpHandle::operator HINTERNET() const noexcept
+{
+    return m_handle;
 }

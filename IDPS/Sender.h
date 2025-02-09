@@ -3,6 +3,7 @@
 #include "Helper.h"
 #include <inaddr.h>
 #include <vector>
+#include <winhttp.h> // HINTERNET
 
 // Link with Ws2_32.lib, winhttp.lib and Iphlpapi.lib (for GetAdaptersInfo)
 #pragma comment(lib, "Ws2_32.lib")
@@ -16,5 +17,19 @@ public:
     static mac SendARPRequest(const in_addr target) noexcept;
     static bool SendPing(const in_addr target) noexcept;
     static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
-    static std::string SendHTTP(const std::string_view& url);
+    static std::string DoHQuery(const std::wstring& domain);
+};
+
+
+// Simple RAII wrapper for WinHTTP handles
+class WinHttpHandle
+{
+public:
+    explicit WinHttpHandle(HINTERNET handle);
+    ~WinHttpHandle() noexcept;
+
+    // Allow the wrapper to be used where HINTERNET is expected
+    constexpr operator HINTERNET() const noexcept;
+private:
+    HINTERNET m_handle;
 };
