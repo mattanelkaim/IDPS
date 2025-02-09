@@ -72,6 +72,15 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    const in_addr ip = Sender::DoHQuery(L"walla.co.il");
-    std::cout << "walla.co.il: " << Helper::ipToStr(ip) << '\n';
+    //const in_addr ip = Sender::DoHQuery(L"walla.co.il");
+    //std::cout << "walla.co.il: " << Helper::ipToStr(ip) << '\n';
+
+    std::vector<uint8_t> buffer = readFile("Example Sniffs/dns packet.bin");
+    Packet packet(buffer, false);
+
+    DNSMessage* dns = static_cast<DNSMessage*>(packet.applicationData);
+
+    std::cout << dns->questions[0] << '\n';
+    std::cout << "DoH: " << Helper::ipToStr(Sender::DoHQuery(dns->questions[0])) << '\n';
+    std::cout << "Packet: " << Helper::ipToStr(dns->getResolvedIP()) << '\n';
 }
