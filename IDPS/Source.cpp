@@ -79,7 +79,7 @@ int main()
         {
             Packet{ *reinterpret_cast<std::vector<uint8_t>*>(&packet) };
         }
-        catch (const std::exception& e)
+        catch (...)
         {
             std::cout << "Could not parse!!!!!!!!!!!!!!!" << std::endl;
         }

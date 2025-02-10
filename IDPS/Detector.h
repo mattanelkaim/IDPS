@@ -4,7 +4,7 @@
 #include "Packets/Packet.h"
 #include <unordered_map>
 
-constexpr auto DOS_THRESHOLD = 100;
+constexpr auto DOS_THRESHOLD = 100; // packets per second from a single source
 constexpr auto ONE_SECOND = 10000000; // in 100-nanosecond intervals
 
 class Detector final
@@ -14,7 +14,7 @@ private:
 
     // members
     ArpTable m_arpTable;
-	std::unordered_map<in_addr, std::pair<Timestamp, uint8_t>> m_dosMap;
+	std::unordered_map<uint32_t, std::pair<Timestamp, uint8_t>> m_dosMap; // in_addr is not hashable
 
 public:
     // singelton methods
@@ -25,5 +25,5 @@ public:
 
     bool isArpReplyLikeTable(const Packet& arpPacket) const;
     static bool isTcpNullScan(const Packet& tcpPacket);
-	bool isDoS(const Packet& ipPacket);
+	bool isDoS(const Packet& ipPacket) noexcept;
 };

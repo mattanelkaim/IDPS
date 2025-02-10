@@ -35,9 +35,9 @@ bool Detector::isTcpNullScan(const Packet& tcpPacket)
     return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
-bool Detector::isDoS(const Packet& ipPacket)
+bool Detector::isDoS(const Packet& ipPacket) noexcept
 {
-	const in_addr srcIp = ipPacket.getSrcIp();
+	const uint32_t srcIp = ipPacket.getSrcIp().s_addr;
 
     // inserting IP if it is new
 	if (!m_dosMap.contains(srcIp))

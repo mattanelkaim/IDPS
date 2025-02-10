@@ -15,7 +15,7 @@ PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadR
 
 void PacketExtractor::threadRoutine()
 {
-    std::ifstream packetFile("C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", std::ios::binary);
+    std::ifstream packetFile(PACKET_FILE_PATH, std::ios::binary);
     if (!packetFile.is_open())
         throw std::runtime_error("Error opening packet file.");
 
