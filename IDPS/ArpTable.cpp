@@ -80,5 +80,5 @@ void ArpTable::writeTableToFile()
 
     // Write each IP&MAC pair as a new line
     for (const auto& [ip, mac] : m_table)
-        tableFile << Helper::ipToStr(ip) << ',' << mac.macToString() << '\n';
+        tableFile << Helper::ipToStr(static_cast<ULONG>(ip)) << ',' << mac.macToString() << '\n';
 }

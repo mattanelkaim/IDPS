@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../Driver/LayerHandles.h"
+// do NOT sort these includes
 #include "Helper.h"
+#include "../Driver/LayerHandles.h"
 
 class DriverCommunicator final
 {
