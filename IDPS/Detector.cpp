@@ -45,20 +45,20 @@ bool Detector::isDoS(const Packet& ipPacket)
 
     // Inserting IP if it is new (insert with counter=1)
     if (!m_dosMap.contains(srcIp))
-        m_dosMap.insert({ srcIp, { ipPacket.timestamp, 1 } });
-
-    // 100 packets per second from a single source is considered a DoS attack
-    else if ((ipPacket.timestamp - m_dosMap[srcIp].first) < ONE_SECOND)
     {
-        if (++std::get<1>(m_dosMap[srcIp]) >= DOS_THRESHOLD)
-            return true;
-
-        // resetting the counter if the last packet was more than a second ago
-        else
-            m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
+        m_dosMap.insert({ srcIp, { ipPacket.timestamp, 1 } });
+        return false;
     }
 
-    return false;
+    // 100 packets per second from a single source is considered a DoS attack
+    else if ((ipPacket.timestamp - m_dosMap[srcIp].first) > ONE_SECOND)
+    {
+        m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
+        return false;
+    }
+
+    // Incrementing the counter and checking if the threshold was reached
+    return (++std::get<1>(m_dosMap[srcIp]) >= DOS_THRESHOLD);
 }
 
 
