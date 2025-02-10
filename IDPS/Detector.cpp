@@ -49,12 +49,14 @@ bool Detector::isDoS(const Packet& ipPacket)
 
     // 100 packets per second from a single source is considered a DoS attack
     else if ((ipPacket.timestamp - m_dosMap[srcIp].first) < ONE_SECOND)
+    {
         if (++std::get<1>(m_dosMap[srcIp]) >= DOS_THRESHOLD)
             return true;
 
         // resetting the counter if the last packet was more than a second ago
         else
             m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
+    }
 
     return false;
 }
