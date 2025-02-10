@@ -5,9 +5,9 @@
 
 Packet::Packet(const std::span<const uint8_t> rawData) :
     ethernetHeader(new EthernetHeader(rawData.subspan(sizeof(timestamp), sizeof(EthernetHeader)))),
-	timestamp(*reinterpret_cast<const uint64_t*>(rawData.data()))
+    timestamp(*reinterpret_cast<const uint64_t*>(rawData.data()))
 {
-	std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
+    std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
     std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
     size_t offset = sizeof(uint64_t) + sizeof(EthernetHeader);
 
@@ -64,12 +64,4 @@ Packet::~Packet()
     delete networkHeader;
     delete transportHeader;
     delete applicationData;
-}
-
-in_addr Packet::getSrcIp() const noexcept
-{
-    if (this->ethernetHeader->etherType == IPV4)
-        return reinterpret_cast<IPv4Header*>(this->networkHeader)->srcIP;
-    else // else if (ipPacket.ethernetHeader->etherType == ARP)
-        return reinterpret_cast<ArpHeader*>(this->networkHeader)->senderIP;
 }

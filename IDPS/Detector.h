@@ -5,19 +5,20 @@
 #include <unordered_map>
 
 constexpr auto DOS_THRESHOLD = 100; // packets per second from a single source
-constexpr auto ONE_SECOND = 10000000; // in 100-nanosecond intervals
+constexpr auto ONE_SECOND = 10'000'000; // in 100-nanosecond intervals
 
 class Detector final
 {
 private:
     Detector();
 
-    // members
+    // Members
     ArpTable m_arpTable;
-	std::unordered_map<uint32_t, std::pair<Timestamp, uint8_t>> m_dosMap; // in_addr is not hashable
+    // {in_addr: (Timestamp, counter)}
+    std::unordered_map<uint32_t, std::pair<Timestamp, uint8_t>> m_dosMap; // in_addr is not hash-able
 
 public:
-    // singelton methods
+    // Singleton methods
     ~Detector() noexcept = default;
     static Detector& getInstance() noexcept;
     Detector(const Detector& other) = delete;
@@ -25,5 +26,5 @@ public:
 
     bool isArpReplyLikeTable(const Packet& arpPacket) const;
     static bool isTcpNullScan(const Packet& tcpPacket);
-	bool isDoS(const Packet& ipPacket) noexcept;
+    bool isDoS(const Packet& ipPacket);
 };

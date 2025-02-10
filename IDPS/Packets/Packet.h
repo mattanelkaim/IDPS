@@ -4,7 +4,7 @@
 #include "Layers.h"
 #include <span>
 
-using Timestamp = uint64_t; // amount of 100-nanosecond intervals since last system startup
+using Timestamp = uint64_t; // Amount of 100-nanosecond intervals since last system startup
 
 class Packet
 {
@@ -20,7 +20,4 @@ public:
     NetworkHeader* networkHeader = nullptr;
     TransportHeader* transportHeader = nullptr;
     ApplicationData* applicationData = nullptr;
-
-	// Helper functions
-	in_addr getSrcIp() const noexcept;
 };
