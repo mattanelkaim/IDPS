@@ -1,4 +1,5 @@
 #include "PacketExtractor.h"
+#include "DriverCommunicator.h"
 #include <fstream>
 
 PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this)
