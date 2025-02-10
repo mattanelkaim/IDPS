@@ -37,7 +37,7 @@ bool Detector::isTcpNullScan(const Packet& tcpPacket)
 
 bool Detector::isDoS(const Packet& ipPacket)
 {
-    // Validate that packet is IPv4
+    // Validate that the packet uses IPv4
     if (ipPacket.ethernetHeader->etherType != IPV4)
         throw std::invalid_argument("Packet does not use the IPv4 protocol!");
 
@@ -48,12 +48,13 @@ bool Detector::isDoS(const Packet& ipPacket)
         m_dosMap.insert({ srcIp, { ipPacket.timestamp, 1 } });
 
     // 100 packets per second from a single source is considered a DoS attack
-    else if ((ipPacket.timestamp - m_dosMap[srcIp].first) < ONE_SECOND && ++(std::get<1>(m_dosMap[srcIp])) > DOS_THRESHOLD)
-        return true;
+    else if ((ipPacket.timestamp - m_dosMap[srcIp].first) < ONE_SECOND)
+        if (++std::get<1>(m_dosMap[srcIp]) >= DOS_THRESHOLD)
+            return true;
 
-    // resetting the counter if the last packet was more than a second ago
-    else
-        m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
+        // resetting the counter if the last packet was more than a second ago
+        else
+            m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
 
     return false;
 }
