@@ -4,6 +4,9 @@
 #include "Packets/Packet.h"
 #include <unordered_map>
 
+constexpr auto DOS_THRESHOLD = 100;
+constexpr auto ONE_SECOND = 10000000; // in 100-nanosecond intervals
+
 class Detector final
 {
 private:
@@ -22,5 +25,5 @@ public:
 
     bool isArpReplyLikeTable(const Packet& arpPacket) const;
     static bool isTcpNullScan(const Packet& tcpPacket);
-	bool isDoS(const Packet& ipPacket) const;
+	bool isDoS(const Packet& ipPacket);
 };

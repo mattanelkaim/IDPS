@@ -35,9 +35,23 @@ bool Detector::isTcpNullScan(const Packet& tcpPacket)
     return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
-bool Detector::isDoS(const Packet& ipPacket) const
+bool Detector::isDoS(const Packet& ipPacket)
 {
 	const in_addr srcIp = ipPacket.getSrcIp();
+
+    // inserting IP if it is new
+	if (!m_dosMap.contains(srcIp))
+		m_dosMap.insert({ srcIp, { ipPacket.timestamp, 1 } });
+
+    // 100 packets per second from a single source as a DoS attack
+    else if (ipPacket.timestamp - m_dosMap[srcIp].first < ONE_SECOND && ++m_dosMap[srcIp].second > DOS_THRESHOLD)
+		return true;
+
+    // resetting the counter if the last packet was more than a second ago
+	else
+		m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
+
+    return false;
 }
 
 
