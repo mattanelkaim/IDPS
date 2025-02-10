@@ -10,7 +10,7 @@ class PacketExtractor final
 {
 private:
 	std::mutex m_queueMutex;
-	std::queue<std::vector<char>> m_packetQueue;
+	std::queue<std::vector<uint8_t>> m_packetQueue;
 	std::thread m_extractorThread;
 
 	// private methods
@@ -26,6 +26,6 @@ public:
 	void operator=(const PacketExtractor& other) = delete;
 
 	// methods
-	std::vector<char> getPacket() noexcept;
+	std::vector<uint8_t> getPacket() noexcept;
 };
 

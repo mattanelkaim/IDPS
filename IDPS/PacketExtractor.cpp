@@ -14,7 +14,7 @@ void PacketExtractor::threadRoutine()
         throw std::runtime_error("Error opening packet file.");
 
     uint16_t packetSize = 0;
-    std::vector<char> rawPacket;
+    std::vector<uint8_t> rawPacket;
     bool pending = false;
 
     while (true)
@@ -42,7 +42,7 @@ void PacketExtractor::threadRoutine()
         packetFile.read(reinterpret_cast<char*>(&packetSize), sizeof(packetSize));
         rawPacket.resize(packetSize);
         while (!this->areBytesAvailable(packetFile, packetSize)); { (void)0; }
-        packetFile.read(rawPacket.data(), packetSize);
+        packetFile.read(reinterpret_cast<char*>(rawPacket.data()), packetSize);
 
         if (pending)
             pending = false;
@@ -54,12 +54,12 @@ void PacketExtractor::threadRoutine()
     }
 }
 
-std::vector<char> PacketExtractor::getPacket() noexcept
+std::vector<uint8_t> PacketExtractor::getPacket() noexcept
 {
     // loading new packet
 	while (this->m_packetQueue.empty()); { (void)0; }
     this->m_queueMutex.lock();
-    const std::vector<char> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
+    const std::vector<uint8_t> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
     this->m_packetQueue.pop();
     this->m_queueMutex.unlock();
 

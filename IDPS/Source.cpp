@@ -74,10 +74,9 @@ int main()
 {
     while (true)
     {
-		auto packet = PacketExtractor::getInstance().getPacket();
         try
         {
-            Packet{ *reinterpret_cast<std::vector<uint8_t>*>(&packet) };
+            Packet{PacketExtractor::getInstance().getPacket()};
         }
         catch (...)
         {
