@@ -35,6 +35,32 @@ bool Detector::isTcpNullScan(const Packet& tcpPacket)
     return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
+bool Detector::isDoS(const Packet& ipPacket)
+{
+    // Validate that the packet uses IPv4
+    if (ipPacket.ethernetHeader->etherType != IPV4)
+        throw std::invalid_argument("Packet does not use the IPv4 protocol!");
+
+    const uint32_t srcIp = reinterpret_cast<IPv4Header*>(ipPacket.networkHeader)->srcIP.s_addr;
+
+    // Inserting IP if it is new (insert with counter=1)
+    if (!m_dosMap.contains(srcIp))
+    {
+        m_dosMap.insert({ srcIp, { ipPacket.timestamp, 1 } });
+        return false;
+    }
+
+    // 100 packets per second from a single source is considered a DoS attack
+    else if ((ipPacket.timestamp - m_dosMap[srcIp].first) > ONE_SECOND)
+    {
+        m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
+        return false;
+    }
+
+    // Incrementing the counter and checking if the threshold was reached
+    return (++std::get<1>(m_dosMap[srcIp]) >= DOS_THRESHOLD);
+}
+
 
 // SINGLETON METHODS
 

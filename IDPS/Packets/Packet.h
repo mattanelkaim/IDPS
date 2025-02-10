@@ -4,6 +4,8 @@
 #include "Layers.h"
 #include <span>
 
+using Timestamp = uint64_t; // Amount of 100-nanosecond intervals since last system startup
+
 class Packet
 {
 public:
@@ -11,7 +13,7 @@ public:
     ~Packet();
 
     ProtocolCode_8 transportProtocol;
-	uint64_t timestamp;
+    Timestamp timestamp;
 
     // Parsed protocol layers
     EthernetHeader* ethernetHeader = nullptr;
