@@ -1,17 +1,11 @@
 #include "PacketExtractor.h"
+#include "DriverCommunicator.h"
 #include <fstream>
-
 
 PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this)
 {
     this->m_extractorThread.detach(); // letting packet extractor thread work in the background
-
-    // obtaining a device handle to the driver
-    /*this->m_deviceHandle = CreateFileW(L"\\\\.\\SnifferDeviceLink", GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
-    if (this->m_deviceHandle == INVALID_HANDLE_VALUE)
-        throw std::runtime_error("Please run the driver prior to running the IDPS.");*/
 }
-
 
 void PacketExtractor::threadRoutine()
 {
@@ -31,7 +25,7 @@ void PacketExtractor::threadRoutine()
 
             // truncate the file every time the thread reaches its end
             if (packetFile.tellg() != std::ios::beg)
-                //truncatePacketFile();
+                //DeviceCommunicator::getInstance().truncateFile();
 
             packetFile.seekg(0, std::ios::beg);
             // locking the queue until new packets arrive
@@ -60,14 +54,6 @@ void PacketExtractor::threadRoutine()
     }
 }
 
-
-void PacketExtractor::truncatePacketFile() const
-{
-    if (!DeviceIoControl(m_deviceHandle, IOCTL_TRUNCATE_FILE, NULL, 0, NULL, 0, NULL, NULL)) [[unlikely]]
-        throw std::runtime_error("Please run the driver prior to running the IDPS.");
-}
-
-
 std::vector<char> PacketExtractor::getPacket() noexcept
 {
     // loading new packet
@@ -83,7 +69,6 @@ std::vector<char> PacketExtractor::getPacket() noexcept
 
 // HELPER FUNCTIONS
 
-
 bool PacketExtractor::areBytesAvailable(std::ifstream& file, const uint16_t numBytes) noexcept
 {
     const std::streampos currentPos = file.tellg();
@@ -95,12 +80,6 @@ bool PacketExtractor::areBytesAvailable(std::ifstream& file, const uint16_t numB
 
 
 // SINGLETON METHODS
-
-
-PacketExtractor::~PacketExtractor() noexcept
-{
-    CloseHandle(m_deviceHandle); // No need to validate before or after closing
-}
 
 PacketExtractor& PacketExtractor::getInstance() noexcept
 {
