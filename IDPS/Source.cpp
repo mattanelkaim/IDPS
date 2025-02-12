@@ -1,16 +1,15 @@
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
-#include "PacketExtractor.h"
 #include "Sender.h"
-#include "ArpTable.h"
-#include "Detector.h"
+#include "PacketExtractor.h"
+#include "WSAInitializer.h"
+#include "Sender.h"
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <WinSock2.h>
 
 static std::vector<uint8_t> readFile(const std::string& filename)
 {
@@ -72,15 +71,20 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    //const in_addr ip = Sender::DoHQuery(L"walla.co.il");
-    //std::cout << "walla.co.il: " << Helper::ipToStr(ip) << '\n';
+    WSAInitializer wsaInit;
 
     std::vector<uint8_t> buffer = readFile("Example Sniffs/dns packet.bin");
     Packet packet(buffer, false);
 
-    DNSMessage* dns = static_cast<DNSMessage*>(packet.applicationData);
+    SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    constexpr sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
+    DNSHeader header{};
+    char* response = reinterpret_cast<char*>(&header);
 
-    std::cout << dns->questions[0] << '\n';
-    std::cout << "DoH: " << Helper::ipToStr(Sender::DoHQuery(dns->questions[0])) << '\n';
-    std::cout << "Packet: " << Helper::ipToStr(dns->getResolvedIP()) << '\n';
+    int sendResult = sendto(sendSocket,
+                            response,
+                            12,//sizeof(DNSHeader),
+                            0,
+                            reinterpret_cast<const sockaddr*>(&clientAddr),
+                            sizeof(clientAddr));
 }

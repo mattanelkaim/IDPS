@@ -23,6 +23,8 @@ enum ProtocolCode_16 : uint16_t
 enum ProtocolCode_8 : uint8_t
 {
     NONE = 0, // Used for ARP packets
+    ETHERNET = 1, // Arbitrary
+    LOOPBACK = 2, // Arbitrary
     TCP = 0x06,
     UDP = 0x11,
 };

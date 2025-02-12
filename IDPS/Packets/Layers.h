@@ -8,6 +8,9 @@
 
 #pragma pack(push, 1) // All structs must be packed because of alignment
 
+struct LinkHeader
+{};
+
 struct EthernetHeader
 {
     mac dstMAC;
@@ -17,6 +20,11 @@ struct EthernetHeader
 public:
     explicit EthernetHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
+};
+
+struct LoopbackHeader
+{
+    // 02 00 00 00
 };
 
 
@@ -124,6 +132,7 @@ struct DNSHeader
     uint16_t additionalCount;
 
 public:
+    DNSHeader() noexcept = default;
     explicit DNSHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
     static constexpr uint16_t DEFAULT_PORT = 53;

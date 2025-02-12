@@ -10,11 +10,12 @@ public:
     Packet(std::span<const uint8_t> rawData, bool hasTimestamp=true);
     ~Packet();
 
+    ProtocolCode_8 linkProtocol;
     ProtocolCode_8 transportProtocol;
     uint64_t timestamp;
 
     // Parsed protocol layers
-    EthernetHeader* ethernetHeader = nullptr;
+    EthernetHeader* linkHeader = nullptr;
     NetworkHeader* networkHeader = nullptr;
     TransportHeader* transportHeader = nullptr;
     ApplicationData* applicationData = nullptr;

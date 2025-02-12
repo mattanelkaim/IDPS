@@ -18,6 +18,7 @@ public:
     static bool SendPing(const in_addr target) noexcept;
     static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
     static in_addr DoHQuery(const std::string& domain);
+    static bool sendDNSResponse(const std::string& response);
 
 private:
     static in_addr extractIpFromDoHResponse(const std::string& response);

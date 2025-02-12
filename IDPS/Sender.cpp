@@ -170,8 +170,14 @@ in_addr Sender::DoHQuery(const std::string& domain)
         response.append(buffer.data(), bytesRead);
     }
 
-    puts(response.c_str()); // TEMP FOR DEBUGGING
+    //puts(response.c_str()); // TEMP FOR DEBUGGING
     return extractIpFromDoHResponse(response);
+}
+
+bool Sender::sendDNSResponse(const std::string& response)
+{
+    
+    return false;
 }
 
 /*
