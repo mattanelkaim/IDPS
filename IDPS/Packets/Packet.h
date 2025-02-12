@@ -20,4 +20,11 @@ public:
     NetworkHeader* networkHeader = nullptr;
     TransportHeader* transportHeader = nullptr;
     ApplicationData* applicationData = nullptr;
+
+    // Helper functions
+    constexpr bool isArpReplyPacket() const noexcept;
+    constexpr bool isIPv4Packet() const noexcept;
+    constexpr bool isTcpPacket() const noexcept;
+    constexpr bool isUdpPacket() const noexcept;
+    constexpr bool isDnsPacket() const noexcept;
 };
