@@ -12,7 +12,7 @@ private:
     ArpTable m_arpTable;
 
 public:
-    // singelton methods
+    // singleton methods
     ~Detector() noexcept = default;
     static Detector& getInstance() noexcept;
     Detector(const Detector& other) = delete;
