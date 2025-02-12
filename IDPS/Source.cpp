@@ -72,17 +72,7 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    while (true)
-    {
-        try
-        {
-            Packet{PacketExtractor::getInstance().getPacket()};
-        }
-        catch (...)
-        {
-            std::cout << "Could not parse!!!!!!!!!!!!!!!" << std::endl;
-        }
-    }
+    
 }
 
 /*

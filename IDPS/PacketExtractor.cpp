@@ -38,10 +38,10 @@ void PacketExtractor::threadRoutine()
         }
 
         // reading packet size and data
-        while (!this->areBytesAvailable(packetFile, sizeof(packetSize))); { (void)0; }
+        while (!this->areBytesAvailable(packetFile, sizeof(packetSize))) { (void)0; }
         packetFile.read(reinterpret_cast<char*>(&packetSize), sizeof(packetSize));
         rawPacket.resize(packetSize);
-        while (!this->areBytesAvailable(packetFile, packetSize)); { (void)0; }
+        while (!this->areBytesAvailable(packetFile, packetSize)) { (void)0; }
         packetFile.read(reinterpret_cast<char*>(rawPacket.data()), packetSize);
 
         if (pending)

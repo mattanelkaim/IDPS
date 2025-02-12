@@ -19,7 +19,7 @@ private:
 	static bool areBytesAvailable(std::ifstream& file, uint16_t numBytes) noexcept;
 
 public:
-	// singelton methods
+	// singleton methods
 	~PacketExtractor() noexcept = default;
 	static PacketExtractor& getInstance() noexcept;
 	PacketExtractor(const PacketExtractor& other) = delete;
