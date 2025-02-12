@@ -139,4 +139,14 @@ namespace Helper
         // Calculate the minimum address
         return (ipLong & maskLong) | 1;
     }
+
+    consteval sockaddr_in getLocalhostDnsAddr() noexcept
+    {
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_port = toBigEndian((short)53); // DNS port
+        addr.sin_addr.S_un.S_un_b = {127, 0, 0, 1}; // Localhost
+
+        return addr;
+    }
 } // namespace Helper
