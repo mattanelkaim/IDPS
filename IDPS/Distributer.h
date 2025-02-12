@@ -10,7 +10,7 @@ private:
 public:
 	// singleton methods
 	~Distributer() noexcept = default;
-	static Distributer& getInstance() noexcept;
+	inline static Distributer& getInstance() noexcept;
 	Distributer(const Distributer& other) = delete;
 	void operator=(const Distributer& other) = delete;
 

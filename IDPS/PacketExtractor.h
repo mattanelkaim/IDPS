@@ -21,7 +21,7 @@ private:
 public:
 	// singleton methods
 	~PacketExtractor() noexcept = default;
-	static PacketExtractor& getInstance() noexcept;
+	inline static PacketExtractor& getInstance() noexcept;
 	PacketExtractor(const PacketExtractor& other) = delete;
 	void operator=(const PacketExtractor& other) = delete;
 
