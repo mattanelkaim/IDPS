@@ -8,11 +8,10 @@
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Iphlpapi.lib")
 
-class Sender final
+namespace Sender
 {
-public:
-    static bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept;
-    static mac SendARPRequest(const in_addr target) noexcept;
-    static bool SendPing(const in_addr target) noexcept;
-    static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
+    bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept;
+    mac SendARPRequest(const in_addr target) noexcept;
+    bool SendPing(const in_addr target) noexcept;
+    std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
 };
