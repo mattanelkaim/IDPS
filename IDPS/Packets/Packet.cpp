@@ -58,28 +58,28 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
     }
 }
 
-constexpr bool Packet::isArpReplyPacket() const noexcept
+bool Packet::isArpReplyPacket() const noexcept
 {
     return this->ethernetHeader->etherType == ARP && reinterpret_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
 }
 
-constexpr bool Packet::isIPv4Packet() const noexcept
+bool Packet::isIPv4Packet() const noexcept
 {
     return this->ethernetHeader->etherType == IPV4;
 }
 
-constexpr bool Packet::isTcpPacket() const noexcept
+bool Packet::isTcpPacket() const noexcept
 {
     return this->transportProtocol == TCP;
 }
 
-constexpr bool Packet::isDnsPacket() const noexcept
+bool Packet::isDnsPacket() const noexcept
 {
     return this->transportHeader->srcPort == DNSHeader::DEFAULT_PORT ||
            this->transportHeader->dstPort == DNSHeader::DEFAULT_PORT;
 }
 
-constexpr bool Packet::isUdpPacket() const noexcept
+bool Packet::isUdpPacket() const noexcept
 {
     return this->transportProtocol == UDP;
 }

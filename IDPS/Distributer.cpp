@@ -1,6 +1,7 @@
 #include "Distributer.h"
 #include "PacketExtractor.h"
 #include "Detector.h"
+#include "DriverCommunicator.h"
 #include <iostream>
 
 Distributer& Distributer::getInstance() noexcept
@@ -12,32 +13,53 @@ Distributer& Distributer::getInstance() noexcept
 void Distributer::run() const
 {
     Detector& detector = Detector::getInstance();
+    DriverCommunicator& driverCommunicator = DriverCommunicator::getInstance();
+    in_addr srcIp;
+    mac srcMac;
+
     while (true)
     {
         try
         {
             Packet packet(PacketExtractor::getInstance().getPacket());
-            if (detector.isArpReplyLikeTable(packet))
+
+            if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
-                std::cout << "ARP reply-like table detected!" << std::endl;
+                srcMac = packet.ethernetHeader->srcMAC;
+                std::cout << "ARP Spoofing attack Detected!!!" << std::endl;
+                std::cout << "Blocking MAC - " << srcMac.macToString();
+                driverCommunicator.addMacToFirewall(srcMac);
+                continue; // if the packet is an ARP, it cant be IPv4/TCP/DNS
             }
-            else if (detector.isTcpNullScan(packet))
+
+            if (!packet.isIPv4Packet())
+                continue;
+
+            srcIp = reinterpret_cast<IPv4Header*>(packet.networkHeader)->srcIP;
+            if (detector.isDoS(packet))
             {
-                std::cout << "TCP NULL scan detected!" << std::endl;
+                std::cout << "DoS attack Detected!!!" << std::endl;
+                std::cout << "Blocking IP - " << Helper::ipToStr(srcIp);
+                driverCommunicator.addIpToFirewall(srcIp.s_addr);
             }
-            else if (detector.isDoS(packet))
+
+            if (packet.isTcpPacket() && detector.isTcpNullScan(packet))
             {
-                std::cout << "DoS detected!" << std::endl;
+                std::cout << "TCP Null Scan attack Detected!!!" << std::endl;
+                std::cout << "Blocking IP - " << Helper::ipToStr(srcIp);
+                driverCommunicator.addIpToFirewall(srcIp.s_addr);
             }
+
+            // TODO: Implement DNS spoofing detection
+            /*if (packet.isDnsPacket() && detector.isDNSSpoofing(packet))
+            {
+                
+            }*/
         }
-        catch (...) // Catch all exceptions
+        catch (const std::runtime_error& e)
         {
-            std::cout << "Could not parse!!!!!!!!!!!!!!!" << std::endl;
+            std::cerr << e.what() << '\n';
+            continue;
         }
     }
-}
-
-bool Distributer::isArpPacket(const Packet& packet) noexcept
-{
-    return packet.ethernetHeader->etherType == ARP;
 }

@@ -1,16 +1,8 @@
-#include "Packets/Layers.h"
-#include "Packets/Packet.h"
-#include "PacketExtractor.h"
-#include "Sender.h"
-#include "ArpTable.h"
-#include "Detector.h"
-#include <cstdint>
+#include "Distributer.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <string>
 #include <vector>
-#include <WinSock2.h>
 
 static std::vector<uint8_t> readFile(const std::string& filename)
 {
@@ -72,7 +64,7 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    
+    Distributer::getInstance().run();
 }
 
 /*
