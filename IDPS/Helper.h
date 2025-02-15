@@ -12,6 +12,8 @@
 
 constexpr std::string_view INTERFACE_NAME1 = "Intel(R) Wi-Fi 6 AX201 160MHz";
 constexpr std::string_view INTERFACE_NAME2 = "Realtek PCIe GbE Family Controller";
+constexpr std::string_view INTERFACE_NAME3 = "Intel(R) PRO/1000 MT Desktop Adapter";
+constexpr std::string_view INTERFACE_NAME4 = "Microsoft Kernel Debug Network Adapter";
 
 enum ProtocolCode_16 : uint16_t
 {
