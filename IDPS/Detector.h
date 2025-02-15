@@ -14,7 +14,7 @@ private:
 
     // Members
     ArpTable m_arpTable;
-    // {in_addr: (Timestamp, counter)}
+    // {in_addr: (timestamp, counter)}
     std::unordered_map<uint32_t, std::pair<Timestamp, uint8_t>> m_dosMap; // in_addr is not hash-able
 
 public:
@@ -24,7 +24,7 @@ public:
     Detector(const Detector& other) = delete;
     void operator=(const Detector& other) = delete;
 
-    bool isArpReplyLikeTable(const Packet& arpPacket) const;
-    static bool isTcpNullScan(const Packet& tcpPacket);
-    bool isDoS(const Packet& ipPacket);
+    bool isArpReplyLikeTable(const Packet& arpPacket) const noexcept;
+    static bool isTcpNullScan(const Packet& tcpPacket) noexcept;
+    bool isDoS(const Packet& ipPacket) noexcept;
 };

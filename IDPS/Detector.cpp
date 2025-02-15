@@ -14,33 +14,21 @@ Detector::Detector()
 }
 
 
-bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const
+bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const noexcept
 {
-    if (arpPacket.ethernetHeader->etherType != ARP)
-        throw std::invalid_argument("Packet does not have an ARP header!");
-    
     const ArpHeader* arpHeader = reinterpret_cast<ArpHeader*>(arpPacket.networkHeader);
-    if (arpHeader->opcode != REPLY)
-        throw std::invalid_argument("ARP packet must be a reply!");
 
     // TODO define behavior if MAC is not in table
     return arpHeader->senderMAC == m_arpTable.getMac(arpHeader->senderIP);
 }
 
-bool Detector::isTcpNullScan(const Packet& tcpPacket)
+bool Detector::isTcpNullScan(const Packet& tcpPacket) noexcept
 {
-    if (tcpPacket.transportProtocol != TCP)
-        throw std::invalid_argument("Packet does not use the TCP protocol!");
-
     return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
-bool Detector::isDoS(const Packet& ipPacket)
+bool Detector::isDoS(const Packet& ipPacket) noexcept
 {
-    // Validate that the packet uses IPv4
-    if (ipPacket.ethernetHeader->etherType != IPV4)
-        throw std::invalid_argument("Packet does not use the IPv4 protocol!");
-
     const uint32_t srcIp = reinterpret_cast<IPv4Header*>(ipPacket.networkHeader)->srcIP.s_addr;
 
     // Inserting IP if it is new (insert with counter=1)
