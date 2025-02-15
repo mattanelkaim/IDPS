@@ -1,5 +1,5 @@
+#include "../Driver/LayerHandles.h"
 #include "PacketExtractor.h"
-#include "DriverCommunicator.h"
 #include <fstream>
 
 PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this)
@@ -57,7 +57,7 @@ void PacketExtractor::threadRoutine()
 std::vector<uint8_t> PacketExtractor::getPacket() noexcept
 {
     // loading new packet
-	while (this->m_packetQueue.empty()); { (void)0; }
+    while (this->m_packetQueue.empty()); { (void)0; }
     this->m_queueMutex.lock();
     const std::vector<uint8_t> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
     this->m_packetQueue.pop();

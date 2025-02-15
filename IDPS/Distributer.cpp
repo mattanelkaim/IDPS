@@ -1,14 +1,8 @@
-#include "Distributer.h"
-#include "PacketExtractor.h"
 #include "Detector.h"
+#include "Distributer.h"
 #include "DriverCommunicator.h"
+#include "PacketExtractor.h"
 #include <iostream>
-
-Distributer& Distributer::getInstance() noexcept
-{
-    static Distributer instance;
-    return instance;
-}
 
 void Distributer::run() const
 {
@@ -26,8 +20,8 @@ void Distributer::run() const
             if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
                 srcMac = packet.ethernetHeader->srcMAC;
-                std::cout << "ARP Spoofing attack Detected!!!" << std::endl;
-                std::cout << "Blocking MAC - " << srcMac.macToString();
+                std::cout << "ARP Spoofing attack Detected!!!\n";
+                std::cout << "Blocking MAC - " << srcMac.macToString() << '\n';
                 driverCommunicator.addMacToFirewall(srcMac);
                 continue; // if the packet is an ARP, it cant be IPv4/TCP/DNS
             }
@@ -38,15 +32,15 @@ void Distributer::run() const
             srcIp = reinterpret_cast<IPv4Header*>(packet.networkHeader)->srcIP;
             if (detector.isDoS(packet))
             {
-                std::cout << "DoS attack Detected!!!" << std::endl;
-                std::cout << "Blocking IP - " << Helper::ipToStr(srcIp);
+                std::cout << "DoS attack Detected!!!\n";
+                std::cout << "Blocking IP - " << Helper::ipToStr(srcIp) << '\n';
                 driverCommunicator.addIpToFirewall(srcIp.s_addr);
             }
 
             if (packet.isTcpPacket() && detector.isTcpNullScan(packet))
             {
-                std::cout << "TCP Null Scan attack Detected!!!" << std::endl;
-                std::cout << "Blocking IP - " << Helper::ipToStr(srcIp);
+                std::cout << "TCP Null Scan attack Detected!!!\n";
+                std::cout << "Blocking IP - " << Helper::ipToStr(srcIp) << '\n';
                 driverCommunicator.addIpToFirewall(srcIp.s_addr);
             }
 
@@ -59,7 +53,13 @@ void Distributer::run() const
         catch (const std::runtime_error& e)
         {
             std::cerr << e.what() << '\n';
-            continue;
         }
     }
+}
+
+
+Distributer& Distributer::getInstance() noexcept
+{
+    static Distributer instance;
+    return instance;
 }
