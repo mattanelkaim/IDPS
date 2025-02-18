@@ -13,6 +13,12 @@
 constexpr std::string_view INTERFACE_NAME1 = "Intel(R) Wi-Fi 6 AX201 160MHz";
 constexpr std::string_view INTERFACE_NAME2 = "Realtek PCIe GbE Family Controller";
 
+
+enum ProtocolCode_32 : uint32_t
+{
+    NULL_IPV4 = 0x0002,
+};
+
 enum ProtocolCode_16 : uint16_t
 {
     IPV4 = 0x0800,
@@ -36,6 +42,7 @@ enum ArpOpcode : uint16_t
     // Other currently useless opcodes until #25
 };
 
+// General concept to help with type checking
 template <typename T, typename... U>
 concept IsAnyOf = (std::same_as<T, U> || ...);
 
@@ -80,7 +87,7 @@ constexpr mac invalidMac("00:00:00:00:00:00");
 namespace Helper
 {
     template <typename T>
-    requires (std::integral<T> || IsAnyOf<T, ProtocolCode_16, ArpOpcode>)
+    requires (std::integral<T> || IsAnyOf<T, ProtocolCode_16, ArpOpcode, ProtocolCode_32>)
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
@@ -89,6 +96,8 @@ namespace Helper
         {
             if constexpr (std::integral<T>)
                 return std::byteswap(val);
+            else if constexpr (std::same_as<T, ProtocolCode_32>)
+                return static_cast<T>(std::byteswap(static_cast<uint32_t>(val)));
             else
                 return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
         }

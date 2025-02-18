@@ -26,6 +26,23 @@ std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
 }
 
 
+LoopbackHeader::LoopbackHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(LoopbackHeader)) [[unlikely]]
+        throw std::runtime_error("Invalid Loopback header size");
+
+    // Convert to big endian if larger than a byte
+        this->loopbackType = Helper::toBigEndian(static_cast<ProtocolCode_32>(*rawData.data()));
+}
+
+
+std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj)
+{
+    os << FIELD("Loopback type") << "0x" << std::hex << obj.loopbackType << std::dec << '\n';
+    return os;
+}
+
+
 IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(IPv4Header)) [[unlikely]]

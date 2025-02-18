@@ -11,7 +11,7 @@
 struct LinkHeader
 {};
 
-struct EthernetHeader
+struct EthernetHeader : LinkHeader
 {
     mac dstMAC;
     mac srcMAC;
@@ -22,9 +22,13 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
 };
 
-struct LoopbackHeader
+struct LoopbackHeader : LinkHeader
 {
-    // 02 00 00 00
+    ProtocolCode_32 loopbackType;
+
+public:
+    explicit LoopbackHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj);
 };
 
 
