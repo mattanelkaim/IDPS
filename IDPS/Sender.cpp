@@ -187,6 +187,7 @@ JSON response example:
 */
 in_addr Sender::extractIpFromDoHResponse(const std::string& response)
 {
+    puts(response.c_str());
     // Constants for the JSON keys
     constexpr std::string_view answerKey = "\"Answer\"";
     constexpr std::string_view typeKey = "\"type\":1"; // "type":1

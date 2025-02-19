@@ -76,6 +76,10 @@ int main()
     std::vector<uint8_t> buffer = readFile("Example Sniffs/LoopbackDNS.bin");
     Packet packet(buffer, false);
 
+    const std::string_view question = static_cast<DNSMessage*>(packet.applicationData)->questions[0];
+    std::cout << question << '\n';
+    std::cout << Helper::ipToStr(Sender::DoHQuery(question.data()));
+
     //SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     //constexpr sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
     //DNSHeader header{};
