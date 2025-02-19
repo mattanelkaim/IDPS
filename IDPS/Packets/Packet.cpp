@@ -4,7 +4,7 @@
 
 
 Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
-    timestamp(hasTimestamp ? *reinterpret_cast<const uint64_t*>(rawData.data()) : 0)
+    timestamp(hasTimestamp ? *reinterpret_cast<const uint64_t*>(rawData.data()) : 0) // Set timestap based on flag
 {
     if (hasTimestamp)
         std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
@@ -16,7 +16,7 @@ Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
     const LoopbackHeader tempHeader(rawData.subspan(offset, sizeof(LoopbackHeader)));
 
     // Try to parse the link layer
-    if (!tempHeader.loopbackType == NULL_IPV4) [[likely]]
+    if (tempHeader.loopbackType != NULL_IPV4) [[likely]]
     {
         this->linkHeader = new EthernetHeader(rawData.subspan(offset, sizeof(EthernetHeader)));
         this->networkProtocol = static_cast<EthernetHeader*>(linkHeader)->etherType;
@@ -73,7 +73,7 @@ Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
         this->transportHeader->dstPort == DNSHeader::DEFAULT_PORT)
     {
         this->applicationData = new DNSMessage(rawData.subspan(offset));
-        std::cout << "\033[44mDNS (header):\033[0m\n" << (*static_cast<DNSMessage*>(applicationData)).header;
+        std::cout << "\033[44mDNS (header):\033[0m\n" << static_cast<DNSMessage*>(applicationData)->header;
     }
 }
 
