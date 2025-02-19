@@ -73,18 +73,18 @@ int main()
 {
     WSAInitializer wsaInit;
 
-    std::vector<uint8_t> buffer = readFile("Example Sniffs/dns packet.bin");
+    std::vector<uint8_t> buffer = readFile("Example Sniffs/NullPacket.bin");
     Packet packet(buffer, false);
 
-    SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    constexpr sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
-    DNSHeader header{};
-    char* response = reinterpret_cast<char*>(&header);
+    //SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    //constexpr sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
+    //DNSHeader header{};
+    //char* response = reinterpret_cast<char*>(&header);
 
-    int sendResult = sendto(sendSocket,
-                            response,
-                            12,//sizeof(DNSHeader),
-                            0,
-                            reinterpret_cast<const sockaddr*>(&clientAddr),
-                            sizeof(clientAddr));
+    //int sendResult = sendto(sendSocket,
+    //                        response,
+    //                        12,//sizeof(DNSHeader),
+    //                        0,
+    //                        reinterpret_cast<const sockaddr*>(&clientAddr),
+    //                        sizeof(clientAddr));
 }

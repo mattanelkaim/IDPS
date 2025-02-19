@@ -4,32 +4,41 @@
 
 
 Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
-    ethernetHeader(new EthernetHeader(rawData.subspan(hasTimestamp ? sizeof(timestamp) : 0, sizeof(EthernetHeader))))
+    timestamp(hasTimestamp ? *reinterpret_cast<const uint64_t*>(rawData.data()) : 0)
 {
-    size_t offset = sizeof(EthernetHeader);
-
     if (hasTimestamp)
-    {
-        this->timestamp = *reinterpret_cast<const uint64_t*>(rawData.data());
         std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
-        offset += sizeof(timestamp);
-    }
-    else
-    {
-        this->timestamp = 0;
-    }
 
-    std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
+    // An initial offset depending on timestamp
+    size_t offset = hasTimestamp ? sizeof(timestamp) : 0;
+
+    // Try to parse link layer as loopback
+    const LoopbackHeader tempHeader(rawData.subspan(offset, sizeof(LoopbackHeader)));
+
+    // Try to parse the link layer
+    if (!tempHeader.loopbackType == NULL_IPV4) [[likely]]
+    {
+        this->linkHeader = new EthernetHeader(rawData.subspan(offset, sizeof(EthernetHeader)));
+        this->networkProtocol = static_cast<EthernetHeader*>(linkHeader)->etherType;
+        std::cout << "\n\033[41mEthernet:\033[0m\n" << *static_cast<EthernetHeader*>(linkHeader) << '\n';
+        offset += sizeof(EthernetHeader);
+    }
+    else // is Loopback header
+    {
+        this->networkProtocol = IPV4;
+        std::cout << "\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n';
+        offset += sizeof(LoopbackHeader);
+    }
 
     // Parse NETWORK layer
-    if (ethernetHeader->etherType == IPV4)
+    if (this->networkProtocol == IPV4)
     {
         this->networkHeader = new IPv4Header(rawData.subspan(offset, sizeof(IPv4Header)));
         offset += sizeof(IPv4Header);
         this->transportProtocol = static_cast<IPv4Header*>(networkHeader)->protocol;
         std::cout << "\033[42mIP:\033[0m\n" << *static_cast<IPv4Header*>(networkHeader) << '\n';
     }
-    else if (ethernetHeader->etherType == ARP)
+    else if (this->networkProtocol == ARP)
     {
         this->networkHeader = new ArpHeader(rawData.subspan(offset, sizeof(ArpHeader)));
         this->transportProtocol = NONE;
@@ -70,7 +79,7 @@ Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
 
 Packet::~Packet()
 {
-    delete ethernetHeader;
+    delete linkHeader;
     delete networkHeader;
     delete transportHeader;
     delete applicationData;
