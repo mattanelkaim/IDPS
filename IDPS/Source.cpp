@@ -73,7 +73,7 @@ int main()
 {
     WSAInitializer wsaInit;
 
-    std::vector<uint8_t> buffer = readFile("Example Sniffs/NullPacket.bin");
+    std::vector<uint8_t> buffer = readFile("Example Sniffs/LoopbackDNS.bin");
     Packet packet(buffer, false);
 
     //SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
