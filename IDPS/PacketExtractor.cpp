@@ -1,54 +1,35 @@
-#include "../Driver/LayerHandles.h"
 #include "PacketExtractor.h"
-#include <fstream>
+#include "DriverCommunicator.h"
 
-PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this)
+PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this), 
+                                     m_queueMutex(),
+                                     m_hFile(INVALID_HANDLE_VALUE),
+                                     m_packetQueue()
 {
     this->m_extractorThread.detach(); // letting packet extractor thread work in the background
 }
 
 void PacketExtractor::threadRoutine()
 {
-    std::ifstream packetFile(PACKET_FILE_PATH, std::ios::binary);
-    if (!packetFile.is_open())
-        throw std::runtime_error("Error opening packet file.");
-
+    uint8_t packetsRead = 0;
     uint16_t packetSize = 0;
     std::vector<uint8_t> rawPacket;
     bool pending = false;
 
     while (true)
     {
-        if (packetFile.eof())
-        {
-            packetFile.clear(); // Reset stream error flags
+        // Truncating the file every 100'th packet read
+        if (packetsRead == 100)
+            this->truncatePacketFile();
 
-            // truncate the file every time the thread reaches its end
-            if (packetFile.tellg() != std::ios::beg)
-                //DeviceCommunicator::getInstance().truncateFile();
-
-            packetFile.seekg(0, std::ios::beg);
-            // locking the queue until new packets arrive
-            if (!pending)
-            {
-                this->m_queueMutex.lock();
-                pending = true;
-            }
-            continue;
-        }
-
-        // reading packet size and data
-        while (!this->areBytesAvailable(packetFile, sizeof(packetSize))) { (void)0; }
-        packetFile.read(reinterpret_cast<char*>(&packetSize), sizeof(packetSize));
+        // Reading packet size and data
+        readFromFile(&packetSize, sizeof(packetSize));
         rawPacket.resize(packetSize);
-        while (!this->areBytesAvailable(packetFile, packetSize)) { (void)0; }
-        packetFile.read(reinterpret_cast<char*>(rawPacket.data()), packetSize);
+        readFromFile(rawPacket.data(), packetSize);
+        packetsRead++;
 
-        if (pending)
-            pending = false;
-        else
-            this->m_queueMutex.lock();
-
+        // Pushing the new packet into the queue
+        this->m_queueMutex.lock();
         this->m_packetQueue.push(rawPacket);
         this->m_queueMutex.unlock();
     }
@@ -69,15 +50,43 @@ std::vector<uint8_t> PacketExtractor::getPacket() noexcept
 
 // HELPER FUNCTIONS
 
-bool PacketExtractor::areBytesAvailable(std::ifstream& file, const uint16_t numBytes) noexcept
+void PacketExtractor::openPacketFile()
 {
-    const std::streampos currentPos = file.tellg();
-    file.seekg(0, std::ios::end);
-    const std::streampos endPos = file.tellg();
-    file.seekg(currentPos, std::ios::beg);
-    return (endPos - currentPos) >= numBytes;
+    /* opening (or creating) the file with FILE_SHARE_WRITE to allow the driver to write data to the file
+       simultaneouse to the IDPS reading from it */
+    this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (INVALID_HANDLE_VALUE == m_hFile)
+        throw std::runtime_error("Failed to open packet file.");
 }
 
+void PacketExtractor::readFromFile(void* buffer, uint16_t numBytes)
+{
+    DWORD bytesRead = 0;
+    DWORD bytesLeft = numBytes;
+
+    // Continuously reading from the file until the desired number of bytes is reached
+    while (bytesLeft)
+    {
+        if (!ReadFile(this->m_hFile, buffer, bytesLeft, &bytesRead, NULL))
+            throw std::runtime_error("Failed to read from packet file.");
+        bytesLeft -= bytesRead;
+    }
+}
+
+void PacketExtractor::truncatePacketFile()
+{
+    DriverCommunicator::getInstance().truncateFile();
+
+    // Reseting the file pointer
+    if (!SetFilePointerEx(this->m_hFile, {0}, NULL, FILE_BEGIN))
+        throw std::runtime_error("Failed to set packet file pointer.");
+}
+
+PacketExtractor::~PacketExtractor() noexcept
+{
+    // No need to validate handle - behavior is defined for INVALID_HANDLE_VALUE
+    CloseHandle(this->m_hFile);
+}
 
 // SINGLETON METHODS
 

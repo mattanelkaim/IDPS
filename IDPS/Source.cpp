@@ -64,7 +64,14 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    Distributer::getInstance().run();
+    try
+    {
+        Distributer::getInstance().run();
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << e.what();
+    }
 }
 
 /*

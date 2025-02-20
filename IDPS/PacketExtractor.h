@@ -1,10 +1,10 @@
 #pragma once
 
+#include "../Driver/LayerHandles.h"
 #include <cstdint>
 #include <mutex>
 #include <queue>
 #include <thread>
-#include <vector>
 
 class PacketExtractor final
 {
@@ -12,15 +12,20 @@ private:
     std::mutex m_queueMutex;
     std::queue<std::vector<uint8_t>> m_packetQueue;
     std::thread m_extractorThread;
+    HANDLE m_hFile;
 
-    // private methods
+    // Main private methods
     PacketExtractor();
     void threadRoutine();
-    static bool areBytesAvailable(std::ifstream& file, uint16_t numBytes) noexcept;
+
+    // Helper methods
+    void openPacketFile();
+    void readFromFile(void* buffer, uint16_t numBytes);
+    void truncatePacketFile();
 
 public:
     // Singleton methods
-    ~PacketExtractor() noexcept = default;
+    ~PacketExtractor() noexcept;
     static PacketExtractor& getInstance() noexcept;
     PacketExtractor(const PacketExtractor& other) = delete;
     void operator=(const PacketExtractor& other) = delete;
