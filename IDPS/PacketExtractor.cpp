@@ -57,12 +57,12 @@ void PacketExtractor::openPacketFile()
 {
     /* opening (or creating) the file with FILE_SHARE_WRITE to allow the driver to write data to the file
        simultaneouse to the IDPS reading from it */
-    this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    this->m_hFile = CreateFileW(L"C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
         throw std::runtime_error("Failed to open packet file.");
 }
 
-void PacketExtractor::readFromFile(void* buffer, uint16_t numBytes)
+void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes)
 {
     DWORD bytesRead = 0;
     DWORD bytesLeft = numBytes;
@@ -70,7 +70,7 @@ void PacketExtractor::readFromFile(void* buffer, uint16_t numBytes)
     // Continuously reading from the file until the desired number of bytes is reached
     while (bytesLeft)
     {
-        if (!ReadFile(this->m_hFile, buffer, bytesLeft, &bytesRead, NULL))
+        if (!ReadFile(this->m_hFile, outBuffer, bytesLeft, &bytesRead, NULL))
             throw std::runtime_error("Failed to read from packet file.");
         bytesLeft -= bytesRead;
     }

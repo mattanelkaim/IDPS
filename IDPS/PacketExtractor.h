@@ -20,7 +20,7 @@ private:
 
     // Helper methods
     void openPacketFile();
-    void readFromFile(void* buffer, uint16_t numBytes);
+    void readFromFile(void* outBuffer, uint16_t numBytes);
     void truncatePacketFile();
 
 public:
