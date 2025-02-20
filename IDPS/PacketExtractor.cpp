@@ -11,25 +11,25 @@ PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadR
 
 void PacketExtractor::threadRoutine()
 {
-    uint8_t packetsRead = 0;
+    uint8_t packetCounter = 0;
     uint16_t packetSize = 0;
     std::vector<uint8_t> rawPacket;
     bool pending = false;
 
     while (true)
     {
-        // Truncating the file every 100'th packet read
-        if (packetsRead == 100)
+        // Truncating the file every MAX_PACKET_COUNT'th packet read
+        if (packetCounter == MAX_PACKET_COUNT)
         {
             this->truncatePacketFile();
-            packetsRead = 0;
+            packetCounter = 0;
         }
 
         // Reading packet size and data
         readFromFile(&packetSize, sizeof(packetSize));
         rawPacket.resize(packetSize);
         readFromFile(rawPacket.data(), packetSize);
-        packetsRead++;
+        packetCounter++;
 
         // Pushing the new packet into the queue
         this->m_queueMutex.lock();
@@ -43,7 +43,7 @@ std::vector<uint8_t> PacketExtractor::getPacket() noexcept
     // loading new packet
     while (this->m_packetQueue.empty()); { (void)0; }
     this->m_queueMutex.lock();
-    const std::vector<uint8_t> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
+    std::vector<uint8_t> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
     this->m_packetQueue.pop();
     this->m_queueMutex.unlock();
 
@@ -57,7 +57,7 @@ void PacketExtractor::openPacketFile()
 {
     /* opening (or creating) the file with FILE_SHARE_WRITE to allow the driver to write data to the file
        simultaneouse to the IDPS reading from it */
-    this->m_hFile = CreateFileW(L"C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
         throw std::runtime_error("Failed to open packet file.");
 }

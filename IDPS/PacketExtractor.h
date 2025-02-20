@@ -6,6 +6,8 @@
 #include <queue>
 #include <thread>
 
+constexpr uint8_t MAX_PACKET_COUNT = 100;
+
 class PacketExtractor final
 {
 private:
