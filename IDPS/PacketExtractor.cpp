@@ -20,7 +20,10 @@ void PacketExtractor::threadRoutine()
     {
         // Truncating the file every 100'th packet read
         if (packetsRead == 100)
+        {
             this->truncatePacketFile();
+            packetsRead = 0;
+        }
 
         // Reading packet size and data
         readFromFile(&packetSize, sizeof(packetSize));
