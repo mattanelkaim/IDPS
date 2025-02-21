@@ -1,6 +1,6 @@
 #include "Packet.h"
+#include "../IDPSExceptions.hpp"
 #include <iostream>
-#include <stdexcept> // std::runtime_error
 
 
 Packet::Packet(const std::span<const uint8_t> rawData) :
@@ -28,7 +28,7 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
         return; // No transport layer!
 
     default: // Probably IPv6
-        throw std::runtime_error("Unsupported network protocol");
+        throw MinorException("Unsupported network protocol");
     }
 
     // Parse TRANSPORT layer
@@ -47,7 +47,7 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
         break;
 
     default:
-        throw std::runtime_error("Unsupported transport protocol");
+        throw MinorException("Unsupported transport protocol");
     }
 
     // Parse APPLICATION layer

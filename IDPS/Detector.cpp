@@ -6,7 +6,7 @@
 Detector::Detector()
 {
     IP_ADDR_STRING localIP;
-    if (!Sender::GetLocalIpAddress(INTERFACE_NAME1.data(), &localIP))
+    if (!Sender::GetLocalIpAddress(INTERFACE_NAME2.data(), &localIP))
         throw std::exception("Failed to get local IP address!\n");
 
     m_arpTable = ArpTable(&localIP, "ARP.csv");

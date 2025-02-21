@@ -1,9 +1,11 @@
 #include "PacketExtractor.h"
+#include "IDPSExceptions.hpp"
 
-PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this), 
+PacketExtractor::PacketExtractor(std::exception_ptr& outException) : m_extractorThread(&PacketExtractor::threadRoutine, this),
                                      m_queueMutex(),
                                      m_hFile(INVALID_HANDLE_VALUE),
-                                     m_packetQueue()
+                                                                     m_packetQueue(),
+                                                                     m_outException(outException)
 {
     this->m_extractorThread.detach(); // letting packet extractor thread work in the background
 }
@@ -18,6 +20,8 @@ void PacketExtractor::threadRoutine()
     // Opening the packet file
     this->openPacketFile();
 
+    try
+    {
     while (true)
     {
         // Truncating the file every MAX_PACKET_COUNT'th packet read
@@ -37,6 +41,11 @@ void PacketExtractor::threadRoutine()
         this->m_queueMutex.lock();
         this->m_packetQueue.push(rawPacket);
         this->m_queueMutex.unlock();
+    }
+}
+    catch (...)
+    {
+        this->m_outException = std::current_exception();
     }
 }
 
@@ -61,7 +70,7 @@ void PacketExtractor::openPacketFile()
        simultaneouse to the IDPS reading from it */
     this->m_hFile = CreateFileW(L"C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
-        throw std::runtime_error("Failed to open packet file.");
+        throw FatalException("Failed to open packet file.");
 }
 
 void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes)
@@ -73,7 +82,7 @@ void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes)
     while (bytesLeft)
     {
         if (!ReadFile(this->m_hFile, outBuffer, bytesLeft, &bytesRead, NULL))
-            throw std::runtime_error("Failed to read from packet file.");
+            throw FatalException("Failed to read from packet file.");
         bytesLeft -= bytesRead;
     }
 }
@@ -84,7 +93,7 @@ void PacketExtractor::truncatePacketFile()
 
     // Reseting the file pointer
     if (!SetFilePointerEx(this->m_hFile, {0}, NULL, FILE_BEGIN))
-        throw std::runtime_error("Failed to set packet file pointer.");
+        throw FatalException("Failed to set packet file pointer.");
 }
 
 PacketExtractor::~PacketExtractor() noexcept
@@ -95,8 +104,8 @@ PacketExtractor::~PacketExtractor() noexcept
 
 // SINGLETON METHODS
 
-PacketExtractor& PacketExtractor::getInstance() noexcept
+PacketExtractor& PacketExtractor::getInstance(std::exception_ptr& outException) noexcept
 {
-    static PacketExtractor instance;
+    static PacketExtractor instance(outException);
     return instance;
 }

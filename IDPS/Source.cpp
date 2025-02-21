@@ -1,4 +1,5 @@
 #include "Distributer.h"
+#include "IDPSExceptions.hpp"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -68,7 +69,7 @@ int main()
     {
         Distributer::getInstance().run();
     }
-    catch (const std::exception& e)
+    catch (const FatalException& e)
     {
         std::cerr << e.what();
     }

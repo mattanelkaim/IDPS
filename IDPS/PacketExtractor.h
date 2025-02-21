@@ -15,10 +15,11 @@ private:
     std::mutex m_queueMutex;
     std::queue<std::vector<uint8_t>> m_packetQueue;
     std::thread m_extractorThread;
+    std::exception_ptr& m_outException;
     HANDLE m_hFile;
 
     // Main private methods
-    PacketExtractor();
+    PacketExtractor(std::exception_ptr& outException);
     void threadRoutine();
 
     // Helper methods
@@ -29,11 +30,11 @@ private:
 public:
     // Singleton methods
     ~PacketExtractor() noexcept;
-    static PacketExtractor& getInstance() noexcept;
+    static PacketExtractor& getInstance(std::exception_ptr& outException) noexcept;
     PacketExtractor(const PacketExtractor& other) = delete;
     void operator=(const PacketExtractor& other) = delete;
 
-    // methods
+    // Methods
     std::vector<uint8_t> getPacket() noexcept;
 };
 
