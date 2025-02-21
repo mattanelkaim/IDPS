@@ -1,5 +1,4 @@
 #include "PacketExtractor.h"
-#include "DriverCommunicator.h"
 
 PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this), 
                                      m_queueMutex(),
@@ -15,6 +14,9 @@ void PacketExtractor::threadRoutine()
     uint16_t packetSize = 0;
     std::vector<uint8_t> rawPacket;
     bool pending = false;
+
+    // Opening the packet file
+    this->openPacketFile();
 
     while (true)
     {
@@ -57,7 +59,7 @@ void PacketExtractor::openPacketFile()
 {
     /* opening (or creating) the file with FILE_SHARE_WRITE to allow the driver to write data to the file
        simultaneouse to the IDPS reading from it */
-    this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    this->m_hFile = CreateFileW(L"C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
         throw std::runtime_error("Failed to open packet file.");
 }

@@ -1,10 +1,11 @@
 #pragma once
 
-#include "../Driver/LayerHandles.h"
+#include "DriverCommunicator.h"
 #include <cstdint>
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <vector>
 
 constexpr uint8_t MAX_PACKET_COUNT = 100;
 
