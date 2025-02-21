@@ -237,21 +237,51 @@ std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
     // Append type A and class IN
     payload.insert(payload.end(), {0x00, 0x01, 0x00, 0x01});
 
-    //std::unordered_map<std::string, uint16_t> nameOffsets;
-    //uint16_t lastOffset = sizeof(DNSHeader);
-    //nameOffsets.emplace(query, lastOffset); // Query domain
+    // Extract offsets for each name in the response
+    std::unordered_map<std::string, uint16_t> nameOffsets;
+    uint16_t lastOffset = sizeof(DNSHeader);
+    nameOffsets.emplace(query, lastOffset); // Query domain
 
-    //// First response record has a different offset:
-    //// 16 (fields lengths) + 2 (null and first dot) + query.size()
-    //lastOffset += static_cast<uint16_t>(18 + query.size());
+    // First response record has a different offset:
+    // 16 (fields lengths) + 2 (null and first dot) + query.size()
+    lastOffset += static_cast<uint16_t>(18 + query.size());
 
-    //for (const DNSRecord& record : message.answers)
-    //{
-    //    const std::string data(std::from_range, record.data);
-    //    nameOffsets.emplace(data, lastOffset);
-    //    // 12 (fields lengths) + 2 (null and first dot) + name.size()
-    //    lastOffset += 14 + static_cast<uint16_t>(data.size());
-    //}
+    for (const DNSRecord& record : message.answers)
+    {
+        // Offset is 14-bits long, so we need to split it into 2 bytes
+        const uint16_t current = nameOffsets[std::get<std::string>(record.name)];
+        payload.push_back((current >> 12) | 0b11000000); // First 2 bits are set
+        payload.push_back(current & 0xFF);
+
+        Helper::insertWordToBytes(payload, record.type);
+        Helper::insertWordToBytes(payload, record.recordClass);
+        Helper::insertDwordToBytes(payload, record.ttl);
+
+        if (record.recordClass == DNSTypes::A) // IPv4 address
+        {
+            // Length is 4 (IPv4 address)
+            Helper::insertWordToBytes(payload, 4);
+
+            // Currently data stores IP as 1 byte for each digit. Use helper so that each byte will represent an IP byte
+            const in_addr ip = Helper::strToIp(std::string(std::from_range, record.data));
+            Helper::insertDwordToBytes(payload, Helper::toBigEndian(ip.s_addr));
+        }
+        else if (record.recordClass == DNSTypes::CNAME) // Canonical name
+        {
+            // Length is the length of the domain name
+            Helper::insertWordToBytes(payload, static_cast<uint16_t>(record.data.size()));
+            payload.append_range(DNSMessage::deserializeDomainName(record.data));
+        }
+        else // Unsupported type
+        {
+            throw std::runtime_error("Unsupported DNS record type");
+        }
+
+        const std::string data(std::from_range, record.data);
+        nameOffsets.emplace(data, lastOffset);
+        // 12 (fields lengths) + 2 (null and first dot) + name.size()
+        lastOffset += 14 + static_cast<uint16_t>(data.size());
+    }
 
     return payload;
 }

@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string_view>
 #include <string>
+#include <vector>
 #include <WS2tcpip.h>
 #include <IPTypes.h>
 
@@ -159,5 +160,20 @@ namespace Helper
         addr.sin_addr.S_un.S_un_b = {127, 0, 0, 1}; // Localhost
 
         return addr;
+    }
+
+
+    constexpr void insertWordToBytes(std::vector<uint8_t>& vec, uint16_t word) noexcept
+    {
+        vec.push_back(word >> 8);
+        vec.push_back(word & 0xFF);
+    }
+
+    constexpr void insertDwordToBytes(std::vector<uint8_t>& vec, uint32_t dword) noexcept
+    {
+        vec.push_back(dword >> 24);
+        vec.push_back((dword >> 16) & 0xFF);
+        vec.push_back((dword >> 8) & 0xFF);
+        vec.push_back(dword & 0xFF);
     }
 } // namespace Helper
