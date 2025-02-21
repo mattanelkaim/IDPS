@@ -278,6 +278,32 @@ constexpr std::string DNSMessage::parseDomainName(const std::span<const uint8_t>
     return domainName;
 }
 
+std::vector<uint8_t> DNSMessage::deserializeDomainName(std::span<const uint8_t> domain)
+{
+    std::vector<uint8_t> rawData;
+    rawData.reserve(domain.size() + 2); // Reserve enough space for the domain name and null terminator
+
+    //
+    size_t start = 0;
+    while (start < domain.size())
+    {
+        size_t end = start;
+        while (end < domain.size() && domain[end] != '.')
+        {
+            ++end;
+        }
+
+        size_t length = end - start;
+        rawData.push_back(static_cast<uint8_t>(length));
+        rawData.insert(rawData.end(), domain.begin() + start, domain.begin() + start + length);
+
+        start = end + 1; // Move past the dot
+    }
+
+    rawData.push_back(0); // Null terminator
+    return rawData;
+}
+
 constexpr std::vector<DNSRecord> DNSMessage::parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept
 {
     std::vector<DNSRecord> records;

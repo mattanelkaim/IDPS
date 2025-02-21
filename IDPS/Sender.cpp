@@ -5,6 +5,7 @@
 #include <IcmpAPI.h>
 #include <stdexcept>
 #include <thread>
+#include <unordered_map>
 
 using json = nlohmann::json;
 
@@ -122,7 +123,7 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     {
         threads.push_back(std::thread([&onlineAddresses, currAddr]() {
             if (SendPing(currAddr)) onlineAddresses.push_back(currAddr);
-        }));
+                                      }));
     }
 
     // Wait for all threads to finish
@@ -132,7 +133,7 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     return onlineAddresses;
 }
 
-std::vector<DNSRecord> Sender::DoHQuery(const std::string& domain) 
+std::string Sender::DoHQuery(const std::string& domain) 
 {
     // Cloudflare's DoH endpoint details
     constexpr std::wstring_view server = L"cloudflare-dns.com";
@@ -144,11 +145,11 @@ std::vector<DNSRecord> Sender::DoHQuery(const std::string& domain)
                                       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
     // Connect to the server
     WinHttpHandle connect(WinHttpConnect(session, server.data(), INTERNET_DEFAULT_HTTPS_PORT, 0));
-    
+
     // Create a secure GET request
     WinHttpHandle request(WinHttpOpenRequest(connect, NULL, path.c_str(), NULL, WINHTTP_NO_REFERER,
                                              WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE));
-    
+
     // Send the request with an Accept header for a JSON response
     constexpr std::wstring_view acceptHeader = L"Accept: application/dns-json\r\n";
     constexpr ULONG headerSize = static_cast<ULONG>(acceptHeader.size()); // To avoid conversion warnings
@@ -174,13 +175,85 @@ std::vector<DNSRecord> Sender::DoHQuery(const std::string& domain)
     }
 
     //puts(response.c_str()); // TEMP FOR DEBUGGING
-    return extractDNSRecordsFromJson(response);
+    return response;
 }
 
-bool Sender::sendDNSResponse(const std::string& response)
+bool Sender::sendDNSResponse(const Packet& dnsQuery)
 {
+    // First get the DoH response
+    const std::string& question = static_cast<DNSMessage*>(dnsQuery.applicationData)->questions.front();
+    const std::string dohResponse = DoHQuery(question);
+
+    puts("\n\n----RESPONSE----\n\n");
+    puts(dohResponse.c_str());
+
+    // Then write the response OVER the original DNS query
+    DNSMessage* responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
+    responseDNS->answers = extractDNSRecordsFromJson(dohResponse, "Answer");
+    responseDNS->authorities = extractDNSRecordsFromJson(dohResponse, "Authority");
+    responseDNS->additionalRecords = extractDNSRecordsFromJson(dohResponse, "Additional");
+
+    constructDNSPayload(*responseDNS);
+
+    // Construct the response header (swap all bytes back to little endian)
+    DNSHeader& header = responseDNS->header; // For convenience
+    header.transactionID = Helper::toBigEndian(header.transactionID);
+    header.flags = Helper::toBigEndian(0x8180Ui16); // Set the flags to indicate a response
+    header.questionCount = Helper::toBigEndian(header.questionCount);
+    header.answerCount = Helper::toBigEndian(static_cast<uint16_t>(responseDNS->answers.size()));
+    header.authorityCount = Helper::toBigEndian(static_cast<uint16_t>(responseDNS->authorities.size()));
+    header.additionalCount = Helper::toBigEndian(static_cast<uint16_t>(responseDNS->additionalRecords.size()));
+
+    // Insert the header and payload to the response buffer
+    std::vector<char> response(std::from_range, std::span{reinterpret_cast<char*>(&responseDNS->header), sizeof(responseDNS->header)});
+    response.append_range(constructDNSPayload(*responseDNS));
+
+
+    SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    constexpr sockaddr_in socketAddr = Helper::getLocalhostDnsAddr();
+    bind(sendSocket, reinterpret_cast<const sockaddr*>(&socketAddr), sizeof(socketAddr));
+
+    sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
+    clientAddr.sin_port = std::byteswap(dnsQuery.transportHeader->srcPort); // Send the response to the source port
     
+    int sendResult = sendto(sendSocket,
+                            response.data(),
+                            response.size(),
+                            0,
+                            reinterpret_cast<const sockaddr*>(&clientAddr),
+                            sizeof(clientAddr));
+
+    closesocket(sendSocket);
     return false;
+}
+
+std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
+{
+    std::vector<uint8_t> payload;
+    const std::string& query = message.questions.front();
+    
+    // Append the question (interpret string as pure bytes)
+    payload.append_range(DNSMessage::deserializeDomainName({reinterpret_cast<const uint8_t*>(query.data()), query.size()}));
+    // Append type A and class IN
+    payload.insert(payload.end(), {0x00, 0x01, 0x00, 0x01});
+
+    //std::unordered_map<std::string, uint16_t> nameOffsets;
+    //uint16_t lastOffset = sizeof(DNSHeader);
+    //nameOffsets.emplace(query, lastOffset); // Query domain
+
+    //// First response record has a different offset:
+    //// 16 (fields lengths) + 2 (null and first dot) + query.size()
+    //lastOffset += static_cast<uint16_t>(18 + query.size());
+
+    //for (const DNSRecord& record : message.answers)
+    //{
+    //    const std::string data(std::from_range, record.data);
+    //    nameOffsets.emplace(data, lastOffset);
+    //    // 12 (fields lengths) + 2 (null and first dot) + name.size()
+    //    lastOffset += 14 + static_cast<uint16_t>(data.size());
+    //}
+
+    return payload;
 }
 
 /*

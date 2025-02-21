@@ -174,10 +174,25 @@ public:
 
     explicit DNSMessage(std::span<const uint8_t> rawData);
     constexpr in_addr getResolvedIP() const noexcept;
+    static std::vector<uint8_t> deserializeDomainName(std::span<const uint8_t> domain);
 
 private:
-    constexpr std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset) noexcept;
-    constexpr std::vector<DNSRecord> parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept;
+    constexpr static std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset) noexcept;
+    constexpr static std::vector<DNSRecord> parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept;
+};
+
+enum DNSTypes : uint16_t
+{
+    A = 1, // IPv4 address
+    NS = 2, // Name server
+    CNAME = 5, // Canonical name
+    SOA = 6, // Start of authority zone
+    PTR = 12, // Domain name pointer
+    MX = 15, // Mail exchange
+    TXT = 16, // Text strings
+    AAAA = 28, // IPv6 address
+    SRV = 33, // Service locator
+    ANY = 255 // Wildcard
 };
 
 #pragma pack(pop)

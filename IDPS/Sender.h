@@ -2,6 +2,7 @@
 
 #include "Helper.h"
 #include "Packets/Layers.h"
+#include "Packets/Packet.h"
 #include <inaddr.h>
 #include <vector>
 #include <winhttp.h> // HINTERNET
@@ -19,11 +20,12 @@ public:
     static mac SendARPRequest(const in_addr target) noexcept;
     static bool SendPing(const in_addr target) noexcept;
     static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
-    static std::vector<DNSRecord> DoHQuery(const std::string& domain);
-    static bool sendDNSResponse(const std::string& response);
-    static std::vector<DNSRecord> extractDNSRecordsFromJson(std::string_view dohResponse, std::string_view section = "Answer");
+    static std::string DoHQuery(const std::string& domain);
+    static bool sendDNSResponse(const Packet& response);
+    static std::vector<uint8_t> constructDNSPayload(const DNSMessage& message);
 
 private:
+    static std::vector<DNSRecord> extractDNSRecordsFromJson(std::string_view dohResponse, std::string_view section = "Answer");
 };
 
 
