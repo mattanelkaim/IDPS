@@ -220,20 +220,17 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
 // HELPER FUNCTIONS
 
 
-constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept
+constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept :
+    name(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()))),
+    type(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2))),
+    recordClass(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 4))),
+    ttl(Helper::toBigEndian(*reinterpret_cast<const uint32_t*>(rawData.data() + 6)))
 {
-    // Parse manually name, type, class, ttl
-    name = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()));
-    type = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2));
-    recordClass = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 4));
-    ttl = Helper::toBigEndian(*reinterpret_cast<const uint32_t*>(rawData.data() + 6));
-
-    // Temporary data length
+    // Get the data length, then extract the data
     const uint16_t dataLength = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
-
-    // Extract the data
     data.assign(rawData.data() + 12, rawData.data() + 12 + dataLength);
 }
+
 
 DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
     header(rawData)
@@ -248,12 +245,12 @@ DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
     }
 
     // Parse Answers, Authorities, and Additional Records
-    parseRecords(rawData, offset, header.answerCount, answers);
-    parseRecords(rawData, offset, header.authorityCount, authorities);
-    parseRecords(rawData, offset, header.additionalCount, additionalRecords);
+    answers = parseRecords(rawData, offset, header.answerCount);
+    authorities = parseRecords(rawData, offset, header.authorityCount);
+    additionalRecords = parseRecords(rawData, offset, header.additionalCount);
 }
 
-in_addr DNSMessage::getResolvedIP() const noexcept
+constexpr in_addr DNSMessage::getResolvedIP() const noexcept
 {
     for (const DNSRecord& record : answers)
     {
@@ -281,11 +278,13 @@ constexpr std::string DNSMessage::parseDomainName(const std::span<const uint8_t>
     return domainName;
 }
 
-constexpr void DNSMessage::parseRecords(const std::span<const uint8_t> rawData, size_t& offset, const uint16_t count, std::vector<DNSRecord>& records) noexcept
+constexpr std::vector<DNSRecord> DNSMessage::parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept
 {
+    std::vector<DNSRecord> records;
     for (int i = 0; i < count; ++i)
     {
         records.emplace_back(rawData.subspan(offset));
         offset += 12 + records.back().data.size(); // Skip the header and data part
     }
+    return records;
 }

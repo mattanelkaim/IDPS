@@ -4,7 +4,7 @@
 
 
 Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
-    timestamp(hasTimestamp ? *reinterpret_cast<const uint64_t*>(rawData.data()) : 0) // Set timestap based on flag
+    timestamp(hasTimestamp ? *reinterpret_cast<const uint64_t*>(rawData.data()) : 0) // Set timestamp based on flag
 {
     if (hasTimestamp)
         std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
