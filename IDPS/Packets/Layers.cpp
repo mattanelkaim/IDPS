@@ -231,13 +231,6 @@ constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept 
     data.assign(rawData.data() + 12, rawData.data() + 12 + dataLength);
 }
 
-constexpr DNSRecord::DNSRecord(const std::string& name, uint16_t type, uint32_t ttl, const std::string& dataStr) noexcept :
-    name(name),
-    type(type),
-    ttl(ttl),
-    data(dataStr.cbegin(), dataStr.cend())
-{}
-
 
 DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
     header(rawData)

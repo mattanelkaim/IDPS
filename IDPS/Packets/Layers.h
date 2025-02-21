@@ -154,7 +154,13 @@ struct DNSRecord
 
 public:
     explicit constexpr DNSRecord(std::span<const uint8_t> rawData) noexcept;
-    constexpr DNSRecord(const std::string& name, uint16_t type, uint32_t ttl, const std::string& dataStr) noexcept;
+    // TODO move to .cpp
+    constexpr DNSRecord(const std::string& name, uint16_t type, uint32_t ttl, const std::string& dataStr) noexcept :
+        name(name),
+        type(type),
+        ttl(ttl),
+        data(dataStr.cbegin(), dataStr.cend())
+    {}
 };
 
 class DNSMessage : public ApplicationData

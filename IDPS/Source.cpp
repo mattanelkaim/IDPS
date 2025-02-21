@@ -68,17 +68,21 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
     std::cout << std::dec << '\n';
 }
 
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 int main()
 {
     WSAInitializer wsaInit;
 
-    std::vector<uint8_t> buffer = readFile("Example Sniffs/LoopbackDNS.bin");
+    std::vector<uint8_t> buffer = readFile("Example Sniffs/dns response.bin");
     Packet packet(buffer, false);
 
     const std::string_view question = static_cast<DNSMessage*>(packet.applicationData)->questions[0];
     std::cout << question << '\n';
-    std::cout << Helper::ipToStr(Sender::DoHQuery(question.data()));
+    const auto res = Sender::DoHQuery(question.data()).front().data;
+    std::cout << std::string(res.begin(), res.end()) << '\n';
 
     //SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     //constexpr sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Helper.h"
+#include "Packets/Layers.h"
 #include <inaddr.h>
 #include <vector>
 #include <winhttp.h> // HINTERNET
@@ -10,6 +11,7 @@
 #pragma comment(lib, "Iphlpapi.lib")
 #pragma comment(lib, "winhttp.lib")
 
+
 class Sender final
 {
 public:
@@ -17,11 +19,11 @@ public:
     static mac SendARPRequest(const in_addr target) noexcept;
     static bool SendPing(const in_addr target) noexcept;
     static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
-    static in_addr DoHQuery(const std::string& domain);
+    static std::vector<DNSRecord> DoHQuery(const std::string& domain);
     static bool sendDNSResponse(const std::string& response);
+    static std::vector<DNSRecord> extractDNSRecordsFromJson(std::string_view dohResponse, std::string_view section = "Answer");
 
 private:
-    static in_addr extractIpFromDoHResponse(const std::string& response);
 };
 
 

@@ -1,9 +1,12 @@
 // Do NOT sort these includes
+#include "json.hpp"
 #include "Sender.h"
 #include <iphlpapi.h>
-#include <stdexcept>
 #include <IcmpAPI.h>
+#include <stdexcept>
 #include <thread>
+
+using json = nlohmann::json;
 
 
 bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept
@@ -129,7 +132,7 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     return onlineAddresses;
 }
 
-in_addr Sender::DoHQuery(const std::string& domain) 
+std::vector<DNSRecord> Sender::DoHQuery(const std::string& domain) 
 {
     // Cloudflare's DoH endpoint details
     constexpr std::wstring_view server = L"cloudflare-dns.com";
@@ -171,7 +174,7 @@ in_addr Sender::DoHQuery(const std::string& domain)
     }
 
     //puts(response.c_str()); // TEMP FOR DEBUGGING
-    return extractIpFromDoHResponse(response);
+    return extractDNSRecordsFromJson(response);
 }
 
 bool Sender::sendDNSResponse(const std::string& response)
@@ -181,42 +184,32 @@ bool Sender::sendDNSResponse(const std::string& response)
 }
 
 /*
-Extracts the IP address from the JSON response
+Extracts the data from the JSON response
 JSON response example:
 {"Status":0,"TC":false,"RD":true,"RA":true,"AD":false,"CD":false,"Question":[{"name":"walla.co.il","type":1}],"Answer":[{"name":"walla.co.il","type":1,"TTL":300,"data":"34.102.212.0"}]}
 */
-in_addr Sender::extractIpFromDoHResponse(const std::string& response)
+std::vector<DNSRecord> Sender::extractDNSRecordsFromJson(std::string_view dohResponse, std::string_view section)
 {
-    puts(response.c_str());
-    // Constants for the JSON keys
-    constexpr std::string_view answerKey = "\"Answer\"";
-    constexpr std::string_view typeKey = "\"type\":1"; // "type":1
-    constexpr std::string_view dataKey = "\"data\":\""; // "data":"
+    const json parsed = json::parse(dohResponse);
+    std::vector<DNSRecord> records;
 
-    // First find the "Answer" key
-    const size_t answerPos = response.find(answerKey);
-    if (answerPos == std::string::npos)
-        throw std::runtime_error("Invalid JSON response!");
+    if (parsed.contains(section) && parsed[section].is_array())
+    {
+        for (const auto& entry : parsed[section])
+        {
+            if (entry.contains("name") && entry.contains("type") && entry.contains("TTL") && entry.contains("data")) [[likely]]
+            {
+                records.emplace_back(
+                    entry["name"].get<std::string>(),
+                    entry["type"].get<uint16_t>(),
+                    entry["TTL"].get<uint32_t>(),
+                    entry["data"].get<std::string>()
+                );
+            }
+        }
+    }
 
-    // Then find a "type":1
-    const size_t typePos = response.find(typeKey, answerPos);
-    if (typePos == std::string::npos)
-        throw std::runtime_error("Invalid JSON response!");
-
-    // Find "data" after type
-    const size_t dataPos = response.find(dataKey, typePos);
-    if (dataPos == std::string::npos)
-        throw std::runtime_error("Invalid JSON response!");
-
-    // Finally find the IP address (closing quote)
-    const size_t start = dataPos + dataKey.size();
-    const size_t end = response.find('"', start);
-    if (end == std::string::npos) // No closing quote
-        throw std::runtime_error("Invalid JSON response!");
-
-    // Extract the actual IP address
-    const std::string ipStr = response.substr(start, end - start);
-    return Helper::strToIp(ipStr);
+    return records;
 }
 
 
