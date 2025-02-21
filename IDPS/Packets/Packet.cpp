@@ -54,7 +54,7 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
     if (this->isDnsPacket())
     {
         this->applicationData = new DNSMessage(rawData.subspan(offset));
-        std::cout << "\033[44mDNS (header):\033[0m\n" << (*static_cast<DNSMessage*>(applicationData)).header;
+        std::cout << "\033[44mDNS (header):\033[0m\n" << (*static_cast<DNSMessage*>(applicationData)).header << '\n';
     }
 }
 
