@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iosfwd> // std::ostream
 #include <span>
+#include <variant>
 #include <vector>
 
 #pragma pack(push, 1) // All structs must be packed because of alignment
@@ -144,15 +145,16 @@ public:
 
 struct DNSRecord
 {
-    uint16_t name;
+    std::variant<uint16_t, std::string> name; // Supports both pointer and string
     uint16_t type;
-    uint16_t recordClass;
+    uint16_t recordClass = 1; // Default to IN (Internet)
     uint32_t ttl;
     //uint16_t dataLength;
     std::vector<uint8_t> data;
 
 public:
     explicit constexpr DNSRecord(std::span<const uint8_t> rawData) noexcept;
+    constexpr DNSRecord(const std::string& name, uint16_t type, uint32_t ttl, const std::string& dataStr) noexcept;
 };
 
 class DNSMessage : public ApplicationData
