@@ -135,6 +135,7 @@
     <ClInclude Include="Detector.h" />
     <ClInclude Include="Handlers\DBHandler.h" />
     <ClInclude Include="Helper.h" />
+    <ClInclude Include="json.hpp" />
     <ClInclude Include="PacketExtractor.h" />
     <ClInclude Include="Packets\Layers.h" />
     <ClInclude Include="Packets\Packet.h" />
