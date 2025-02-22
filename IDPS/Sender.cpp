@@ -137,7 +137,7 @@ std::string Sender::DoHQuery(const std::string& domain)
 {
     // Cloudflare's DoH endpoint details
     constexpr std::wstring_view server = L"cloudflare-dns.com";
-    const std::wstring wsDomain(domain.begin(), domain.end());
+    const std::wstring wsDomain(std::from_range, domain);
     const std::wstring path = L"/dns-query?name=" + wsDomain + L"&type=A"; // Type A is IPv4 resolve
 
     // Open a WinHTTP session with a custom user-agent
@@ -174,7 +174,6 @@ std::string Sender::DoHQuery(const std::string& domain)
         response.append(buffer.data(), bytesRead);
     }
 
-    //puts(response.c_str()); // TEMP FOR DEBUGGING
     return response;
 }
 
@@ -183,9 +182,6 @@ bool Sender::sendDNSResponse(const Packet& dnsQuery)
     // First get the DoH response
     const std::string& question = static_cast<DNSMessage*>(dnsQuery.applicationData)->questions.front();
     const std::string dohResponse = DoHQuery(question);
-
-    puts("\n\n----RESPONSE----\n\n");
-    puts(dohResponse.c_str());
 
     // Then write the response OVER the original DNS query
     DNSMessage* responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
@@ -209,6 +205,7 @@ bool Sender::sendDNSResponse(const Packet& dnsQuery)
     response.append_range(constructDNSPayload(*responseDNS));
 
 
+    // Open a socket to send the response (and bind it to port 53)
     SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     constexpr sockaddr_in socketAddr = Helper::getLocalhostDnsAddr();
     bind(sendSocket, reinterpret_cast<const sockaddr*>(&socketAddr), sizeof(socketAddr));
@@ -218,7 +215,7 @@ bool Sender::sendDNSResponse(const Packet& dnsQuery)
     
     int sendResult = sendto(sendSocket,
                             response.data(),
-                            response.size(),
+                            static_cast<int>(response.size()),
                             0,
                             reinterpret_cast<const sockaddr*>(&clientAddr),
                             sizeof(clientAddr));
@@ -328,7 +325,7 @@ WinHttpHandle::WinHttpHandle(HINTERNET handle) :
 
 WinHttpHandle::~WinHttpHandle() noexcept
 {
-    if (m_handle)
+    if (m_handle) // Function expects a valid handle
         WinHttpCloseHandle(m_handle);
 }
 

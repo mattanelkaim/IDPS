@@ -1,6 +1,8 @@
+#include <version>
 #include "Layers.h"
 #include <ostream>
 #include <stdexcept> // std::runtime_error
+#include <ranges>
 
 // 4m=underline, 0m=reset ANSI
 #define FIELD(name) "\033[4m" name "\033[0m: "
@@ -228,7 +230,7 @@ constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept 
 {
     // Get the data length, then extract the data
     const uint16_t dataLength = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
-    data.assign(rawData.data() + 12, rawData.data() + 12 + dataLength);
+    data.assign_range(rawData.subspan(12, dataLength));
 }
 
 
@@ -260,17 +262,21 @@ constexpr in_addr DNSMessage::getResolvedIP() const noexcept
     return {0}; // Invalid IP
 }
 
-constexpr std::string DNSMessage::parseDomainName(const std::span<const uint8_t> rawData, size_t& offset) noexcept
+constexpr std::string DNSMessage::parseDomainName(std::span<const uint8_t> rawData, size_t& offset)
 {
     std::string domainName;
 
     // Append each label to the domain name, separated by dots
     while (rawData[offset] != 0) // Loop until null terminator
     {
-        const uint8_t labelLength = rawData[offset]; // A single byte indicates the label length
-        domainName.append(reinterpret_cast<const char*>(rawData.data() + offset + 1), labelLength);
+        // Extract label length (1 byte) and increment to the label itself
+        const uint8_t labelLength = rawData[offset++];
+
+        // Append the label with a '.'
+        domainName.append_range(rawData.subspan(offset, labelLength));
         domainName += ".";
-        offset += labelLength + 1;
+
+        offset += labelLength;
     }
 
     ++offset; // Skip the null terminator
@@ -278,28 +284,20 @@ constexpr std::string DNSMessage::parseDomainName(const std::span<const uint8_t>
     return domainName;
 }
 
-std::vector<uint8_t> DNSMessage::deserializeDomainName(std::span<const uint8_t> domain)
+std::vector<uint8_t> DNSMessage::deserializeDomainName(std::span<const uint8_t> domain) noexcept
 {
     std::vector<uint8_t> rawData;
     rawData.reserve(domain.size() + 2); // Reserve enough space for the domain name and null terminator
 
-    //
-    size_t start = 0;
-    while (start < domain.size())
+    for (auto label : std::views::split(domain, '.'))
     {
-        size_t end = start;
-        while (end < domain.size() && domain[end] != '.')
-        {
-            ++end;
-        }
+        // Insert label length
+        rawData.push_back(static_cast<uint8_t>(label.size()));
 
-        size_t length = end - start;
-        rawData.push_back(static_cast<uint8_t>(length));
-        rawData.insert(rawData.end(), domain.begin() + start, domain.begin() + start + length);
-
-        start = end + 1; // Move past the dot
+        // Append the label bytes
+        rawData.append_range(label);
     }
-
+    
     rawData.push_back(0); // Null terminator
     return rawData;
 }
@@ -309,6 +307,7 @@ constexpr std::vector<DNSRecord> DNSMessage::parseRecords(std::span<const uint8_
     std::vector<DNSRecord> records;
     for (int i = 0; i < count; ++i)
     {
+        // Call DNSRecord ctor with a span of its record data
         records.emplace_back(rawData.subspan(offset));
         offset += 12 + records.back().data.size(); // Skip the header and data part
     }
