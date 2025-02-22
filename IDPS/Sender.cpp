@@ -177,13 +177,11 @@ std::string Sender::DoHQuery(const std::string& domain)
     return response;
 }
 
-bool Sender::sendDNSResponse(const Packet& dnsQuery)
+void Sender::sendDNSResponse(const Packet& dnsQuery)
 {
     // First get the DoH response
     const std::string& question = static_cast<DNSMessage*>(dnsQuery.applicationData)->questions.front();
     const std::string dohResponse = DoHQuery(question);
-
-    puts(dohResponse.c_str());
 
     // Then write the response OVER the original DNS query
     DNSMessage* responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
@@ -215,15 +213,15 @@ bool Sender::sendDNSResponse(const Packet& dnsQuery)
     sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
     clientAddr.sin_port = std::byteswap(dnsQuery.transportHeader->srcPort); // Send the response to the source port
     
+    // Send the response
     int sendResult = sendto(sendSocket,
                             response.data(),
                             static_cast<int>(response.size()),
-                            0,
+                            0, // Reserve or some shit
                             reinterpret_cast<const sockaddr*>(&clientAddr),
                             sizeof(clientAddr));
 
-    closesocket(sendSocket);
-    return false;
+    closesocket(sendSocket); // Not RAII because no exceptions can be thrown since socket creation
 }
 
 std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
@@ -275,7 +273,7 @@ std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
             // Update the name with its offset
             nameOffsets.emplace(std::string(std::from_range, record.data), lastOffset);
         }
-        else // Unsupported type
+        else // Unsupported type (very unlikely)
         {
             throw std::runtime_error("Unsupported DNS record type");
         }

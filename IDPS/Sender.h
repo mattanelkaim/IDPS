@@ -21,7 +21,7 @@ public:
     static bool SendPing(const in_addr target) noexcept;
     static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
     static std::string DoHQuery(const std::string& domain);
-    static bool sendDNSResponse(const Packet& response);
+    static void sendDNSResponse(const Packet& response);
     static std::vector<uint8_t> constructDNSPayload(const DNSMessage& message);
 
 private:
