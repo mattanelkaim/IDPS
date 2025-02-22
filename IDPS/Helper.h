@@ -110,6 +110,7 @@ namespace Helper
     {
         in_addr addr;
         inet_pton(AF_INET, ip.data(), &addr);
+        addr.s_addr = toBigEndian(addr.s_addr);
         return addr;
     }
 
@@ -118,9 +119,9 @@ namespace Helper
     constexpr std::string ipToStr(T ip) noexcept
     {
         if constexpr (std::same_as<T, in_addr>)
-            ip.s_addr = ip.s_addr;
-        else
-            ip = ntohl(ip);
+            ip.s_addr = toBigEndian(ip.s_addr);
+        else // ULONG
+            ip = toBigEndian(ip);
 
         char ipStr[INET_ADDRSTRLEN] = {0};
         inet_ntop(AF_INET, &ip, ipStr, INET_ADDRSTRLEN);

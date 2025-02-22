@@ -1,8 +1,7 @@
-#include <version>
 #include "Layers.h"
 #include <ostream>
-#include <stdexcept> // std::runtime_error
 #include <ranges>
+#include <stdexcept> // std::runtime_error
 
 // 4m=underline, 0m=reset ANSI
 #define FIELD(name) "\033[4m" name "\033[0m: "
@@ -58,8 +57,8 @@ IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
     this->identification = Helper::toBigEndian(this->identification);
     this->flagsAndFragmentOffset = Helper::toBigEndian(this->flagsAndFragmentOffset);
     this->checksum = Helper::toBigEndian(this->checksum);
-    //this->srcIP.s_addr = Helper::toBigEndian(this->srcIP.s_addr);
-    //this->dstIP.s_addr = Helper::toBigEndian(this->dstIP.s_addr);
+    this->srcIP.s_addr = Helper::toBigEndian(this->srcIP.s_addr);
+    this->dstIP.s_addr = Helper::toBigEndian(this->dstIP.s_addr);
 }
 
 std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
@@ -94,8 +93,8 @@ ArpHeader::ArpHeader(const std::span<const uint8_t> rawData)
     this->hardwareType = Helper::toBigEndian(this->hardwareType);
     this->protocolType = Helper::toBigEndian(this->protocolType);
     this->opcode = Helper::toBigEndian(this->opcode);
-    //this->senderIP.s_addr = Helper::toBigEndian(this->senderIP.s_addr);
-    //this->targetIP.s_addr = Helper::toBigEndian(this->targetIP.s_addr);
+    this->senderIP.s_addr = Helper::toBigEndian(this->senderIP.s_addr);
+    this->targetIP.s_addr = Helper::toBigEndian(this->targetIP.s_addr);
 }
 
 std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)

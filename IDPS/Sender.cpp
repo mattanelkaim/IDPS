@@ -76,7 +76,6 @@ mac Sender::SendARPRequest(const in_addr target) noexcept
     return macAddress;
 }
 
-
 bool Sender::SendPing(const in_addr target) noexcept
 {
     // Create the ICMP context.
@@ -117,18 +116,14 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     in_addr currAddr = std::bit_cast<in_addr>(Helper::getMinAddress(localIpData)); // Need to bit_cast because of union
 
     std::vector<in_addr> onlineAddresses;
-    std::vector<std::thread> threads;
+    std::vector<std::jthread> threads;
 
     for (; currAddr.s_addr < maxAddr; ++currAddr.s_addr)
     {
-        threads.push_back(std::thread([&onlineAddresses, currAddr]() {
+        threads.push_back(std::jthread([&onlineAddresses, currAddr]() {
             if (SendPing(currAddr)) onlineAddresses.push_back(currAddr);
-                                      }));
+        }));
     }
-
-    // Wait for all threads to finish
-    for (auto& thread : threads)
-        thread.join();
 
     return onlineAddresses;
 }
@@ -261,7 +256,7 @@ std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
 
             // Currently data stores IP as 1 byte for each digit. Use helper so that each byte will represent an IP byte
             const in_addr ip = Helper::strToIp(std::string(std::from_range, record.data));
-            Helper::insertDwordToBytes(payload, Helper::toBigEndian(ip.s_addr));
+            Helper::insertDwordToBytes(payload, ip.s_addr);
         }
         else if (record.type == DNSTypes::CNAME) // Canonical name
         {

@@ -1,9 +1,9 @@
+#include "Detector.h"
+#include "PacketExtractor.h"
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
 #include "Sender.h"
-#include "PacketExtractor.h"
 #include "WSAInitializer.h"
-#include "Sender.h"
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
