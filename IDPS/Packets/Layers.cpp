@@ -291,6 +291,8 @@ std::vector<uint8_t> DNSMessage::deserializeDomainName(std::span<const uint8_t> 
 
     for (auto label : std::views::split(domain, '.'))
     {
+        if (!label) continue; // Skip empty labels (some domains end with a dot)
+
         // Insert label length
         rawData.push_back(static_cast<uint8_t>(label.size()));
 

@@ -72,8 +72,10 @@ int main()
 {
     WSAInitializer wsaInit;
 
-    std::vector<uint8_t> buffer = readFile("Example Sniffs/dns packet.bin");
+    std::vector<uint8_t> buffer = readFile("Example Sniffs/dns response.bin");
     Packet packet(buffer, false);
 
     Sender::sendDNSResponse(packet);
+
+    //std::cout << Sender::DoHQuery("catalog.gamepass.com") << '\n';
 }

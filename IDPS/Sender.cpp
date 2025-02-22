@@ -183,6 +183,8 @@ bool Sender::sendDNSResponse(const Packet& dnsQuery)
     const std::string& question = static_cast<DNSMessage*>(dnsQuery.applicationData)->questions.front();
     const std::string dohResponse = DoHQuery(question);
 
+    puts(dohResponse.c_str());
+
     // Then write the response OVER the original DNS query
     DNSMessage* responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
     responseDNS->answers = extractDNSRecordsFromJson(dohResponse, "Answer");
@@ -246,7 +248,7 @@ std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
     for (const DNSRecord& record : message.answers)
     {
         // Offset is 14-bits long, so we need to split it into 2 bytes
-        const uint16_t current = nameOffsets[std::get<std::string>(record.name)];
+        const uint16_t current = nameOffsets.at(std::get<std::string>(record.name));
         payload.push_back((current >> 12) | 0b11000000); // First 2 bits are set
         payload.push_back(current & 0xFF);
 
@@ -254,7 +256,7 @@ std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
         Helper::insertWordToBytes(payload, record.recordClass);
         Helper::insertDwordToBytes(payload, record.ttl);
 
-        if (record.recordClass == DNSTypes::A) // IPv4 address
+        if (record.type == DNSTypes::A) // IPv4 address
         {
             // Length is 4 (IPv4 address)
             Helper::insertWordToBytes(payload, 4);
@@ -263,21 +265,23 @@ std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
             const in_addr ip = Helper::strToIp(std::string(std::from_range, record.data));
             Helper::insertDwordToBytes(payload, Helper::toBigEndian(ip.s_addr));
         }
-        else if (record.recordClass == DNSTypes::CNAME) // Canonical name
+        else if (record.type == DNSTypes::CNAME) // Canonical name
         {
-            // Length is the length of the domain name
-            Helper::insertWordToBytes(payload, static_cast<uint16_t>(record.data.size()));
-            payload.append_range(DNSMessage::deserializeDomainName(record.data));
+            // Deserialize domain and append its length and data to the payload
+            std::vector<uint8_t> domain = DNSMessage::deserializeDomainName(record.data);
+            Helper::insertWordToBytes(payload, static_cast<uint16_t>(domain.size()));
+            payload.append_range(std::move(domain));
+
+            // Update the name with its offset
+            nameOffsets.emplace(std::string(std::from_range, record.data), lastOffset);
         }
         else // Unsupported type
         {
             throw std::runtime_error("Unsupported DNS record type");
         }
 
-        const std::string data(std::from_range, record.data);
-        nameOffsets.emplace(data, lastOffset);
         // 12 (fields lengths) + 2 (null and first dot) + name.size()
-        lastOffset += 14 + static_cast<uint16_t>(data.size());
+        lastOffset += 14 + static_cast<uint16_t>(record.data.size());
     }
 
     return payload;
@@ -299,11 +303,16 @@ std::vector<DNSRecord> Sender::extractDNSRecordsFromJson(std::string_view dohRes
         {
             if (entry.contains("name") && entry.contains("type") && entry.contains("TTL") && entry.contains("data")) [[likely]]
             {
+                // Handle cases where the data ends with a dot (for some reason)
+                std::string data = entry["data"].get<std::string>();
+                if (data.back() == '.')
+                    data.pop_back();
+
                 records.emplace_back(
                     entry["name"].get<std::string>(),
                     entry["type"].get<uint16_t>(),
                     entry["TTL"].get<uint32_t>(),
-                    entry["data"].get<std::string>()
+                    std::move(data)
                 );
             }
         }
