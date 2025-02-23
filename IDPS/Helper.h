@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string_view>
 #include <string>
+#include <vector>
 #include <WS2tcpip.h>
 #include <IPTypes.h>
 
@@ -14,6 +15,12 @@ constexpr std::string_view INTERFACE_NAME1 = "Intel(R) Wi-Fi 6 AX201 160MHz";
 constexpr std::string_view INTERFACE_NAME2 = "Realtek PCIe GbE Family Controller";
 constexpr std::string_view INTERFACE_NAME3 = "Intel(R) PRO/1000 MT Desktop Adapter";
 constexpr std::string_view INTERFACE_NAME4 = "Microsoft Kernel Debug Network Adapter";
+
+
+enum ProtocolCode_32 : uint32_t
+{
+    NULL_IPV4 = 0x0002,
+};
 
 enum ProtocolCode_16 : uint16_t
 {
@@ -25,6 +32,8 @@ enum ProtocolCode_16 : uint16_t
 enum ProtocolCode_8 : uint8_t
 {
     NONE = 0, // Used for ARP packets
+    ETHERNET = 1, // Arbitrary
+    LOOPBACK = 2, // Arbitrary
     TCP = 0x06,
     UDP = 0x11,
 };
@@ -36,6 +45,7 @@ enum ArpOpcode : uint16_t
     // Other currently useless opcodes until #25
 };
 
+// General concept to help with type checking
 template <typename T, typename... U>
 concept IsAnyOf = (std::same_as<T, U> || ...);
 
@@ -80,7 +90,7 @@ constexpr mac invalidMac("00:00:00:00:00:00");
 namespace Helper
 {
     template <typename T>
-    requires (std::integral<T> || IsAnyOf<T, ProtocolCode_16, ArpOpcode>)
+    requires (std::integral<T> || IsAnyOf<T, ProtocolCode_16, ArpOpcode, ProtocolCode_32>)
     constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
@@ -89,6 +99,8 @@ namespace Helper
         {
             if constexpr (std::integral<T>)
                 return std::byteswap(val);
+            else if constexpr (std::same_as<T, ProtocolCode_32>)
+                return static_cast<T>(std::byteswap(static_cast<uint32_t>(val)));
             else
                 return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
         }
@@ -96,11 +108,12 @@ namespace Helper
 
 
     // Function to convert string IP to unsigned long
-    inline ULONG ipToLong(const std::string_view ip) noexcept
+    inline in_addr strToIp(const std::string_view ip) noexcept
     {
         in_addr addr;
         inet_pton(AF_INET, ip.data(), &addr);
-        return ntohl(addr.s_addr);
+        addr.s_addr = toBigEndian(addr.s_addr);
+        return addr;
     }
 
     // Function to convert unsigned long to string IP
@@ -108,9 +121,9 @@ namespace Helper
     constexpr std::string ipToStr(T ip) noexcept
     {
         if constexpr (std::same_as<T, in_addr>)
-            ip.s_addr = ntohl(ip.s_addr);
-        else
-            ip = ntohl(ip);
+            ip.s_addr = toBigEndian(ip.s_addr);
+        else // ULONG
+            ip = toBigEndian(ip);
 
         char ipStr[INET_ADDRSTRLEN] = {0};
         inet_ntop(AF_INET, &ip, ipStr, INET_ADDRSTRLEN);
@@ -121,8 +134,8 @@ namespace Helper
     template <IsAnyOf<ULONG, std::string> T>
     inline T getBroadcastAddress(const IP_ADDR_STRING& ipAddrString) noexcept
     {
-        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
-        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
+        const ULONG ipLong = strToIp(ipAddrString.IpAddress.String).s_addr;
+        const ULONG maskLong = strToIp(ipAddrString.IpMask.String).s_addr;
 
         // Calculate the broadcast address
         const ULONG broadcastLong = ipLong | (~maskLong);
@@ -135,10 +148,35 @@ namespace Helper
 
     inline ULONG getMinAddress(const IP_ADDR_STRING& ipAddrString) noexcept
     {
-        const ULONG ipLong = ipToLong(ipAddrString.IpAddress.String);
-        const ULONG maskLong = ipToLong(ipAddrString.IpMask.String);
+        const ULONG ipLong = strToIp(ipAddrString.IpAddress.String).s_addr;
+        const ULONG maskLong = strToIp(ipAddrString.IpMask.String).s_addr;
 
         // Calculate the minimum address
         return (ipLong & maskLong) | 1;
+    }
+
+    consteval sockaddr_in getLocalhostDnsAddr() noexcept
+    {
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_port = toBigEndian((short)53); // DNS port
+        addr.sin_addr.S_un.S_un_b = {127, 0, 0, 1}; // Localhost
+
+        return addr;
+    }
+
+
+    constexpr void insertWordToBytes(std::vector<uint8_t>& vec, uint16_t word) noexcept
+    {
+        vec.push_back(word >> 8);
+        vec.push_back(word & 0xFF);
+    }
+
+    constexpr void insertDwordToBytes(std::vector<uint8_t>& vec, uint32_t dword) noexcept
+    {
+        vec.push_back(dword >> 24);
+        vec.push_back((dword >> 16) & 0xFF);
+        vec.push_back((dword >> 8) & 0xFF);
+        vec.push_back(dword & 0xFF);
     }
 } // namespace Helper

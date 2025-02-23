@@ -1,4 +1,10 @@
-#include "Distributer.h"
+#include "Detector.h"
+#include "PacketExtractor.h"
+#include "Packets/Layers.h"
+#include "Packets/Packet.h"
+#include "Sender.h"
+#include "WSAInitializer.h"
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -61,36 +67,14 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
     std::cout << std::dec << '\n';
 }
 
-
 int main()
 {
-    Distributer::getInstance().run();
+    WSAInitializer wsaInit;
+
+    std::vector<uint8_t> buffer = readFile("Example Sniffs/dns response.bin");
+    Packet packet(buffer, false);
+
+    Sender::sendDNSResponse(packet);
+
+    //std::cout << Sender::DoHQuery("catalog.gamepass.com") << '\n';
 }
-
-/*
-IP:
-Version: 4
-Header length: 5
-Type of service: 136
-Total length: 68
-Identification: 46027
-Flags: 2
-Fragment offset: 0
-Time to live: 59
-Protocol: 17
-Checksum: 0x18a8
-Source IP: 1.1.1.1
-Destination IP: 10.100.102.72
-
-TCP:
-Source port: 80
-Destination port: 21119
-Sequence number: 2120307519
-Acknowledgment Number: 4065945401
-Data Offset: 5
-Reserved: 0
-Flags: PSH ACK
-Window size: 501
-Checksum: 0xb49a
-Urgent pointer: 0
-*/

@@ -1,5 +1,6 @@
 #include "Layers.h"
 #include <ostream>
+#include <ranges>
 #include <stdexcept> // std::runtime_error
 
 // 4m=underline, 0m=reset ANSI
@@ -22,6 +23,23 @@ std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
     os << FIELD("Destination MAC") << obj.dstMAC.macToString() << '\n';
     os << FIELD("Source MAC") << obj.srcMAC.macToString() << '\n';
     os << FIELD("Ethernet type") << "0x" << std::hex << obj.etherType << std::dec << '\n';
+    return os;
+}
+
+
+LoopbackHeader::LoopbackHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(LoopbackHeader)) [[unlikely]]
+        throw std::runtime_error("Invalid Loopback header size");
+
+    // Convert to big endian if larger than a byte
+    this->loopbackType = static_cast<ProtocolCode_32>(*rawData.data());
+}
+
+
+std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj)
+{
+    os << FIELD("Loopback type") << "0x" << std::hex << obj.loopbackType << std::dec << '\n';
     return os;
 }
 
@@ -203,20 +221,17 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
 // HELPER FUNCTIONS
 
 
-constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept
+constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept :
+    name(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()))),
+    type(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2))),
+    recordClass(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 4))),
+    ttl(Helper::toBigEndian(*reinterpret_cast<const uint32_t*>(rawData.data() + 6)))
 {
-    // Parse manually name, type, class, ttl
-    name = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()));
-    type = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2));
-    recordClass = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 4));
-    ttl = Helper::toBigEndian(*reinterpret_cast<const uint32_t*>(rawData.data() + 6));
-
-    // Temporary data length
+    // Get the data length, then extract the data
     const uint16_t dataLength = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
-
-    // Extract the data
-    data.assign(rawData.data() + 12, rawData.data() + 12 + dataLength);
+    data.assign_range(rawData.subspan(12, dataLength));
 }
+
 
 DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
     header(rawData)
@@ -231,22 +246,36 @@ DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
     }
 
     // Parse Answers, Authorities, and Additional Records
-    parseRecords(rawData, offset, header.answerCount, answers);
-    parseRecords(rawData, offset, header.authorityCount, authorities);
-    parseRecords(rawData, offset, header.additionalCount, additionalRecords);
+    answers = parseRecords(rawData, offset, header.answerCount);
+    authorities = parseRecords(rawData, offset, header.authorityCount);
+    additionalRecords = parseRecords(rawData, offset, header.additionalCount);
 }
 
-constexpr std::string DNSMessage::parseDomainName(const std::span<const uint8_t> rawData, size_t& offset) noexcept
+constexpr in_addr DNSMessage::getResolvedIP() const noexcept
+{
+    for (const DNSRecord& record : answers)
+    {
+        if (record.type == 1) // Type A (IPv4 address)
+            return *reinterpret_cast<const in_addr*>(record.data.data()); // Data is stored and aligned as an in_addr
+    }
+    return {0}; // Invalid IP
+}
+
+constexpr std::string DNSMessage::parseDomainName(std::span<const uint8_t> rawData, size_t& offset)
 {
     std::string domainName;
 
     // Append each label to the domain name, separated by dots
     while (rawData[offset] != 0) // Loop until null terminator
     {
-        const uint8_t labelLength = rawData[offset]; // A single byte indicates the label length
-        domainName.append(reinterpret_cast<const char*>(rawData.data() + offset + 1), labelLength);
+        // Extract label length (1 byte) and increment to the label itself
+        const uint8_t labelLength = rawData[offset++];
+
+        // Append the label with a '.'
+        domainName.append_range(rawData.subspan(offset, labelLength));
         domainName += ".";
-        offset += labelLength + 1;
+
+        offset += labelLength;
     }
 
     ++offset; // Skip the null terminator
@@ -254,11 +283,34 @@ constexpr std::string DNSMessage::parseDomainName(const std::span<const uint8_t>
     return domainName;
 }
 
-constexpr void DNSMessage::parseRecords(const std::span<const uint8_t> rawData, size_t& offset, const uint16_t count, std::vector<DNSRecord>& records) noexcept
+std::vector<uint8_t> DNSMessage::deserializeDomainName(std::span<const uint8_t> domain) noexcept
 {
+    std::vector<uint8_t> rawData;
+    rawData.reserve(domain.size() + 2); // Reserve enough space for the domain name and null terminator
+
+    for (auto label : std::views::split(domain, '.'))
+    {
+        if (!label) continue; // Skip empty labels (some domains end with a dot)
+
+        // Insert label length
+        rawData.push_back(static_cast<uint8_t>(label.size()));
+
+        // Append the label bytes
+        rawData.append_range(label);
+    }
+    
+    rawData.push_back(0); // Null terminator
+    return rawData;
+}
+
+constexpr std::vector<DNSRecord> DNSMessage::parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept
+{
+    std::vector<DNSRecord> records;
     for (int i = 0; i < count; ++i)
     {
+        // Call DNSRecord ctor with a span of its record data
         records.emplace_back(rawData.subspan(offset));
         offset += 12 + records.back().data.size(); // Skip the header and data part
     }
+    return records;
 }

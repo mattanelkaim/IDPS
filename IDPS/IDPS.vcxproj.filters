@@ -42,11 +42,11 @@
     <ClInclude Include="Detector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Distributer.h">
+    <ClInclude Include="WSAInitializer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="DriverCommunicator.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="json.hpp">
+      <Filter>Resource Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -74,10 +74,7 @@
     <ClCompile Include="Detector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Distributer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="DriverCommunicator.cpp">
+    <ClCompile Include="WSAInitializer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
