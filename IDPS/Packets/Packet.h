@@ -10,7 +10,7 @@ class Packet
 {
 public:
     Packet(std::span<const uint8_t> rawData, bool hasTimestamp=true);
-    ~Packet();
+    ~Packet() noexcept;
 
     ProtocolCode_16 networkProtocol;
     ProtocolCode_8 transportProtocol;

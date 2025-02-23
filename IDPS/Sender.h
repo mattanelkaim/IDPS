@@ -15,16 +15,14 @@
 
 namespace Sender
 {
-public:
-    static bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept;
-    static mac SendARPRequest(const in_addr target) noexcept;
-    static bool SendPing(const in_addr target) noexcept;
-    static std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
-    static std::string DoHQuery(const std::string& domain);
-    static void sendDNSResponse(const Packet& response);
-    static std::vector<uint8_t> constructDNSPayload(const DNSMessage& message);
+    bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept;
+    mac SendARPRequest(const in_addr target) noexcept;
+    bool SendPing(const in_addr target) noexcept;
+    std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
+    std::string DoHQuery(const std::string& domain);
+    void sendDNSResponse(const Packet& response);
+    std::vector<uint8_t> constructDNSPayload(const DNSMessage& message);
 
-private:
     static std::vector<DNSRecord> extractDNSRecordsFromJson(std::string_view dohResponse, std::string_view section = "Answer");
 };
 

@@ -31,7 +31,7 @@ Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
     }
 
     // Parse NETWORK layer
-    if (this->networkProtocol == IPV4)
+    switch (this->networkProtocol)
     {
     case IPV4:
         this->networkHeader = new IPv4Header(rawData.subspan(offset, sizeof(IPv4Header)));
@@ -79,12 +79,12 @@ Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
 
 bool Packet::isArpReplyPacket() const noexcept
 {
-    return this->ethernetHeader->etherType == ARP && reinterpret_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
+    return this->networkProtocol == ARP && reinterpret_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
 }
 
 bool Packet::isIPv4Packet() const noexcept
 {
-    return this->ethernetHeader->etherType == IPV4;
+    return this->networkProtocol == IPV4;
 }
 
 bool Packet::isTcpPacket() const noexcept
@@ -103,7 +103,7 @@ bool Packet::isUdpPacket() const noexcept
     return this->transportProtocol == UDP;
 }
 
-Packet::~Packet()
+Packet::~Packet() noexcept
 {
     delete linkHeader;
     delete networkHeader;

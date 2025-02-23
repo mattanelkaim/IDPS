@@ -8,6 +8,7 @@ void Distributer::run() const
 {
     Detector& detector = Detector::getInstance();
     DriverCommunicator& driverCommunicator = DriverCommunicator::getInstance();
+    // Initialize frequently used variables only once
     in_addr srcIp;
     mac srcMac;
 
@@ -17,9 +18,12 @@ void Distributer::run() const
         {
             Packet packet(PacketExtractor::getInstance().getPacket());
 
+            if (!packet.linkHeader) // nullptr means Null protocol (loopback)
+                continue; // Ignore loopback packets
+
             if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
-                srcMac = packet.ethernetHeader->srcMAC;
+                srcMac = reinterpret_cast<EthernetHeader*>(packet.linkHeader)->srcMAC;
                 std::cout << "ARP Spoofing attack Detected!!!\n";
                 std::cout << "Blocking MAC - " << srcMac.macToString() << '\n';
                 driverCommunicator.addMacToFirewall(srcMac);
