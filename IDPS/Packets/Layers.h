@@ -4,11 +4,15 @@
 #include <cstdint>
 #include <iosfwd> // std::ostream
 #include <span>
+#include <variant>
 #include <vector>
 
 #pragma pack(push, 1) // All structs must be packed because of alignment
 
-struct EthernetHeader
+struct LinkHeader
+{};
+
+struct EthernetHeader : LinkHeader
 {
     mac dstMAC;
     mac srcMAC;
@@ -17,6 +21,15 @@ struct EthernetHeader
 public:
     explicit EthernetHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
+};
+
+struct LoopbackHeader : LinkHeader
+{
+    ProtocolCode_32 loopbackType;
+
+public:
+    explicit LoopbackHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj);
 };
 
 
@@ -124,6 +137,7 @@ struct DNSHeader
     uint16_t additionalCount;
 
 public:
+    DNSHeader() noexcept = default;
     explicit DNSHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
     static constexpr uint16_t DEFAULT_PORT = 53;
@@ -131,15 +145,22 @@ public:
 
 struct DNSRecord
 {
-    uint16_t name;
+    std::variant<uint16_t, std::string> name; // Supports both pointer and string
     uint16_t type;
-    uint16_t recordClass;
+    uint16_t recordClass = 1; // Default to IN (Internet)
     uint32_t ttl;
     //uint16_t dataLength;
     std::vector<uint8_t> data;
 
 public:
     explicit constexpr DNSRecord(std::span<const uint8_t> rawData) noexcept;
+    // TODO move to .cpp
+    constexpr DNSRecord(const std::string& name, uint16_t type, uint32_t ttl, const std::string& dataStr) noexcept :
+        name(name),
+        type(type),
+        ttl(ttl),
+        data(std::from_range, dataStr)
+    {}
 };
 
 class DNSMessage : public ApplicationData
@@ -152,10 +173,27 @@ public:
     std::vector<DNSRecord> additionalRecords;
 
     explicit DNSMessage(std::span<const uint8_t> rawData);
+    constexpr in_addr getResolvedIP() const noexcept;
+    // TODO should be constexpr, but causes linker errors
+    static std::vector<uint8_t> deserializeDomainName(std::span<const uint8_t> domain) noexcept;
 
 private:
-    constexpr std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset) noexcept;
-    constexpr void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records) noexcept;
+    constexpr static std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
+    constexpr static std::vector<DNSRecord> parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept;
+};
+
+enum DNSTypes : uint16_t
+{
+    A = 1, // IPv4 address
+    NS = 2, // Name server
+    CNAME = 5, // Canonical name
+    SOA = 6, // Start of authority zone
+    PTR = 12, // Domain name pointer
+    MX = 15, // Mail exchange
+    TXT = 16, // Text strings
+    AAAA = 28, // IPv6 address
+    SRV = 33, // Service locator
+    ANY = 255 // Wildcard
 };
 
 #pragma pack(pop)

@@ -3,16 +3,35 @@
 #include <iostream>
 
 
-Packet::Packet(const std::span<const uint8_t> rawData) :
-    ethernetHeader(new EthernetHeader(rawData.subspan(sizeof(timestamp), sizeof(EthernetHeader)))),
-    timestamp(*reinterpret_cast<const uint64_t*>(rawData.data()))
+Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
+    timestamp(hasTimestamp ? *reinterpret_cast<const uint64_t*>(rawData.data()) : 0) // Set timestamp based on flag
 {
-    std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
-    std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
-    size_t offset = sizeof(uint64_t) + sizeof(EthernetHeader);
+    if (hasTimestamp)
+        std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
+
+    // An initial offset depending on timestamp
+    size_t offset = hasTimestamp ? sizeof(timestamp) : 0;
+
+    // Try to parse link layer as loopback
+    const LoopbackHeader tempHeader(rawData.subspan(offset, sizeof(LoopbackHeader)));
+
+    // Try to parse the link layer
+    if (tempHeader.loopbackType != NULL_IPV4) [[likely]]
+    {
+        this->linkHeader = new EthernetHeader(rawData.subspan(offset, sizeof(EthernetHeader)));
+        this->networkProtocol = static_cast<EthernetHeader*>(linkHeader)->etherType;
+        std::cout << "\n\033[41mEthernet:\033[0m\n" << *static_cast<EthernetHeader*>(linkHeader) << '\n';
+        offset += sizeof(EthernetHeader);
+    }
+    else // is Loopback header
+    {
+        this->networkProtocol = IPV4;
+        std::cout << "\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n';
+        offset += sizeof(LoopbackHeader);
+    }
 
     // Parse NETWORK layer
-    switch (ethernetHeader->etherType)
+    if (this->networkProtocol == IPV4)
     {
     case IPV4:
         this->networkHeader = new IPv4Header(rawData.subspan(offset, sizeof(IPv4Header)));
@@ -54,7 +73,7 @@ Packet::Packet(const std::span<const uint8_t> rawData) :
     if (this->isDnsPacket())
     {
         this->applicationData = new DNSMessage(rawData.subspan(offset));
-        std::cout << "\033[44mDNS (header):\033[0m\n" << (*static_cast<DNSMessage*>(applicationData)).header << '\n';
+        std::cout << "\033[44mDNS (header):\033[0m\n" << static_cast<DNSMessage*>(applicationData)->header << '\n';
     }
 }
 
@@ -86,7 +105,7 @@ bool Packet::isUdpPacket() const noexcept
 
 Packet::~Packet()
 {
-    delete ethernetHeader;
+    delete linkHeader;
     delete networkHeader;
     delete transportHeader;
     delete applicationData;
