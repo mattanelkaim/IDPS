@@ -1,6 +1,6 @@
 #include "Packet.h"
+#include "../IDPSExceptions.hpp"
 #include <iostream>
-#include <stdexcept> // std::runtime_error
 
 
 Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
@@ -47,7 +47,7 @@ Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
         return; // No transport layer!
 
     default: // Probably IPv6
-        throw std::runtime_error("Unsupported network protocol");
+        throw MinorException("Unsupported network protocol");
     }
 
     // Parse TRANSPORT layer
@@ -66,14 +66,14 @@ Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
         break;
 
     default:
-        throw std::runtime_error("Unsupported transport protocol");
+        throw MinorException("Unsupported transport protocol");
     }
 
     // Parse APPLICATION layer
     if (this->isDnsPacket())
     {
         this->applicationData = new DNSMessage(rawData.subspan(offset));
-        std::cout << "\033[44mDNS (header):\033[0m\n" << static_cast<DNSMessage*>(applicationData)->header;
+        std::cout << "\033[44mDNS (header):\033[0m\n" << static_cast<DNSMessage*>(applicationData)->header << '\n';
     }
 }
 
