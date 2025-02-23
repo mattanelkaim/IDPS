@@ -14,37 +14,39 @@ Detector::Detector()
 }
 
 
-bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const
+bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const noexcept
 {
-    // Validate that packet is ARP
-    if (arpPacket.networkProtocol != ARP)
-        throw std::invalid_argument("Packet does not have an ARP header!");
-    
-    // Extract the ARP header
     const ArpHeader* arpHeader = reinterpret_cast<ArpHeader*>(arpPacket.networkHeader);
-    if (arpHeader->opcode != REPLY)
-        throw std::invalid_argument("ARP packet must be a reply!");
 
     // TODO define behavior if MAC is not in table
     return arpHeader->senderMAC == m_arpTable.getMac(arpHeader->senderIP);
 }
 
-bool Detector::isTcpNullScan(const Packet& tcpPacket)
+bool Detector::isTcpNullScan(const Packet& tcpPacket) noexcept
 {
-    // Validate that packet is TCP
-    if (tcpPacket.transportProtocol != TCP)
-        throw std::invalid_argument("Packet does not use the TCP protocol!");
-
     return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
-bool Detector::isDNSSpoofing(const Packet& dnsPacket)
+bool Detector::isDoS(const Packet& ipPacket) noexcept
 {
+    const uint32_t srcIp = reinterpret_cast<IPv4Header*>(ipPacket.networkHeader)->srcIP.s_addr;
 
-    // validate ip.src to be a trusted DNS address
-    // send the same DNS request *OVER HTTPS* and validate the responses
+    // Inserting IP if it is new (insert with counter=1)
+    if (!m_dosMap.contains(srcIp))
+    {
+        m_dosMap.insert({ srcIp, { ipPacket.timestamp, 1 } });
+        return false;
+    }
 
-    return false;
+    // 100 packets per second from a single source is considered a DoS attack
+    else if ((ipPacket.timestamp - m_dosMap[srcIp].first) > ONE_SECOND)
+    {
+        m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
+        return false;
+    }
+
+    // Incrementing the counter and checking if the threshold was reached
+    return (++std::get<1>(m_dosMap[srcIp]) >= DOS_THRESHOLD);
 }
 
 

@@ -8,7 +8,6 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <string>
 #include <vector>
 
 static std::vector<uint8_t> readFile(const std::string& filename)

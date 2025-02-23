@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../Driver/LayerHandles.h"
 #include <cstdint>
 #include <mutex>
 #include <queue>
@@ -10,25 +9,23 @@
 class PacketExtractor final
 {
 private:
-	std::mutex m_queueMutex;
-	std::queue<std::vector<char>> m_packetQueue;
-	std::thread m_extractorThread;
-	HANDLE m_deviceHandle;
+    std::mutex m_queueMutex;
+    std::queue<std::vector<uint8_t>> m_packetQueue;
+    std::thread m_extractorThread;
 
-	// private methods
-	PacketExtractor();
-	void threadRoutine();
-	void truncatePacketFile() const;
-	static bool areBytesAvailable(std::ifstream& file, uint16_t numBytes) noexcept;
+    // private methods
+    PacketExtractor();
+    void threadRoutine();
+    static bool areBytesAvailable(std::ifstream& file, uint16_t numBytes) noexcept;
 
 public:
-	// singelton methods
-	~PacketExtractor() noexcept;
-	static PacketExtractor& getInstance() noexcept;
-	PacketExtractor(const PacketExtractor& other) = delete;
-	void operator=(const PacketExtractor& other) = delete;
+    // Singleton methods
+    ~PacketExtractor() noexcept = default;
+    static PacketExtractor& getInstance() noexcept;
+    PacketExtractor(const PacketExtractor& other) = delete;
+    void operator=(const PacketExtractor& other) = delete;
 
-	// methods
-	std::vector<char> getPacket() noexcept;
+    // methods
+    std::vector<uint8_t> getPacket() noexcept;
 };
 

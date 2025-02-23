@@ -1,26 +1,20 @@
+#include "../Driver/LayerHandles.h"
 #include "PacketExtractor.h"
 #include <fstream>
-
 
 PacketExtractor::PacketExtractor() : m_extractorThread(&PacketExtractor::threadRoutine, this)
 {
     this->m_extractorThread.detach(); // letting packet extractor thread work in the background
-
-    // obtaining a device handle to the driver
-    /*this->m_deviceHandle = CreateFileW(L"\\\\.\\SnifferDeviceLink", GENERIC_ALL, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM, NULL);
-    if (this->m_deviceHandle == INVALID_HANDLE_VALUE)
-        throw std::runtime_error("Please run the driver prior to running the IDPS.");*/
 }
-
 
 void PacketExtractor::threadRoutine()
 {
-    std::ifstream packetFile("C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", std::ios::binary);
+    std::ifstream packetFile(PACKET_FILE_PATH, std::ios::binary);
     if (!packetFile.is_open())
         throw std::runtime_error("Error opening packet file.");
 
     uint16_t packetSize = 0;
-    std::vector<char> rawPacket;
+    std::vector<uint8_t> rawPacket;
     bool pending = false;
 
     while (true)
@@ -31,7 +25,7 @@ void PacketExtractor::threadRoutine()
 
             // truncate the file every time the thread reaches its end
             if (packetFile.tellg() != std::ios::beg)
-                //truncatePacketFile();
+                //DeviceCommunicator::getInstance().truncateFile();
 
             packetFile.seekg(0, std::ios::beg);
             // locking the queue until new packets arrive
@@ -44,11 +38,11 @@ void PacketExtractor::threadRoutine()
         }
 
         // reading packet size and data
-        while (!this->areBytesAvailable(packetFile, sizeof(packetSize))); { (void)0; }
+        while (!this->areBytesAvailable(packetFile, sizeof(packetSize))) { (void)0; }
         packetFile.read(reinterpret_cast<char*>(&packetSize), sizeof(packetSize));
         rawPacket.resize(packetSize);
-        while (!this->areBytesAvailable(packetFile, packetSize)); { (void)0; }
-        packetFile.read(rawPacket.data(), packetSize);
+        while (!this->areBytesAvailable(packetFile, packetSize)) { (void)0; }
+        packetFile.read(reinterpret_cast<char*>(rawPacket.data()), packetSize);
 
         if (pending)
             pending = false;
@@ -60,20 +54,12 @@ void PacketExtractor::threadRoutine()
     }
 }
 
-
-void PacketExtractor::truncatePacketFile() const
-{
-    if (!DeviceIoControl(m_deviceHandle, IOCTL_TRUNCATE_FILE, NULL, 0, NULL, 0, NULL, NULL)) [[unlikely]]
-        throw std::runtime_error("Please run the driver prior to running the IDPS.");
-}
-
-
-std::vector<char> PacketExtractor::getPacket() noexcept
+std::vector<uint8_t> PacketExtractor::getPacket() noexcept
 {
     // loading new packet
-	while (this->m_packetQueue.empty()); { (void)0; }
+    while (this->m_packetQueue.empty()); { (void)0; }
     this->m_queueMutex.lock();
-    const std::vector<char> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
+    const std::vector<uint8_t> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
     this->m_packetQueue.pop();
     this->m_queueMutex.unlock();
 
@@ -82,7 +68,6 @@ std::vector<char> PacketExtractor::getPacket() noexcept
 
 
 // HELPER FUNCTIONS
-
 
 bool PacketExtractor::areBytesAvailable(std::ifstream& file, const uint16_t numBytes) noexcept
 {
@@ -95,12 +80,6 @@ bool PacketExtractor::areBytesAvailable(std::ifstream& file, const uint16_t numB
 
 
 // SINGLETON METHODS
-
-
-PacketExtractor::~PacketExtractor() noexcept
-{
-    CloseHandle(m_deviceHandle); // No need to validate before or after closing
-}
 
 PacketExtractor& PacketExtractor::getInstance() noexcept
 {

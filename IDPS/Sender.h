@@ -13,7 +13,7 @@
 #pragma comment(lib, "winhttp.lib")
 
 
-class Sender final
+namespace Sender
 {
 public:
     static bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept;
