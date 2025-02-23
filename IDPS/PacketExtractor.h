@@ -1,7 +1,8 @@
 #pragma once
 
-#include "DriverCommunicator.h"
+#include "Windows.h"
 #include <cstdint>
+#include <exception>
 #include <mutex>
 #include <queue>
 #include <thread>

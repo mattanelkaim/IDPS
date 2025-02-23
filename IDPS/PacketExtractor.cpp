@@ -1,11 +1,13 @@
-#include "PacketExtractor.h"
+#include "DriverCommunicator.h"
 #include "IDPSExceptions.hpp"
+#include "PacketExtractor.h"
 
-PacketExtractor::PacketExtractor(std::exception_ptr& outException) : m_extractorThread(&PacketExtractor::threadRoutine, this),
-                                     m_queueMutex(),
-                                     m_hFile(INVALID_HANDLE_VALUE),
-                                                                     m_packetQueue(),
-                                                                     m_outException(outException)
+PacketExtractor::PacketExtractor(std::exception_ptr& outException) :
+    m_extractorThread(&PacketExtractor::threadRoutine, this),
+    m_queueMutex(),
+    m_hFile(INVALID_HANDLE_VALUE),
+    m_packetQueue(),
+    m_outException(outException)
 {
     this->m_extractorThread.detach(); // letting packet extractor thread work in the background
 }
@@ -15,34 +17,33 @@ void PacketExtractor::threadRoutine()
     uint8_t packetCounter = 0;
     uint16_t packetSize = 0;
     std::vector<uint8_t> rawPacket;
-    bool pending = false;
 
     // Opening the packet file
     this->openPacketFile();
 
     try
     {
-    while (true)
-    {
-        // Truncating the file every MAX_PACKET_COUNT'th packet read
-        if (packetCounter == MAX_PACKET_COUNT)
+        while (true)
         {
-            this->truncatePacketFile();
-            packetCounter = 0;
+            // Truncating the file every MAX_PACKET_COUNT'th packet read
+            if (packetCounter == MAX_PACKET_COUNT)
+            {
+                this->truncatePacketFile();
+                packetCounter = 0;
+            }
+
+            // Reading packet size and data
+            readFromFile(&packetSize, sizeof(packetSize));
+            rawPacket.resize(packetSize);
+            readFromFile(rawPacket.data(), packetSize);
+            packetCounter++;
+
+            // Pushing the new packet into the queue
+            this->m_queueMutex.lock();
+            this->m_packetQueue.push(rawPacket);
+            this->m_queueMutex.unlock();
         }
-
-        // Reading packet size and data
-        readFromFile(&packetSize, sizeof(packetSize));
-        rawPacket.resize(packetSize);
-        readFromFile(rawPacket.data(), packetSize);
-        packetCounter++;
-
-        // Pushing the new packet into the queue
-        this->m_queueMutex.lock();
-        this->m_packetQueue.push(rawPacket);
-        this->m_queueMutex.unlock();
     }
-}
     catch (...)
     {
         // Pushing dummy packet into the queue
@@ -71,7 +72,7 @@ std::vector<uint8_t> PacketExtractor::getPacket() noexcept
 void PacketExtractor::openPacketFile()
 {
     /* opening (or creating) the file with FILE_SHARE_WRITE to allow the driver to write data to the file
-       simultaneouse to the IDPS reading from it */
+       simultaneous to the IDPS reading from it */
     this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
         throw FatalException("Failed to open packet file.");
