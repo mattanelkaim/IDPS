@@ -455,7 +455,7 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
         &ioStatusBlock,
         NULL,
         FILE_ATTRIBUTE_NORMAL,
-        FILE_SHARE_WRITE,
+        FILE_SHARE_READ,
         FILE_OPEN_IF,
         FILE_SYNCHRONOUS_IO_NONALERT,
         NULL,

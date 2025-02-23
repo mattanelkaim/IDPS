@@ -2,20 +2,29 @@
 #include "Distributer.h"
 #include "DriverCommunicator.h"
 #include "PacketExtractor.h"
+#include "IDPSExceptions.hpp"
 #include <iostream>
 
 void Distributer::run() const
 {
-    Detector& detector = Detector::getInstance();
-    DriverCommunicator& driverCommunicator = DriverCommunicator::getInstance();
     in_addr srcIp;
     mac srcMac;
+    std::exception_ptr threadException;
+    PacketExtractor& packetExtractor = PacketExtractor::getInstance(threadException);
+    Detector& detector = Detector::getInstance();
+    DriverCommunicator& driverCommunicator = DriverCommunicator::getInstance();
 
     while (true)
     {
         try
         {
-            Packet packet(PacketExtractor::getInstance().getPacket());
+            const std::vector<uint8_t> rawPacketData(packetExtractor.getPacket());
+
+            // Checking if the thread threw an exception
+            if (threadException)
+                std::rethrow_exception(threadException);
+
+            Packet packet(rawPacketData);
 
             if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
@@ -50,7 +59,7 @@ void Distributer::run() const
                 
             }*/
         }
-        catch (const std::runtime_error& e)
+        catch (const MinorException& e)
         {
             std::cerr << e.what() << '\n';
         }

@@ -1,3 +1,5 @@
+#include "Distributer.h"
+#include "IDPSExceptions.hpp"
 #include "Detector.h"
 #include "PacketExtractor.h"
 #include "Packets/Layers.h"
@@ -69,6 +71,15 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
+    // try
+    // {
+    //     Distributer::getInstance().run();
+    // }
+    // catch (const FatalException& e)
+    // {
+    //     std::cerr << e.what();
+    // }
+
     WSAInitializer wsaInit;
 
     std::vector<uint8_t> buffer = readFile("Example Sniffs/dns response.bin");

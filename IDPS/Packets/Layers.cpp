@@ -1,7 +1,7 @@
 #include "Layers.h"
+#include "../IDPSExceptions.hpp"
 #include <ostream>
 #include <ranges>
-#include <stdexcept> // std::runtime_error
 
 // 4m=underline, 0m=reset ANSI
 #define FIELD(name) "\033[4m" name "\033[0m: "
@@ -9,7 +9,7 @@
 EthernetHeader::EthernetHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(EthernetHeader)) [[unlikely]]
-        throw std::runtime_error("Invalid Ethernet header size");
+        throw MinorException("Invalid Ethernet header size");
 
     // Copy raw data into the struct
     *this = *reinterpret_cast<const EthernetHeader*>(rawData.data());
@@ -47,7 +47,7 @@ std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj)
 IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(IPv4Header)) [[unlikely]]
-        throw std::runtime_error("Invalid IPv4 header size");
+        throw MinorException("Invalid IPv4 header size");
 
     // Copy raw data into the struct
     *this = *reinterpret_cast<const IPv4Header*>(rawData.data());
@@ -84,7 +84,7 @@ std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
 ArpHeader::ArpHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(ArpHeader)) [[unlikely]]
-        throw std::runtime_error("Invalid ARP header size");
+        throw MinorException("Invalid ARP header size");
 
     // Copy raw data into the struct
     *this = *reinterpret_cast<const ArpHeader*>(rawData.data());
@@ -118,7 +118,7 @@ std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
 TCPHeader::TCPHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(TCPHeader)) [[unlikely]]
-        throw std::runtime_error("Invalid TCP header size");
+        throw MinorException("Invalid TCP header size");
 
     // Copy raw data into the struct
     *this = *reinterpret_cast<const TCPHeader*>(rawData.data());
@@ -163,7 +163,7 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
 UDPHeader::UDPHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(UDPHeader)) [[unlikely]]
-        throw std::runtime_error("Invalid UDP header size");
+        throw MinorException("Invalid UDP header size");
 
     // Copy raw data into the struct
     *this = *reinterpret_cast<const UDPHeader*>(rawData.data());
@@ -190,7 +190,7 @@ std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
 DNSHeader::DNSHeader(const std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(DNSHeader)) [[unlikely]]
-        throw std::runtime_error("Invalid DNS header size");
+        throw MinorException("Invalid DNS header size");
 
     // Copy raw data into the struct
     *this = *reinterpret_cast<const DNSHeader*>(rawData.data());
