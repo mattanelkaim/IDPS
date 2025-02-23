@@ -45,6 +45,10 @@ void PacketExtractor::threadRoutine()
 }
     catch (...)
     {
+        // Pushing dummy packet into the queue
+        this->m_queueMutex.lock();
+        this->m_packetQueue.push({});
+        this->m_queueMutex.unlock();
         this->m_outException = std::current_exception();
     }
 }
@@ -68,7 +72,7 @@ void PacketExtractor::openPacketFile()
 {
     /* opening (or creating) the file with FILE_SHARE_WRITE to allow the driver to write data to the file
        simultaneouse to the IDPS reading from it */
-    this->m_hFile = CreateFileW(L"C:\\Users\\nick_\\Desktop\\VMShared\\packetFlow.bin", GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
         throw FatalException("Failed to open packet file.");
 }

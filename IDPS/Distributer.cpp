@@ -18,11 +18,13 @@ void Distributer::run() const
     {
         try
         {
-            Packet packet(packetExtractor.getPacket());
+            const std::vector<uint8_t> rawPacketData(packetExtractor.getPacket());
 
             // Checking if the thread threw an exception
             if (threadException)
                 std::rethrow_exception(threadException);
+
+            Packet packet(rawPacketData);
 
             if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
