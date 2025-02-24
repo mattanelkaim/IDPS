@@ -1,6 +1,5 @@
 #include "Detector.h"
 #include "Sender.h"
-#include <stdexcept>
 
 
 Detector::Detector()
@@ -34,13 +33,14 @@ bool Detector::isDoS(const Packet& ipPacket) noexcept
     // Inserting IP if it is new (insert with counter=1)
     if (!m_dosMap.contains(srcIp))
     {
-        m_dosMap.insert({ srcIp, { ipPacket.timestamp, 1 } });
+        m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
         return false;
     }
 
     // 100 packets per second from a single source is considered a DoS attack
     else if ((ipPacket.timestamp - m_dosMap[srcIp].first) > ONE_SECOND)
     {
+        // Reset counter
         m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
         return false;
     }

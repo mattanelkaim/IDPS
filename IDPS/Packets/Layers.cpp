@@ -1,12 +1,12 @@
-#include "Layers.h"
 #include "../IDPSExceptions.hpp"
+#include "Layers.h"
 #include <ostream>
 #include <ranges>
 
 // 4m=underline, 0m=reset ANSI
 #define FIELD(name) "\033[4m" name "\033[0m: "
 
-EthernetHeader::EthernetHeader(const std::span<const uint8_t> rawData)
+EthernetHeader::EthernetHeader(std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(EthernetHeader)) [[unlikely]]
         throw MinorException("Invalid Ethernet header size");
@@ -44,7 +44,7 @@ std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj)
 }
 
 
-IPv4Header::IPv4Header(const std::span<const uint8_t> rawData)
+IPv4Header::IPv4Header(std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(IPv4Header)) [[unlikely]]
         throw MinorException("Invalid IPv4 header size");
@@ -81,7 +81,7 @@ std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
 }
 
 
-ArpHeader::ArpHeader(const std::span<const uint8_t> rawData)
+ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(ArpHeader)) [[unlikely]]
         throw MinorException("Invalid ARP header size");
@@ -115,7 +115,7 @@ std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
 }
 
 
-TCPHeader::TCPHeader(const std::span<const uint8_t> rawData)
+TCPHeader::TCPHeader(std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(TCPHeader)) [[unlikely]]
         throw MinorException("Invalid TCP header size");
@@ -160,7 +160,7 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
 }
 
 
-UDPHeader::UDPHeader(const std::span<const uint8_t> rawData)
+UDPHeader::UDPHeader(std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(UDPHeader)) [[unlikely]]
         throw MinorException("Invalid UDP header size");
@@ -187,7 +187,7 @@ std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
 }
 
 
-DNSHeader::DNSHeader(const std::span<const uint8_t> rawData)
+DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
 {
     if (rawData.size() < sizeof(DNSHeader)) [[unlikely]]
         throw MinorException("Invalid DNS header size");
@@ -221,7 +221,7 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
 // HELPER FUNCTIONS
 
 
-constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept :
+constexpr DNSRecord::DNSRecord(std::span<const uint8_t> rawData) noexcept :
     name(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()))),
     type(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2))),
     recordClass(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 4))),
@@ -233,7 +233,7 @@ constexpr DNSRecord::DNSRecord(const std::span<const uint8_t> rawData) noexcept 
 }
 
 
-DNSMessage::DNSMessage(const std::span<const uint8_t> rawData) :
+DNSMessage::DNSMessage(std::span<const uint8_t> rawData) :
     header(rawData)
 {
     size_t offset = sizeof(DNSHeader);

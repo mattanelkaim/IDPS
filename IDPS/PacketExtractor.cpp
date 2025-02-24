@@ -5,9 +5,9 @@
 PacketExtractor::PacketExtractor(std::exception_ptr& outException) :
     m_extractorThread(&PacketExtractor::threadRoutine, this),
     m_queueMutex(),
-    m_hFile(INVALID_HANDLE_VALUE),
     m_packetQueue(),
-    m_outException(outException)
+    m_outException(outException),
+    m_hFile(INVALID_HANDLE_VALUE)
 {
     this->m_extractorThread.detach(); // letting packet extractor thread work in the background
 }
@@ -36,7 +36,7 @@ void PacketExtractor::threadRoutine()
             readFromFile(&packetSize, sizeof(packetSize));
             rawPacket.resize(packetSize);
             readFromFile(rawPacket.data(), packetSize);
-            packetCounter++;
+            ++packetCounter;
 
             // Pushing the new packet into the queue
             this->m_queueMutex.lock();
@@ -46,11 +46,11 @@ void PacketExtractor::threadRoutine()
     }
     catch (...)
     {
+        this->m_outException = std::current_exception();
         // Pushing dummy packet into the queue
         this->m_queueMutex.lock();
         this->m_packetQueue.push({});
         this->m_queueMutex.unlock();
-        this->m_outException = std::current_exception();
     }
 }
 

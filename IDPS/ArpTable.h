@@ -6,7 +6,7 @@
 #include <string_view>
 #include <unordered_map>
 
-class ArpTable
+class ArpTable final
 {
 public:
     ArpTable() noexcept = default;

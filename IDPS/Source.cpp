@@ -40,7 +40,7 @@ static std::vector<uint8_t> readFile(const std::string& filename)
     return buffer;
 }
 
-static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, const size_t second = 0, const size_t third = 0)
+static void printHexBuffer(const std::vector<uint8_t>& buffer, size_t first = 0, size_t second = 0, size_t third = 0)
 {
     size_t i = 0, sectionEnd = first;
 

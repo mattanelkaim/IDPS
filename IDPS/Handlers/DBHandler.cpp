@@ -1,5 +1,4 @@
 #include "DBHandler.h"
-#include <iostream>
 #include <string>
 
 using namespace std::literals;
@@ -41,7 +40,7 @@ void DBHandler::addAttacker(const std::string& ip, const std::string& mac)
     runQuery(sql);
 }
 
-void DBHandler::addAttack(const std::string& attacker_id, const attack_type attack_id)
+void DBHandler::addAttack(const std::string& attacker_id, attack_type attack_id)
 {
     const std::string sql = "INSERT INTO Attacks (attacker_id, attack_id) VALUES (\""s + attacker_id + "\", "s + std::to_string(static_cast<int16_t>(attack_id)) + ")";
     runQuery(sql);
@@ -51,13 +50,13 @@ void DBHandler::addAttack(const std::string& attacker_id, const attack_type atta
 // HELPER FUNCTIONS
 
 
-void DBHandler::runQuery(const std::string_view query)
+void DBHandler::runQuery(std::string_view query)
 {
     char* sqlErrorMsg = nullptr; // Will be set by sqlite3_exec() if an error occurs
 
     if (sqlite3_exec(m_db, query.data(), nullptr, nullptr, &sqlErrorMsg) != SQLITE_OK)
     {
-        std::cerr << sqlErrorMsg << '\n';
+        puts(sqlErrorMsg);
         sqlite3_free(sqlErrorMsg);
     }
 }

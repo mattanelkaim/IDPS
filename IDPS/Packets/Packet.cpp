@@ -1,9 +1,9 @@
-#include "Packet.h"
 #include "../IDPSExceptions.hpp"
+#include "Packet.h"
 #include <iostream>
 
 
-Packet::Packet(const std::span<const uint8_t> rawData, bool hasTimestamp) :
+Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp) :
     timestamp(hasTimestamp ? *reinterpret_cast<const uint64_t*>(rawData.data()) : 0) // Set timestamp based on flag
 {
     if (hasTimestamp)

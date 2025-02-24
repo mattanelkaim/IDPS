@@ -16,10 +16,10 @@
 namespace Sender
 {
     bool GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localIP) noexcept;
-    mac SendARPRequest(const in_addr target) noexcept;
-    bool SendPing(const in_addr target) noexcept;
+    mac SendARPRequest(in_addr target) noexcept;
+    bool SendPing(in_addr target) noexcept;
     std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
-    std::string DoHQuery(const std::string& domain);
+    std::string DoHQuery(std::string_view domain);
     void sendDNSResponse(const Packet& response);
     std::vector<uint8_t> constructDNSPayload(const DNSMessage& message);
 

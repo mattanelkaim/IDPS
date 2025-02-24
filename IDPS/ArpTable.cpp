@@ -5,7 +5,7 @@
 #include <vector>
 
 
-ArpTable::ArpTable(PIP_ADDR_STRING localAddress, const std::string_view fileName) :
+ArpTable::ArpTable(PIP_ADDR_STRING localAddress, std::string_view fileName) :
     m_localAddress(localAddress), m_fileName(fileName)
 {
     const std::ifstream checkFile(fileName.data());
@@ -41,10 +41,10 @@ void ArpTable::updateTable()
 }
 
 
-mac ArpTable::getMac(const in_addr ipAddr) const noexcept
+mac ArpTable::getMac(in_addr ipAddr) const noexcept
 {
     const auto it = m_table.find(ipAddr.s_addr);
-    return (it == m_table.cend()) ? invalidMac : it->second;
+    return (it == m_table.end()) ? invalidMac : it->second;
 }
 
 

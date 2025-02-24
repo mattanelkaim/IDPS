@@ -63,7 +63,7 @@ bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localI
 }
 
 
-mac Sender::SendARPRequest(const in_addr target) noexcept
+mac Sender::SendARPRequest(in_addr target) noexcept
 {
     // Prepare the ARP request structure
     mac macAddress;
@@ -76,7 +76,7 @@ mac Sender::SendARPRequest(const in_addr target) noexcept
     return macAddress;
 }
 
-bool Sender::SendPing(const in_addr target) noexcept
+bool Sender::SendPing(in_addr target) noexcept
 {
     // Create the ICMP context.
     HANDLE icmpHandle = IcmpCreateFile();
@@ -128,7 +128,7 @@ std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
     return onlineAddresses;
 }
 
-std::string Sender::DoHQuery(const std::string& domain) 
+std::string Sender::DoHQuery(std::string_view domain) 
 {
     // Cloudflare's DoH endpoint details
     constexpr std::wstring_view server = L"cloudflare-dns.com";

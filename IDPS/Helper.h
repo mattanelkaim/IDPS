@@ -56,7 +56,7 @@ public:
     uint8_t bytes[6] = {0};
 
     mac() noexcept = default;
-    constexpr explicit mac(const std::string_view macStr) noexcept
+    constexpr explicit mac(std::string_view macStr) noexcept
     {
         const char* currentByte = macStr.data();
         for (int i = 0; i < sizeof(bytes); ++i)
@@ -91,7 +91,7 @@ namespace Helper
 {
     template <typename T>
     requires (std::integral<T> || IsAnyOf<T, ProtocolCode_16, ArpOpcode, ProtocolCode_32>)
-    constexpr T toBigEndian(const T& val) noexcept // constexpr is inherently inline
+    constexpr T toBigEndian(T val) noexcept // constexpr is inherently inline
     {
         if constexpr (std::endian::native == std::endian::big)
             return val; // Already Big Endian
@@ -108,7 +108,7 @@ namespace Helper
 
 
     // Function to convert string IP to unsigned long
-    inline in_addr strToIp(const std::string_view ip) noexcept
+    inline in_addr strToIp(std::string_view ip) noexcept
     {
         in_addr addr;
         inet_pton(AF_INET, ip.data(), &addr);
