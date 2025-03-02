@@ -6,7 +6,7 @@
 Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp) :
     timestamp(hasTimestamp ? *reinterpret_cast<const Timestamp*>(rawData.data()) : 0) // Set timestamp based on flag
 {
-    if (hasTimestamp)
+    if (hasTimestamp) [[likely]]
         std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
 
     // An initial offset depending on timestamp
@@ -20,7 +20,15 @@ Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp) :
         return header;
     };
 
+    // Parse the packet layers
+    this->parseLink(rawData, offset, headerCtor);
+    if (!this->parseNetwork(headerCtor)) [[unlikely]] return; // May return early if ARP packet
+    this->parseTransport(headerCtor);
+    this->parseApplication(rawData, offset, headerCtor);
+}
 
+void Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset, auto headerCtor)
+{
     // Try to parse link layer as loopback
     const LoopbackHeader tempHeader(rawData.subspan(offset, sizeof(LoopbackHeader)));
 
@@ -32,36 +40,40 @@ Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp) :
         this->linkHeader = ethernetHeader;
         this->networkProtocol = ethernetHeader->etherType;
     }
-    else // is Loopback header
+    else // Loopback header
     {
         this->networkProtocol = IPV4; // Assume IPv4 when loopback
         offset += sizeof(LoopbackHeader);
         std::cout << "\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n';
     }
+}
 
-    // Parse NETWORK layer
+bool Packet::parseNetwork(auto headerCtor)
+{
     switch (this->networkProtocol)
     {
     case IPV4:
     {
-        std::cout << "\033[42mIP";
+        std::cout << "\033[42mIPv4";
         auto ipv4Header = headerCtor.operator()<IPv4Header>();
         this->networkHeader = ipv4Header;
         this->transportProtocol = ipv4Header->protocol;
-        break;
+        return true;
     }
 
     case ARP:
         std::cout << "\033[42mARP";
         this->networkHeader = headerCtor.operator()<ArpHeader>();
         this->transportProtocol = NONE;
-        return; // No transport layer!
+        return false; // Done parsing - no transport layer!
 
     default: // Probably IPv6
         throw MinorException("Unsupported network protocol");
     }
+}
 
-    // Parse TRANSPORT layer
+void Packet::parseTransport(auto headerCtor)
+{
     switch (this->transportProtocol)
     {
     case TCP:
@@ -77,14 +89,17 @@ Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp) :
     default:
         throw MinorException("Unsupported transport protocol");
     }
+}
 
-    // Parse APPLICATION layer
+void Packet::parseApplication(std::span<const uint8_t> rawData, const size_t& offset, auto headerCtor)
+{
     if (this->isDnsPacket())
     {
         this->applicationData = new DNSMessage(rawData.subspan(offset));
         std::cout << "\033[44mDNS (header)\033[0m:\n" << static_cast<DNSMessage*>(applicationData)->header << '\n';
     }
 }
+
 
 bool Packet::isArpReplyPacket() const noexcept
 {

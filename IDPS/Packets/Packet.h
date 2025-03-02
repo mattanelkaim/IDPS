@@ -28,4 +28,10 @@ public:
     bool isTcpPacket() const noexcept;
     bool isUdpPacket() const noexcept;
     bool isDnsPacket() const noexcept;
+
+private:
+    void parseLink(std::span<const uint8_t> rawData, size_t& offset, auto headerCtor);
+    bool parseNetwork(auto headerCtor);
+    void parseTransport(auto headerCtor);
+    void parseApplication(std::span<const uint8_t> rawData, const size_t& offset, auto headerCtor);
 };
