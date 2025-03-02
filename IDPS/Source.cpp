@@ -69,6 +69,7 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, size_t first = 0,
     std::cout << std::dec << '\n';
 }
 
+
 int main()
 {
     // try
@@ -85,7 +86,42 @@ int main()
     std::vector<uint8_t> buffer = readFile("Example Sniffs/dns response.bin");
     Packet packet(buffer, false);
 
-    Sender::sendDNSResponse(packet);
+    //Sender::sendDNSResponse(packet);
 
     //std::cout << Sender::DoHQuery("catalog.gamepass.com") << '\n';
 }
+
+/*
+Ethernet:
+Destination MAC: DC:97:E6:F6:7E:87
+Source MAC: A8:5E:45:B5:21:F4
+Ethernet type: 0x800
+
+IP:
+Version: 4
+Header length: 5
+Type of service: 0
+Total length: 66
+Identification: 49950
+Flags: 0
+Fragment offset: 0
+Time to live: 128
+Protocol: 17
+Checksum: 0x0
+Source IP: 10.100.102.4
+Destination IP: 1.1.1.1
+
+UDP:
+Source port: 56445
+Destination port: 53
+Length: 46
+Checksum: 0x72a9
+
+DNS (header):
+Transaction ID: 0xd7a8
+Flags: 0x100
+Questions: 1
+Answers: 0
+Authority records: 0
+Additional records: 0
+*/
