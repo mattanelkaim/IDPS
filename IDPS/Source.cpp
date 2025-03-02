@@ -12,10 +12,10 @@
 #include <iostream>
 #include <vector>
 
-static std::vector<uint8_t> readFile(const std::string& filename)
+static std::vector<uint8_t> readFile(std::string_view filename)
 {
     // Open raw packet file
-    std::ifstream file(filename, std::ios::binary);
+    std::ifstream file(filename.data(), std::ios::binary);
     if (!file.is_open())
     {
         std::cerr << "Failed to open file!\n";
