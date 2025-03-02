@@ -160,15 +160,19 @@ namespace Helper
 
     constexpr void insertWordToBytes(std::vector<uint8_t>& vec, uint16_t word) noexcept
     {
-        vec.push_back(word >> 8);
-        vec.push_back(word & 0xFF);
+        vec.insert(vec.end(), {
+            static_cast<uint8_t>(word >> 8),
+            static_cast<uint8_t>(word & 0xFF)
+        });
     }
 
     constexpr void insertDwordToBytes(std::vector<uint8_t>& vec, uint32_t dword) noexcept
     {
-        vec.push_back(dword >> 24);
-        vec.push_back((dword >> 16) & 0xFF);
-        vec.push_back((dword >> 8) & 0xFF);
-        vec.push_back(dword & 0xFF);
+        vec.insert(vec.end(), {
+            static_cast<uint8_t>(dword >> 24),
+            static_cast<uint8_t>((dword >> 16) & 0xFF),
+            static_cast<uint8_t>((dword >> 8) & 0xFF),
+            static_cast<uint8_t>(dword & 0xFF)
+        });
     }
 } // namespace Helper
