@@ -15,7 +15,7 @@ EthernetHeader::EthernetHeader(std::span<const uint8_t> rawData)
     *this = *reinterpret_cast<const EthernetHeader*>(rawData.data());
 
     // Convert to big endian if larger than a byte
-    this->etherType = Helper::toBigEndian(this->etherType);
+    this->etherType = Helper::byteswap(this->etherType);
 }
 
 std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
@@ -53,12 +53,12 @@ IPv4Header::IPv4Header(std::span<const uint8_t> rawData)
     *this = *reinterpret_cast<const IPv4Header*>(rawData.data());
 
     // Convert to big endian if larger than a byte
-    this->totalLength = Helper::toBigEndian(this->totalLength);
-    this->identification = Helper::toBigEndian(this->identification);
-    this->flagsAndFragmentOffset = Helper::toBigEndian(this->flagsAndFragmentOffset);
-    this->checksum = Helper::toBigEndian(this->checksum);
-    this->srcIP.s_addr = Helper::toBigEndian(this->srcIP.s_addr);
-    this->dstIP.s_addr = Helper::toBigEndian(this->dstIP.s_addr);
+    this->totalLength = Helper::byteswap(this->totalLength);
+    this->identification = Helper::byteswap(this->identification);
+    this->flagsAndFragmentOffset = Helper::byteswap(this->flagsAndFragmentOffset);
+    this->checksum = Helper::byteswap(this->checksum);
+    this->srcIP.s_addr = Helper::byteswap(this->srcIP.s_addr);
+    this->dstIP.s_addr = Helper::byteswap(this->dstIP.s_addr);
 }
 
 std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
@@ -90,11 +90,11 @@ ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
     *this = *reinterpret_cast<const ArpHeader*>(rawData.data());
 
     // Convert to big endian if larger than a byte
-    this->hardwareType = Helper::toBigEndian(this->hardwareType);
-    this->protocolType = Helper::toBigEndian(this->protocolType);
-    this->opcode = Helper::toBigEndian(this->opcode);
-    this->senderIP.s_addr = Helper::toBigEndian(this->senderIP.s_addr);
-    this->targetIP.s_addr = Helper::toBigEndian(this->targetIP.s_addr);
+    this->hardwareType = Helper::byteswap(this->hardwareType);
+    this->protocolType = Helper::byteswap(this->protocolType);
+    this->opcode = Helper::byteswap(this->opcode);
+    this->senderIP.s_addr = Helper::byteswap(this->senderIP.s_addr);
+    this->targetIP.s_addr = Helper::byteswap(this->targetIP.s_addr);
 }
 
 std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
@@ -124,13 +124,13 @@ TCPHeader::TCPHeader(std::span<const uint8_t> rawData)
     *this = *reinterpret_cast<const TCPHeader*>(rawData.data());
 
     // Convert to big endian if larger than a byte
-    this->srcPort = Helper::toBigEndian(this->srcPort);
-    this->dstPort = Helper::toBigEndian(this->dstPort);
-    this->checksum = Helper::toBigEndian(this->checksum);
-    this->seqNumber = Helper::toBigEndian(this->seqNumber);
-    this->ackNumber = Helper::toBigEndian(this->ackNumber);
-    this->windowSize = Helper::toBigEndian(this->windowSize);
-    this->urgentPointer = Helper::toBigEndian(this->urgentPointer);
+    this->srcPort = Helper::byteswap(this->srcPort);
+    this->dstPort = Helper::byteswap(this->dstPort);
+    this->checksum = Helper::byteswap(this->checksum);
+    this->seqNumber = Helper::byteswap(this->seqNumber);
+    this->ackNumber = Helper::byteswap(this->ackNumber);
+    this->windowSize = Helper::byteswap(this->windowSize);
+    this->urgentPointer = Helper::byteswap(this->urgentPointer);
 }
 
 std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
@@ -169,10 +169,10 @@ UDPHeader::UDPHeader(std::span<const uint8_t> rawData)
     *this = *reinterpret_cast<const UDPHeader*>(rawData.data());
 
     // Convert to big endian if larger than a byte
-    this->srcPort = Helper::toBigEndian(this->srcPort);
-    this->dstPort = Helper::toBigEndian(this->dstPort);
-    this->length = Helper::toBigEndian(this->length);
-    this->checksum = Helper::toBigEndian(this->checksum);
+    this->srcPort = Helper::byteswap(this->srcPort);
+    this->dstPort = Helper::byteswap(this->dstPort);
+    this->length = Helper::byteswap(this->length);
+    this->checksum = Helper::byteswap(this->checksum);
 }
 
 std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
@@ -196,12 +196,12 @@ DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
     *this = *reinterpret_cast<const DNSHeader*>(rawData.data());
 
     // Convert to big endian if larger than a byte
-    this->transactionID = Helper::toBigEndian(this->transactionID);
-    this->flags = Helper::toBigEndian(this->flags);
-    this->questionCount = Helper::toBigEndian(this->questionCount);
-    this->answerCount = Helper::toBigEndian(this->answerCount);
-    this->authorityCount = Helper::toBigEndian(this->authorityCount);
-    this->additionalCount = Helper::toBigEndian(this->additionalCount);
+    this->transactionID = Helper::byteswap(this->transactionID);
+    this->flags = Helper::byteswap(this->flags);
+    this->questionCount = Helper::byteswap(this->questionCount);
+    this->answerCount = Helper::byteswap(this->answerCount);
+    this->authorityCount = Helper::byteswap(this->authorityCount);
+    this->additionalCount = Helper::byteswap(this->additionalCount);
 }
 
 std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
@@ -222,13 +222,13 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
 
 
 constexpr DNSRecord::DNSRecord(std::span<const uint8_t> rawData) noexcept :
-    name(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data()))),
-    type(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 2))),
-    recordClass(Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 4))),
-    ttl(Helper::toBigEndian(*reinterpret_cast<const uint32_t*>(rawData.data() + 6)))
+    name(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data()))),
+    type(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 2))),
+    recordClass(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 4))),
+    ttl(Helper::byteswap(*reinterpret_cast<const uint32_t*>(rawData.data() + 6)))
 {
     // Get the data length, then extract the data
-    const uint16_t dataLength = Helper::toBigEndian(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
+    const uint16_t dataLength = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
     data.assign_range(rawData.subspan(12, dataLength));
 }
 

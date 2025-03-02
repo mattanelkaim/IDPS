@@ -1,13 +1,13 @@
 #pragma once
 
-// Do NOT sort these includes
 #include <bit>
 #include <charconv>
 #include <concepts>
 #include <cstdint>
-#include <string_view>
 #include <string>
+#include <string_view>
 #include <vector>
+// Do NOT sort these includes
 #include <WS2tcpip.h>
 #include <IPTypes.h>
 
@@ -15,7 +15,6 @@ constexpr std::string_view INTERFACE_NAME1 = "Intel(R) Wi-Fi 6 AX201 160MHz";
 constexpr std::string_view INTERFACE_NAME2 = "Realtek PCIe GbE Family Controller";
 constexpr std::string_view INTERFACE_NAME3 = "Intel(R) PRO/1000 MT Desktop Adapter";
 constexpr std::string_view INTERFACE_NAME4 = "Microsoft Kernel Debug Network Adapter";
-
 
 enum ProtocolCode_32 : uint32_t
 {
@@ -90,20 +89,13 @@ constexpr mac invalidMac("00:00:00:00:00:00");
 namespace Helper
 {
     template <typename T>
-    requires (std::integral<T> || IsAnyOf<T, ProtocolCode_16, ArpOpcode, ProtocolCode_32>)
-    constexpr T toBigEndian(T val) noexcept // constexpr is inherently inline
+    requires (std::integral<T> || std::is_enum_v<T>)
+    constexpr T byteswap(T val) noexcept // constexpr is inherently inline
     {
-        if constexpr (std::endian::native == std::endian::big)
-            return val; // Already Big Endian
-        else // Swap bytes to Big Endian
-        {
-            if constexpr (std::integral<T>)
-                return std::byteswap(val);
-            else if constexpr (std::same_as<T, ProtocolCode_32>)
-                return static_cast<T>(std::byteswap(static_cast<uint32_t>(val)));
-            else
-                return static_cast<T>(std::byteswap(static_cast<uint16_t>(val)));
-        }
+        if constexpr (std::integral<T>)
+            return std::byteswap(val);
+        else // Enum - cast to underlying (integral) type
+            return static_cast<T>(std::byteswap(static_cast<std::underlying_type_t<T>>(val)));
     }
 
 
@@ -112,7 +104,7 @@ namespace Helper
     {
         in_addr addr;
         inet_pton(AF_INET, ip.data(), &addr);
-        addr.s_addr = toBigEndian(addr.s_addr);
+        addr.s_addr = byteswap(addr.s_addr);
         return addr;
     }
 
@@ -121,9 +113,9 @@ namespace Helper
     constexpr std::string ipToStr(T ip) noexcept
     {
         if constexpr (std::same_as<T, in_addr>)
-            ip.s_addr = toBigEndian(ip.s_addr);
+            ip.s_addr = byteswap(ip.s_addr);
         else // ULONG
-            ip = toBigEndian(ip);
+            ip = byteswap(ip);
 
         char ipStr[INET_ADDRSTRLEN] = {0};
         inet_ntop(AF_INET, &ip, ipStr, INET_ADDRSTRLEN);
@@ -159,7 +151,7 @@ namespace Helper
     {
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
-        addr.sin_port = toBigEndian((short)53); // DNS port
+        addr.sin_port = byteswap(53i16); // DNS port
         addr.sin_addr.S_un.S_un_b = {127, 0, 0, 1}; // Localhost
 
         return addr;

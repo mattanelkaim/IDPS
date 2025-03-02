@@ -188,12 +188,12 @@ void Sender::sendDNSResponse(const Packet& dnsQuery)
 
     // Construct the response header (swap all bytes back to little endian)
     DNSHeader& header = responseDNS->header; // For convenience
-    header.transactionID = Helper::toBigEndian(header.transactionID);
-    header.flags = Helper::toBigEndian(0x8180Ui16); // Set the flags to indicate a response
-    header.questionCount = Helper::toBigEndian(header.questionCount);
-    header.answerCount = Helper::toBigEndian(static_cast<uint16_t>(responseDNS->answers.size()));
-    header.authorityCount = Helper::toBigEndian(static_cast<uint16_t>(responseDNS->authorities.size()));
-    header.additionalCount = Helper::toBigEndian(static_cast<uint16_t>(responseDNS->additionalRecords.size()));
+    header.transactionID = Helper::byteswap(header.transactionID);
+    header.flags = Helper::byteswap(0x8180Ui16); // Set the flags to indicate a response
+    header.questionCount = Helper::byteswap(header.questionCount);
+    header.answerCount = Helper::byteswap(static_cast<uint16_t>(responseDNS->answers.size()));
+    header.authorityCount = Helper::byteswap(static_cast<uint16_t>(responseDNS->authorities.size()));
+    header.additionalCount = Helper::byteswap(static_cast<uint16_t>(responseDNS->additionalRecords.size()));
 
     // Insert the header and payload to the response buffer
     std::vector<char> response(std::from_range, std::span{reinterpret_cast<char*>(&responseDNS->header), sizeof(responseDNS->header)});
