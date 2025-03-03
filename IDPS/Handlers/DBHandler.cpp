@@ -1,7 +1,5 @@
 #include "DBHandler.h"
-#include <string>
-
-using namespace std::literals;
+#include <format>
 
 bool DBHandler::openDB(const char* path) noexcept
 {
@@ -34,16 +32,14 @@ bool DBHandler::closeDB() noexcept
     return sqlite3_close(m_db) == SQLITE_OK;
 }
 
-void DBHandler::addAttacker(const std::string& ip, const std::string& mac)
+void DBHandler::addAttacker(std::string_view ip, std::string_view mac)
 {
-    const std::string sql = "INSERT INTO Attackers (IP, MAC) VALUES (\""s + ip + "\", \""s + mac + "\")";
-    runQuery(sql);
+    runQuery(std::format(R"(INSERT INTO Attackers (IP, MAC) VALUES ("{}", "{}"))", ip, mac));
 }
 
-void DBHandler::addAttack(const std::string& attacker_id, attack_type attack_id)
+void DBHandler::addAttack(std::string_view attacker_id, attack_type attack_id)
 {
-    const std::string sql = "INSERT INTO Attacks (attacker_id, attack_id) VALUES (\""s + attacker_id + "\", "s + std::to_string(static_cast<int16_t>(attack_id)) + ")";
-    runQuery(sql);
+    runQuery(std::format(R"(INSERT INTO Attacks (attacker_id, attack_id) VALUES ("{}", "{}"))", attacker_id, static_cast<uint8_t>(attack_id)));
 }
 
 

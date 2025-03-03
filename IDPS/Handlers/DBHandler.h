@@ -1,10 +1,9 @@
 #pragma once
 
 #include "../sqlite/sqlite3.h"
-#include <string>
 #include <string_view>
 
-enum attack_type
+enum attack_type : uint8_t
 {
     DDOS,
     ARP_SPOOFING,
@@ -24,8 +23,8 @@ public:
     static bool closeDB() noexcept;
 
     // updating/inserting
-    static void addAttacker(const std::string& ip, const std::string& mac);
-    static void addAttack(const std::string& attacker_id, attack_type attack_id);
+    static void addAttacker(std::string_view ip, std::string_view mac);
+    static void addAttack(std::string_view attacker_id, attack_type attack_id);
     
     // Helper functions
     static void runQuery(std::string_view query);
