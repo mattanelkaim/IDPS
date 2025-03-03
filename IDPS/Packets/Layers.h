@@ -4,11 +4,15 @@
 #include <cstdint>
 #include <iosfwd> // std::ostream
 #include <span>
+#include <variant>
 #include <vector>
 
 #pragma pack(push, 1) // All structs must be packed because of alignment
 
-struct EthernetHeader
+struct LinkHeader
+{};
+
+struct EthernetHeader : LinkHeader
 {
     mac dstMAC;
     mac srcMAC;
@@ -17,6 +21,15 @@ struct EthernetHeader
 public:
     explicit EthernetHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
+};
+
+struct LoopbackHeader : LinkHeader
+{
+    ProtocolCode_32 loopbackType;
+
+public:
+    explicit LoopbackHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj);
 };
 
 
@@ -28,16 +41,24 @@ struct NetworkHeader // Solely for grouping protocols
 
 struct IPv4Header : NetworkHeader
 {
-    uint8_t versionAndHeaderLength;
+    // uint8_t versionAndHeaderLength;
+    uint8_t headerLength : 4; // Higher nibble
+    uint8_t version : 4; // Lower nibble
     uint8_t typeOfService;
     uint16_t totalLength;
     uint16_t identification;
-    uint16_t flagsAndFragmentOffset;
-    uint8_t timeToLive;
+    union {
+        uint16_t flagsAndFragmentOffset;
+        struct {
+            uint16_t fragmentOffset : 13;
+            uint16_t flags : 3;
+        };
+    };
+    uint8_t ttl;
     ProtocolCode_8 protocol; // Indicates upper-layer (TCP | UDP)
     uint16_t checksum;
-    uint32_t srcIP;
-    uint32_t dstIP;
+    in_addr srcIP;
+    in_addr dstIP;
 
 public:
     explicit IPv4Header(std::span<const uint8_t> rawData);
@@ -62,19 +83,21 @@ public:
 };
 
 
-struct TransportHeader // Solely for grouping protocols
+struct TransportHeader
 {
-    //TransportHeader() = delete;
+    uint16_t srcPort;
+    uint16_t dstPort;
 };
 
 
 struct TCPHeader : public TransportHeader
 {
-    uint16_t srcPort;
-    uint16_t dstPort;
+    //uint16_t srcPort;
+    //uint16_t dstPort;
     uint32_t seqNumber;
     uint32_t ackNumber;
-    uint8_t dataOffsetAndReserved;
+    uint8_t reserved : 4; // Lower nibble
+    uint8_t dataOffset : 4; // Higher nibble
     uint8_t flags;
     uint16_t windowSize;
     uint16_t checksum;
@@ -87,8 +110,8 @@ public:
 
 struct UDPHeader : public TransportHeader
 {
-    uint16_t srcPort;
-    uint16_t dstPort;
+    //uint16_t srcPort;
+    //uint16_t dstPort;
     uint16_t length;
     uint16_t checksum;
 
@@ -114,6 +137,7 @@ struct DNSHeader
     uint16_t additionalCount;
 
 public:
+    DNSHeader() noexcept = default;
     explicit DNSHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
     static constexpr uint16_t DEFAULT_PORT = 53;
@@ -121,15 +145,22 @@ public:
 
 struct DNSRecord
 {
-    uint16_t name;
+    std::variant<uint16_t, std::string> name; // Supports both pointer and string
     uint16_t type;
-    uint16_t recordClass;
+    uint16_t recordClass = 1; // Default to IN (Internet)
     uint32_t ttl;
     //uint16_t dataLength;
     std::vector<uint8_t> data;
 
 public:
-    explicit DNSRecord(std::span<const uint8_t> rawData);
+    explicit constexpr DNSRecord(std::span<const uint8_t> rawData) noexcept;
+    // TODO move to .cpp
+    constexpr DNSRecord(const std::string& name, uint16_t type, uint32_t ttl, const std::string& dataStr) noexcept :
+        name(name),
+        type(type),
+        ttl(ttl),
+        data(std::from_range, dataStr)
+    {}
 };
 
 class DNSMessage : public ApplicationData
@@ -142,10 +173,27 @@ public:
     std::vector<DNSRecord> additionalRecords;
 
     explicit DNSMessage(std::span<const uint8_t> rawData);
+    constexpr in_addr getResolvedIP() const noexcept;
+    // TODO should be constexpr, but causes linker errors
+    static std::vector<uint8_t> deserializeDomainName(std::span<const uint8_t> domain) noexcept;
 
 private:
-    std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
-    void parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count, std::vector<DNSRecord>& records);
+    constexpr static std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
+    constexpr static std::vector<DNSRecord> parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept;
+};
+
+enum DNSTypes : uint16_t
+{
+    A = 1, // IPv4 address
+    NS = 2, // Name server
+    CNAME = 5, // Canonical name
+    SOA = 6, // Start of authority zone
+    PTR = 12, // Domain name pointer
+    MX = 15, // Mail exchange
+    TXT = 16, // Text strings
+    AAAA = 28, // IPv6 address
+    SRV = 33, // Service locator
+    ANY = 255 // Wildcard
 };
 
 #pragma pack(pop)

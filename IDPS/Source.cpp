@@ -1,20 +1,21 @@
+#include "Distributer.h"
+#include "IDPSExceptions.hpp"
+#include "Detector.h"
+#include "PacketExtractor.h"
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
 #include "Sender.h"
-#include "ArpTable.h"
-#include "Detector.h"
+#include "WSAInitializer.h"
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <string>
 #include <vector>
-#include <WinSock2.h>
 
-static std::vector<uint8_t> readFile(const std::string& filename)
+static std::vector<uint8_t> readFile(std::string_view filename)
 {
     // Open raw packet file
-    std::ifstream file(filename, std::ios::binary);
+    std::ifstream file(filename.data(), std::ios::binary);
     if (!file.is_open())
     {
         std::cerr << "Failed to open file!\n";
@@ -39,7 +40,7 @@ static std::vector<uint8_t> readFile(const std::string& filename)
     return buffer;
 }
 
-static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t first = 0, const size_t second = 0, const size_t third = 0)
+static void printHexBuffer(const std::vector<uint8_t>& buffer, size_t first = 0, size_t second = 0, size_t third = 0)
 {
     size_t i = 0, sectionEnd = first;
 
@@ -71,14 +72,56 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, const size_t firs
 
 int main()
 {
-    const std::vector<uint8_t> rawData = readFile("Example Sniffs/ArpReply.bin");
- 
-    printHexBuffer(rawData, sizeof(EthernetHeader), sizeof(ArpHeader));
+    // try
+    // {
+    //     Distributer::getInstance().run();
+    // }
+    // catch (const FatalException& e)
+    // {
+    //     std::cerr << e.what();
+    // }
 
-    Packet packet(rawData);
+    WSAInitializer wsaInit;
 
-    std::cout << Detector::getInstance().isArpReplyLikeTable(packet);
-    
-    //std::cout << (mac{"AA:AA:AA:BB:BB:BB"} == mac{"BB:BB:BB:AA:AA:AA"});
-    return 0;
+    std::vector<uint8_t> buffer = readFile("Example Sniffs/dns response.bin");
+    Packet packet(buffer, false);
+
+    //Sender::sendDNSResponse(packet);
+
+    //std::cout << Sender::DoHQuery("catalog.gamepass.com") << '\n';
 }
+
+/*
+Ethernet:
+Destination MAC: DC:97:E6:F6:7E:87
+Source MAC: A8:5E:45:B5:21:F4
+Ethernet type: 0x800
+
+IP:
+Version: 4
+Header length: 5
+Type of service: 0
+Total length: 66
+Identification: 49950
+Flags: 0
+Fragment offset: 0
+Time to live: 128
+Protocol: 17
+Checksum: 0x0
+Source IP: 10.100.102.4
+Destination IP: 1.1.1.1
+
+UDP:
+Source port: 56445
+Destination port: 53
+Length: 46
+Checksum: 0x72a9
+
+DNS (header):
+Transaction ID: 0xd7a8
+Flags: 0x100
+Questions: 1
+Answers: 0
+Authority records: 0
+Additional records: 0
+*/

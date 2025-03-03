@@ -5,7 +5,7 @@
 #include <vector>
 
 
-ArpTable::ArpTable(PIP_ADDR_STRING localAddress, const std::string_view fileName) :
+ArpTable::ArpTable(PIP_ADDR_STRING localAddress, std::string_view fileName) :
     m_localAddress(localAddress), m_fileName(fileName)
 {
     const std::ifstream checkFile(fileName.data());
@@ -32,7 +32,7 @@ void ArpTable::updateTable()
     // Then resolve each IP to its MAC
     for (const in_addr currentIP : ipAddresses)
     {
-        std::cout << Helper::longToIp(currentIP.s_addr) << '\n';
+        std::cout << Helper::ipToStr(currentIP) << '\n';
         const mac currentMAC = Sender::SendARPRequest(currentIP);
         this->m_table.emplace(currentIP.s_addr, currentMAC);
     }
@@ -41,10 +41,10 @@ void ArpTable::updateTable()
 }
 
 
-mac ArpTable::getMac(const in_addr ipAddr) const noexcept
+mac ArpTable::getMac(in_addr ipAddr) const noexcept
 {
     const auto it = m_table.find(ipAddr.s_addr);
-    return (it == m_table.cend()) ? invalidMac : it->second;
+    return (it == m_table.end()) ? invalidMac : it->second;
 }
 
 
@@ -63,7 +63,7 @@ void ArpTable::readFileToTable()
     {
         std::getline(tableFile, macStr, '\n');
         
-        const ULONG ipAddr = Helper::ipToLong(ipStr);
+        const ULONG ipAddr = Helper::strToIp(ipStr).s_addr;
         const mac macAddr(macStr);
 
         m_table.insert_or_assign(ipAddr, macAddr);
@@ -80,5 +80,5 @@ void ArpTable::writeTableToFile()
 
     // Write each IP&MAC pair as a new line
     for (const auto& [ip, mac] : m_table)
-        tableFile << Helper::longToIp(ip) << ',' << mac.macToString() << '\n';
+        tableFile << Helper::ipToStr(static_cast<ULONG>(ip)) << ',' << mac.macToString() << '\n';
 }

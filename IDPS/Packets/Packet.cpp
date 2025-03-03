@@ -1,73 +1,137 @@
+#include "../IDPSExceptions.hpp"
 #include "Packet.h"
 #include <iostream>
-#include <stdexcept> // std::runtime_error
 
 
-Packet::Packet(const std::span<const uint8_t> rawData) :
-    ethernetHeader(new EthernetHeader(rawData.subspan(0, sizeof(EthernetHeader))))
+Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp) :
+    timestamp(hasTimestamp ? *reinterpret_cast<const Timestamp*>(rawData.data()) : 0) // Set timestamp based on flag
 {
-    std::cout << "\n\033[41mEthernet:\033[0m\n" << *ethernetHeader << '\n';
-    size_t offset = sizeof(EthernetHeader);
+    if (hasTimestamp) [[likely]]
+        std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
 
-    // Parse NETWORK layer
-    if (ethernetHeader->etherType == IPV4)
-    {
-        this->networkHeader = new IPv4Header(rawData.subspan(offset, sizeof(IPv4Header)));
-        offset += sizeof(IPv4Header);
-        this->srcIP = Helper::longToIp(static_cast<IPv4Header*>(networkHeader)->srcIP);
-        this->dstIP = Helper::longToIp(static_cast<IPv4Header*>(networkHeader)->dstIP);
-        this->transportProtocol = static_cast<IPv4Header*>(networkHeader)->protocol;
-        std::cout << "\033[42mIP:\033[0m\n" << *static_cast<IPv4Header*>(networkHeader) << '\n';
-    }
-    else if (ethernetHeader->etherType == ARP)
-    {
-        this->networkHeader = new ArpHeader(rawData.subspan(offset, sizeof(ArpHeader)));
-        this->srcIP = "";
-        this->dstIP = "";
-        this->transportProtocol = NONE;
-        this->srcPort = 0;
-        this->dstPort = 0;
-        std::cout << "\033[42mIP:\033[0m\n" << *static_cast<ArpHeader*>(networkHeader) << '\n';
-        return; // No transport layer!
-    }
-    else // Probably IPv6
-    {
-        throw std::runtime_error("Unsupported network protocol");
-    }
+    // An initial offset depending on timestamp
+    size_t offset = hasTimestamp ? sizeof(timestamp) : 0;
 
-    // Parse TRANSPORT layer
-    if (this->transportProtocol == TCP)
-    {
-        this->transportHeader = new TCPHeader(rawData.subspan(offset, sizeof(TCPHeader)));
-        offset += sizeof(TCPHeader);
-        this->srcPort = static_cast<TCPHeader*>(transportHeader)->srcPort;
-        this->dstPort = static_cast<TCPHeader*>(transportHeader)->dstPort;
-        std::cout << "\033[43mTCP:\033[0m\n" << *static_cast<TCPHeader*>(transportHeader) << '\n';
-    }
-    else if (this->transportProtocol == UDP)
-    {
-        this->transportHeader = new UDPHeader(rawData.subspan(offset, sizeof(UDPHeader)));
-        offset += sizeof(UDPHeader);
-        this->srcPort = static_cast<UDPHeader*>(transportHeader)->srcPort;
-        this->dstPort = static_cast<UDPHeader*>(transportHeader)->dstPort;
-        std::cout << "\033[43mUDP:\033[0m\n" << *static_cast<UDPHeader*>(transportHeader) << '\n';
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported transport protocol");
-    }
+    // Captures offset & rawData by ref. Then it's called using headerCtor.operator()<T>()
+    auto headerCtor = [&]<typename T>() -> T* {
+        T* header = new T(rawData.subspan(offset, sizeof(T)));
+        offset += sizeof(T); // By reference
+        std::cout << "\033[0m:\n" << *header << '\n'; // Prints a prefix and the header
+        return header;
+    };
 
-    // Parse APPLICATION layer
-    if (this->srcPort == DNSHeader::DEFAULT_PORT || this->dstPort == DNSHeader::DEFAULT_PORT)
+    // Parse the packet layers
+    this->parseLink(rawData, offset, headerCtor);
+    if (!this->parseNetwork(headerCtor)) [[unlikely]] return; // May return early if ARP packet
+    this->parseTransport(headerCtor);
+    this->parseApplication(rawData, offset, headerCtor);
+}
+
+void Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset, auto headerCtor)
+{
+    // Try to parse link layer as loopback
+    const LoopbackHeader tempHeader(rawData.subspan(offset, sizeof(LoopbackHeader)));
+
+    // Try to parse the link layer
+    if (tempHeader.loopbackType != NULL_IPV4) [[likely]]
     {
-        this->applicationData = new DNSMessage(rawData.subspan(offset));
-        std::cout << "\033[44mDNS (header):\033[0m\n" << (*static_cast<DNSMessage*>(applicationData)).header;
+        std::cout << "\n\033[41mEthernet";
+        auto ethernetHeader = headerCtor.operator()<EthernetHeader>();
+        this->linkHeader = ethernetHeader;
+        this->networkProtocol = ethernetHeader->etherType;
+    }
+    else // Loopback header
+    {
+        this->networkProtocol = IPV4; // Assume IPv4 when loopback
+        offset += sizeof(LoopbackHeader);
+        std::cout << "\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n';
     }
 }
 
-Packet::~Packet()
+bool Packet::parseNetwork(auto headerCtor)
 {
-    delete ethernetHeader;
+    switch (this->networkProtocol)
+    {
+    case IPV4:
+    {
+        std::cout << "\033[42mIPv4";
+        auto ipv4Header = headerCtor.operator()<IPv4Header>();
+        this->networkHeader = ipv4Header;
+        this->transportProtocol = ipv4Header->protocol;
+        return true;
+    }
+
+    case ARP:
+        std::cout << "\033[42mARP";
+        this->networkHeader = headerCtor.operator()<ArpHeader>();
+        this->transportProtocol = NONE;
+        return false; // Done parsing - no transport layer!
+
+    default: // Probably IPv6
+        throw MinorException("Unsupported network protocol");
+    }
+}
+
+void Packet::parseTransport(auto headerCtor)
+{
+    switch (this->transportProtocol)
+    {
+    case TCP:
+        std::cout << "\033[43mTCP";
+        this->transportHeader = headerCtor.operator()<TCPHeader>();
+        break;
+
+    case UDP:
+        std::cout << "\033[43mUDP";
+        this->transportHeader = headerCtor.operator()<UDPHeader>();
+        break;
+
+    default:
+        throw MinorException("Unsupported transport protocol");
+    }
+}
+
+void Packet::parseApplication(std::span<const uint8_t> rawData, const size_t& offset, auto headerCtor)
+{
+    if (this->isDnsPacket())
+    {
+        this->applicationData = new DNSMessage(rawData.subspan(offset));
+        std::cout << "\033[44mDNS (header)\033[0m:\n" << static_cast<DNSMessage*>(applicationData)->header << '\n';
+    }
+}
+
+
+bool Packet::isArpReplyPacket() const noexcept
+{
+    return this->networkProtocol == ARP &&
+           static_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
+}
+
+bool Packet::isIPv4Packet() const noexcept
+{
+    return this->networkProtocol == IPV4;
+}
+
+bool Packet::isTcpPacket() const noexcept
+{
+    return this->transportProtocol == TCP;
+}
+
+bool Packet::isUdpPacket() const noexcept
+{
+    return this->transportProtocol == UDP;
+}
+
+bool Packet::isDnsPacket() const noexcept
+{
+    return this->transportHeader->srcPort == DNSHeader::DEFAULT_PORT ||
+           this->transportHeader->dstPort == DNSHeader::DEFAULT_PORT;
+}
+
+Packet::~Packet() noexcept
+{
+    delete linkHeader;
     delete networkHeader;
     delete transportHeader;
+    delete applicationData;
 }
