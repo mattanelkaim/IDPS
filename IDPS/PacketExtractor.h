@@ -36,6 +36,6 @@ public:
     void operator=(const PacketExtractor& other) = delete;
 
     // Methods
-    std::vector<uint8_t> getPacket() noexcept;
+    std::vector<uint8_t> getPacket();
 };
 

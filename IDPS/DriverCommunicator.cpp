@@ -13,7 +13,7 @@ DriverCommunicator::~DriverCommunicator() noexcept
     CloseHandle(m_deviceHandle);
 }
 
-DriverCommunicator& DriverCommunicator::getInstance() noexcept
+DriverCommunicator& DriverCommunicator::getInstance()
 {
     static DriverCommunicator instance;
     return instance;

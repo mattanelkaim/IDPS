@@ -72,19 +72,24 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, size_t first = 0,
 
 int main()
 {
-    // try
-    // {
-    //     Distributer::getInstance().run();
-    // }
-    // catch (const FatalException& e)
-    // {
-    //     std::cerr << e.what();
-    // }
+    try
+    {
+        WSAInitializer wsaInit;
+        Distributer::getInstance().run();
+    }
+    catch (const FatalException& e)
+    {
+        std::cerr << "Fatal exception caught: " << e.what() << std::endl;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "General exception caught: " << e.what() << std::endl;
+    }
 
-    WSAInitializer wsaInit;
+    /*
 
     std::vector<uint8_t> buffer = readFile("Example Sniffs/dns response.bin");
-    Packet packet(buffer, false);
+    Packet packet(buffer, false);*/
 
     //Sender::sendDNSResponse(packet);
 

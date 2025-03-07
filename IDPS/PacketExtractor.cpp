@@ -54,7 +54,7 @@ void PacketExtractor::threadRoutine()
     }
 }
 
-std::vector<uint8_t> PacketExtractor::getPacket() noexcept
+std::vector<uint8_t> PacketExtractor::getPacket()
 {
     // loading new packet
     while (this->m_packetQueue.empty()); { (void)0; }

@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
+#include <iostream>
 
 using json = nlohmann::json;
 
@@ -16,7 +17,7 @@ bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localI
     PIP_ADAPTER_INFO AdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(malloc(ulOutBufLen));
     if (AdapterInfo == NULL) [[unlikely]]
     {
-        perror("Error allocating memory needed to call GetAdaptersInfo");
+        std::cerr << "Error allocating memory needed to call GetAdaptersInfo\n";
         return false;
     }
 
@@ -28,7 +29,7 @@ bool Sender::GetLocalIpAddress(const char* interfaceName, PIP_ADDR_STRING localI
         AdapterInfo = reinterpret_cast<IP_ADAPTER_INFO*>(malloc(ulOutBufLen));
         if (AdapterInfo == NULL) [[unlikely]]
         {
-            perror("Error allocating memory needed to call GetAdaptersInfo");
+            std::cerr << "Error allocating memory needed to call GetAdaptersInfo\n";
             return false;
         }
     }
