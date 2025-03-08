@@ -3,7 +3,7 @@
 #include "PacketExtractor.h"
 
 PacketExtractor::PacketExtractor(std::exception_ptr& outException) :
-    m_extractorThread(&PacketExtractor::threadRoutine, this),
+    m_extractorThread(&PacketExtractor::threadRoutine, this), // THIS IS LINE #6!
     m_queueMutex(),
     m_packetQueue(),
     m_outException(outException),
@@ -39,18 +39,16 @@ void PacketExtractor::threadRoutine()
             ++packetCounter;
 
             // Pushing the new packet into the queue
-            this->m_queueMutex.lock();
+            std::lock_guard lg(m_queueMutex); // THIS IS LINE #42!
             this->m_packetQueue.push(rawPacket);
-            this->m_queueMutex.unlock();
         }
     }
     catch (...)
     {
         this->m_outException = std::current_exception();
         // Pushing dummy packet into the queue
-        this->m_queueMutex.lock();
+        std::lock_guard lg(m_queueMutex);
         this->m_packetQueue.push({});
-        this->m_queueMutex.unlock();
     }
 }
 
@@ -58,10 +56,9 @@ std::vector<uint8_t> PacketExtractor::getPacket()
 {
     // loading new packet
     while (this->m_packetQueue.empty()); { (void)0; }
-    this->m_queueMutex.lock();
+    std::lock_guard lg(m_queueMutex);
     std::vector<uint8_t> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
     this->m_packetQueue.pop();
-    this->m_queueMutex.unlock();
 
     return toReturn;
 }
@@ -109,7 +106,7 @@ PacketExtractor::~PacketExtractor() noexcept
 
 // SINGLETON METHODS
 
-PacketExtractor& PacketExtractor::getInstance(std::exception_ptr& outException) noexcept
+PacketExtractor& PacketExtractor::getInstance(std::exception_ptr& outException)
 {
     static PacketExtractor instance(outException);
     return instance;

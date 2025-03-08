@@ -31,7 +31,7 @@ private:
 public:
     // Singleton methods
     ~PacketExtractor() noexcept;
-    static PacketExtractor& getInstance(std::exception_ptr& outException) noexcept;
+    static PacketExtractor& getInstance(std::exception_ptr& outException);
     PacketExtractor(const PacketExtractor& other) = delete;
     void operator=(const PacketExtractor& other) = delete;
 
