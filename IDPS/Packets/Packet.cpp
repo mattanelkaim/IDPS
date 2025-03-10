@@ -128,10 +128,39 @@ bool Packet::isDnsPacket() const noexcept
            this->transportHeader->dstPort == DNSHeader::DEFAULT_PORT;
 }
 
+
 Packet::~Packet() noexcept
 {
-    delete linkHeader;
-    delete networkHeader;
-    delete transportHeader;
-    delete applicationData;
+    // Layer parents don't have a virtual destructor, so we must call the specific destructors
+    if (linkHeader)
+        delete static_cast<EthernetHeader*>(linkHeader);
+
+    // Delete NETWORK layer
+    switch (networkProtocol)
+    {
+    case IPV4:
+        delete static_cast<IPv4Header*>(networkHeader);
+        break;
+    case ARP:
+        delete static_cast<ArpHeader*>(networkHeader);
+        break;
+    default:
+        break;
+    }
+
+    // Delete TRANSPORT layer
+    switch (transportProtocol)
+    {
+    case TCP:
+        delete static_cast<TCPHeader*>(transportHeader);
+        break;
+    case UDP:
+        delete static_cast<UDPHeader*>(transportHeader);
+        break;
+    default:
+        break;
+    }
+
+    if (isDnsPacket())
+        delete static_cast<DNSMessage*>(applicationData);
 }

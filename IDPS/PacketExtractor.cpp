@@ -72,7 +72,7 @@ void PacketExtractor::openPacketFile()
     // to write data to the file simultaneous to the IDPS reading from it
     this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
-        throw FatalException("Failed to open packet file.");
+        throw FatalWinException("Failed to open packet file.", GetLastError());
 }
 
 void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes)
@@ -84,7 +84,7 @@ void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes)
     while (bytesLeft)
     {
         if (!ReadFile(this->m_hFile, outBuffer, bytesLeft, &bytesRead, NULL))
-            throw FatalException("Failed to read from packet file.");
+            throw FatalWinException("Failed to read from packet file.", GetLastError());
         bytesLeft -= bytesRead;
     }
 }
@@ -95,7 +95,7 @@ void PacketExtractor::truncatePacketFile()
 
     // Reseting the file pointer
     if (!SetFilePointerEx(this->m_hFile, {0}, NULL, FILE_BEGIN))
-        throw FatalException("Failed to set packet file pointer.");
+        throw FatalWinException("Failed to set packet file pointer.", GetLastError());
 }
 
 PacketExtractor::~PacketExtractor() noexcept
