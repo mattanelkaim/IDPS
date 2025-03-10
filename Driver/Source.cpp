@@ -100,6 +100,7 @@ void addMacRuleToBlacklist(const PDL_EUI48 mac);
 BOOL isIpInBlacklist(UINT32 ip);
 BOOL isMacInBlacklist(const DL_EUI48 mac);
 BOOL doesPassFirewall(const PVOID layerData);
+void truncPacketFile();
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -186,18 +187,21 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
         IDPS_PRINT("Read request!\n");
         break;
     case IRP_MJ_DEVICE_CONTROL:
-        if (IOCTL_SEND_IP_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
+        switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
         {
+        case IOCTL_SEND_IP_RULE:
             addIpRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
             break;
-        }
-        else if (IOCTL_SEND_MAC_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
-        {
+
+        case IOCTL_SEND_MAC_RULE:
             addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
             break;
-        }
-        else if (IOCTL_SEND_HANDLES != irpSp->Parameters.DeviceIoControl.IoControlCode)
-        {
+
+        case IOCTL_TRUNCATE_FILE:
+            truncPacketFile();
+            break;
+
+        default:
             IDPS_PRINT("Received invalid IOCTL code!\n");
             status = STATUS_INVALID_PARAMETER;
             break;
@@ -751,4 +755,53 @@ BOOL doesPassFirewall(const PVOID layerData)
     }
 
     return TRUE;
+}
+
+void truncPacketFile()
+{
+    // waiting for the work item to finish
+    while (workContext.ongoing) {}
+    workContext.held = TRUE;
+
+    OBJECT_ATTRIBUTES objAttrs;
+    IO_STATUS_BLOCK ioStatus;
+    HANDLE fileHandle = NULL;
+    NTSTATUS status;
+
+    InitializeObjectAttributes(&objAttrs,
+        &packetFilePath,
+        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+        NULL,
+        NULL);
+
+    status = ZwCreateFile(&fileHandle,
+        GENERIC_WRITE | SYNCHRONIZE,
+        &objAttrs,
+        &ioStatus,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        0,
+        FILE_OPEN,
+        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL,
+        0);
+
+    if (!NT_SUCCESS(status))
+        IDPS_PRINT2("TruncateFile: Failed to open file (0x%08X)\n", status);
+
+    FILE_END_OF_FILE_INFORMATION eofInfo = { 0 };
+    status = ZwSetInformationFile(fileHandle,
+        &ioStatus,
+        &eofInfo,
+        sizeof(eofInfo),
+        FileEndOfFileInformation);
+
+    if (!NT_SUCCESS(status)) {
+        IDPS_PRINT2("TruncateFile: Failed to truncate file (0x%08X)\n", status);
+    }
+
+    ZwClose(fileHandle);
+
+    // freeing the work item
+    workContext.held = FALSE;
 }
