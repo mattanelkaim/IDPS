@@ -584,7 +584,7 @@ void copyLayerData(const PVOID layerData)
         }
 
         // Writing the packet size as a 2-byte value
-		dataLength += sizeof(timestamp); // Adding timestamp size
+        dataLength += sizeof(timestamp); // Adding timestamp size
         memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(dataLength));
         totalCopied += sizeof(dataLength);
 
@@ -594,7 +594,7 @@ void copyLayerData(const PVOID layerData)
         totalCopied += sizeof(timestamp);
 
         // Writing the actual packet data
-		dataLength -= sizeof(timestamp); // Removing timestamp size
+        dataLength -= sizeof(timestamp); // Removing timestamp size
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
         totalCopied += dataLength;
 
@@ -686,7 +686,7 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
 
     IDPS_PRINT("Started work item routine!");
 
-	// Printing the packet data
+    // Printing the packet data
     USHORT i;
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
         IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
@@ -787,7 +787,10 @@ void truncPacketFile()
         0);
 
     if (!NT_SUCCESS(status))
+    {
         IDPS_PRINT2("TruncateFile: Failed to open file (0x%08X)\n", status);
+        return;
+    }
 
     FILE_END_OF_FILE_INFORMATION eofInfo = { 0 };
     status = ZwSetInformationFile(fileHandle,
@@ -796,9 +799,8 @@ void truncPacketFile()
         sizeof(eofInfo),
         FileEndOfFileInformation);
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
         IDPS_PRINT2("TruncateFile: Failed to truncate file (0x%08X)\n", status);
-    }
 
     ZwClose(fileHandle);
 
