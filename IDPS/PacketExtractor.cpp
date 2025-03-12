@@ -53,11 +53,11 @@ void PacketExtractor::threadRoutine()
 std::vector<uint8_t> PacketExtractor::getPacket()
 {
     // Waiting for a packet to arrive (in practice shouldn't happen often)
-    while (this->m_packetQueue.empty()); { (void)0; }
+    while (this->m_packetQueue.empty()) { std::this_thread::yield(); }
 
     // Extracting the packet
     std::lock_guard lg(m_queueMutex);
-    std::vector<uint8_t> toReturn = std::move(this->m_packetQueue.front()); // Move a reference instead of copying
+    std::vector<uint8_t> toReturn = this->m_packetQueue.front();
     this->m_packetQueue.pop();
 
     return toReturn;

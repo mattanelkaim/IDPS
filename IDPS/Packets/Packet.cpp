@@ -104,7 +104,7 @@ void Packet::parseApplication(std::span<const uint8_t> rawData, const size_t& of
 bool Packet::isArpReplyPacket() const noexcept
 {
     return this->networkProtocol == ARP &&
-           static_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
+       static_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
 }
 
 bool Packet::isIPv4Packet() const noexcept
@@ -135,8 +135,7 @@ Packet::~Packet() noexcept
     // **IMPORTANT** deleting the layers from the uppermost (application) to the lowermost (link) layer
     
     // Delete APPLICATION layer
-    if (isDnsPacket())
-        delete static_cast<DNSMessage*>(applicationData);
+    delete static_cast<DNSMessage*>(applicationData);
 
     // Delete TRANSPORT layer
     switch (transportProtocol)
