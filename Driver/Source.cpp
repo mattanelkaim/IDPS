@@ -44,6 +44,7 @@ typedef struct _WORK_CONTEXT
     BOOL queued;
     BOOL ongoing;
     BOOL held;
+    BOOL truncFile;
     BYTE layerData[65536]; // 64KB buffer to store the layer data
     USHORT layerDataLength;
 } WORK_CONTEXT, *PWORK_CONTEXT;
@@ -151,6 +152,17 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
         DriverObject->MajorFunction[i] = DriverPassThru;
     DriverObject->DriverUnload = DriverUnload;
 
+    IDPS_PRINT("Initializing WFP...\n");
+
+    status = InitializeWfp();
+    if (!NT_SUCCESS(status))
+    {
+        // InitializeWfp() already prints err and calls UnInitWfp()
+        IoDeleteDevice(deviceObject);
+        IoDeleteSymbolicLink(&SYMLINK_NAME);
+        return status;
+    }
+
     IDPS_PRINT("Creation successful!\n");
 
     return STATUS_SUCCESS;
@@ -174,94 +186,29 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
     const PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS status = STATUS_SUCCESS;
 
-    // Match request and handle properly
-    switch (irpSp->MajorFunction)
+    if (irpSp->MajorFunction != IRP_MJ_DEVICE_CONTROL)
     {
-    case IRP_MJ_CREATE:
-        IDPS_PRINT("Create request!\n");
+        IDPS_PRINT("Received invalid IOCTL code!\n");
+        status = STATUS_INVALID_PARAMETER;
+    }
+
+    switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
+    {
+    case IOCTL_SEND_IP_RULE:
+        addIpRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
         break;
-    case IRP_MJ_CLOSE:
-        IDPS_PRINT("Close request!\n");
+
+    case IOCTL_SEND_MAC_RULE:
+        addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
         break;
-    case IRP_MJ_READ:
-        IDPS_PRINT("Read request!\n");
+
+    case IOCTL_TRUNCATE_FILE:
+        workContext.truncFile = TRUE;
         break;
-    case IRP_MJ_DEVICE_CONTROL:
-        switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
-        {
-        case IOCTL_SEND_IP_RULE:
-            addIpRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
-            break;
 
-        case IOCTL_SEND_MAC_RULE:
-            addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
-            break;
-
-        case IOCTL_TRUNCATE_FILE:
-            truncPacketFile();
-            break;
-
-        default:
-            IDPS_PRINT("Received invalid IOCTL code!\n");
-            status = STATUS_INVALID_PARAMETER;
-            break;
-        }
-
-        IDPS_PRINT("Received handles!\n");
-        if (IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.InputBufferLength < sizeof(IOCTL_HANDLES))
-        {
-            IDPS_PRINT("Received invalid IOCTL struct");
-            status = STATUS_INVALID_PARAMETER;
-            break;
-        }
-
-        /*#################################
-        ### MUTEX CODE, LEAVE FOR NOW #####
-        #################################*/
-        
-        //CLIENT_ID clientId;
-        //PEPROCESS sourceProcessHandle;
-        //OBJECT_ATTRIBUTES objAttrs;
-        //PHANDLE userHandle = NULL;  // Pointer to the user-provided structure
-
-        //// Get the input buffer from the IRP
-        //userHandle = &(((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->mutex);
-
-        //clientId.UniqueProcess = (HANDLE)((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->pid;  // PID of the source process
-        //clientId.UniqueThread = 0;
-
-        //InitializeObjectAttributes(&objAttrs, NULL, 0, NULL, NULL);
-
-        //status = ZwOpenProcess( &sourceProcessHandle, PROCESS_DUP_HANDLE, &objAttrs, &clientId);
-        //if (!NT_SUCCESS(status))
-        //{
-        //    IDPS_PRINT("ZwOpenProcess failed!");
-        //    break;
-        //}
-        //IDPS_PRINT("Opened parent process successfully");
-
-        //status = ZwDuplicateObject(sourceProcessHandle, userHandle, NtCurrentProcess(), packetMutex, SYNCHRONIZE, 0, 0);
-        //if (!NT_SUCCESS(status))
-        //{
-        //    IDPS_PRINT2("Error duplicating mutex handle: %X", status);
-        //    break;
-        //}
-
-        //IDPS_PRINT("Successfully duplicated handles");
-
-        IDPS_PRINT("Initializing WFP...\n");
-
-        status = InitializeWfp();
-        if (!NT_SUCCESS(status))
-        {
-            // InitializeWfp() already prints err and calls UnInitWfp()
-            IoDeleteDevice(deviceObject);
-            IoDeleteSymbolicLink(&SYMLINK_NAME);
-            return status;
-        }
-
-        break;
     default:
+        IDPS_PRINT("Received invalid IOCTL code!\n");
+        status = STATUS_INVALID_PARAMETER;
         break;
     }
 
@@ -686,6 +633,12 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
 
     IDPS_PRINT("Started work item routine!");
 
+    if (context->truncFile)
+    {
+        truncPacketFile();
+        context->truncFile = FALSE;
+    }
+
     // Printing the packet data
     USHORT i;
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
@@ -759,10 +712,6 @@ BOOL doesPassFirewall(const PVOID layerData)
 
 void truncPacketFile()
 {
-    // waiting for the work item to finish
-    while (workContext.ongoing) {}
-    workContext.held = TRUE;
-
     OBJECT_ATTRIBUTES objAttrs;
     IO_STATUS_BLOCK ioStatus;
     HANDLE fileHandle = NULL;
@@ -787,10 +736,7 @@ void truncPacketFile()
         0);
 
     if (!NT_SUCCESS(status))
-    {
         IDPS_PRINT2("TruncateFile: Failed to open file (0x%08X)\n", status);
-        return;
-    }
 
     FILE_END_OF_FILE_INFORMATION eofInfo = { 0 };
     status = ZwSetInformationFile(fileHandle,
@@ -803,7 +749,4 @@ void truncPacketFile()
         IDPS_PRINT2("TruncateFile: Failed to truncate file (0x%08X)\n", status);
 
     ZwClose(fileHandle);
-
-    // freeing the work item
-    workContext.held = FALSE;
 }
