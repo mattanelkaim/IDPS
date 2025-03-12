@@ -74,11 +74,16 @@ public:
         return std::string(buffer);
     }
 
-    // Define an implicit conversion to represent in an integer value
-    constexpr operator uint64_t() const noexcept
+    //// Define an implicit conversion to represent in an integer value
+    //constexpr operator uint64_t() const noexcept
+    //{
+    //    // This MUST be C-style cast because reinterpret_cast isn't constexpr
+    //    return *(const uint64_t*)bytes & 0x0000FFFFFFFFFFFF;
+    //}
+
+    bool operator==(const mac& other) const noexcept
     {
-        // This MUST be C-style cast because reinterpret_cast isn't constexpr
-        return *(const uint64_t*)bytes & 0x0000FFFFFFFFFFFF;
+        return !memcmp(bytes, other.bytes, sizeof(bytes));
     }
 };
 

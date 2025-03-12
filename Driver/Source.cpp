@@ -187,10 +187,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
     NTSTATUS status = STATUS_SUCCESS;
 
     if (irpSp->MajorFunction != IRP_MJ_DEVICE_CONTROL)
-    {
-        IDPS_PRINT("Received invalid IOCTL code!\n");
-        status = STATUS_INVALID_PARAMETER;
-    }
+        goto completeIrp;
 
     switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
     {
@@ -212,6 +209,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
         break;
     }
 
+completeIrp:
     Irp->IoStatus.Information = 0;
     Irp->IoStatus.Status = status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
