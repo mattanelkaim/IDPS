@@ -44,6 +44,7 @@ typedef struct _WORK_CONTEXT
     BOOL queued;
     BOOL ongoing;
     BOOL held;
+    BOOL truncFile;
     BYTE layerData[65536]; // 64KB buffer to store the layer data
     USHORT layerDataLength;
 } WORK_CONTEXT, *PWORK_CONTEXT;
@@ -202,7 +203,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
         break;
 
     case IOCTL_TRUNCATE_FILE:
-        truncPacketFile();
+        workContext.truncFile = TRUE;
         break;
 
     default:
@@ -632,6 +633,12 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
 
     IDPS_PRINT("Started work item routine!");
 
+    if (context->truncFile)
+    {
+        truncPacketFile();
+        context->truncFile = FALSE;
+    }
+
 	// Printing the packet data
     USHORT i;
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
@@ -705,10 +712,6 @@ BOOL doesPassFirewall(const PVOID layerData)
 
 void truncPacketFile()
 {
-    // waiting for the work item to finish
-    while (workContext.ongoing) {}
-    workContext.held = TRUE;
-
     OBJECT_ATTRIBUTES objAttrs;
     IO_STATUS_BLOCK ioStatus;
     HANDLE fileHandle = NULL;
@@ -733,7 +736,10 @@ void truncPacketFile()
         0);
 
     if (!NT_SUCCESS(status))
-        IDPS_PRINT2("TruncateFile: Failed to open file (0x%08X)\n", status);
+    {
+        IDPS_PRINT2("TruncateFile: Failed to open file (0x%08X)\n", status); 
+        return;
+    }
 
     FILE_END_OF_FILE_INFORMATION eofInfo = { 0 };
     status = ZwSetInformationFile(fileHandle,
@@ -747,7 +753,4 @@ void truncPacketFile()
     }
 
     ZwClose(fileHandle);
-
-    // freeing the work item
-    workContext.held = FALSE;
 }
