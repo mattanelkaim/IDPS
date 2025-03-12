@@ -727,14 +727,17 @@ void truncPacketFile()
         &ioStatus,
         NULL,
         FILE_ATTRIBUTE_NORMAL,
-        0,
+        FILE_SHARE_READ,
         FILE_OPEN,
         FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
         NULL,
         0);
 
     if (!NT_SUCCESS(status))
+    {
         IDPS_PRINT2("TruncateFile: Failed to open file (0x%08X)\n", status);
+        return;
+    }
 
     FILE_END_OF_FILE_INFORMATION eofInfo = { 0 };
     status = ZwSetInformationFile(fileHandle,

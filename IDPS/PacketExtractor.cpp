@@ -70,7 +70,7 @@ void PacketExtractor::openPacketFile()
 {
     // Opening (or creating) the file with FILE_SHARE_WRITE to allow the driver
     // to write data to the file simultaneous to the IDPS reading from it
-    this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    this->m_hFile = CreateFileW(PACKET_FILE_PATH, GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (INVALID_HANDLE_VALUE == m_hFile)
         throw FatalWinException("Failed to open packet file.", GetLastError());
 }
