@@ -1,9 +1,10 @@
 ﻿// do NOT change order of includationing
 #include "LayerHandles.h"
 #include <ntifs.h>
-#include <ntddk.h>
 #include <fwpsk.h>
-#include <fwpmk.h>
+#include <fwpvi.h>
+#include <ntddk.h>
+#include <fwpmtypes.h>
 #define INITGUID
 #include <guiddef.h>
 #include <fwpmu.h>
