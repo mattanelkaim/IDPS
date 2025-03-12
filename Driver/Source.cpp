@@ -12,10 +12,8 @@
 // Helper Definitions
 #define __IGNORE [[maybe_unused]]
 #define SIGNATURE "##-IDPS_SNIFFER-##: "
-#define IDPS_PRINT(x) KdPrint((SIGNATURE x)) // x is a literal string
-#define IDPS_PRINT2(x1, x2) KdPrint((SIGNATURE x1, x2)) // x1 is a literal string, x2 is a string (char*)
-#define IDPS_PRINT3(x1, x2, x3) KdPrint((SIGNATURE x1, x2, x3)) // x1 is a literal string, x2 is the buffer length, x3 is the char buffer
-#define IDPS_PRINT4(x1, x2, x3, x4) KdPrint((SIGNATURE x1, x2, x3, x4)) // 4 parameters
+// General function to call DbgPrint with a SIGNATURE
+#define IDPS_PRINT(...) DbgPrint(SIGNATURE __VA_ARGS__)
 
 #define CALLOUT_DISPLAY_NAME L"EstablishedCalloutName"
 #define SUBLAYER_DISPLAY_NAME L"EstablishedSublayerName"
@@ -106,25 +104,25 @@ void truncPacketFile();
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
 {
-    IDPS_PRINT("Entry!\n");
+    IDPS_PRINT("Entry!");
     NTSTATUS status; // Re-used to check each API function
 
     // Create the device
-    IDPS_PRINT("Creating Device...\n");
+    IDPS_PRINT("Creating Device...");
     status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
     if (!NT_SUCCESS(status))
     {
         // Print error with status code
         if (status == STATUS_OBJECT_NAME_COLLISION)
-            IDPS_PRINT("FAILED to create device: NAME_COLLISION\n");
+            IDPS_PRINT("FAILED to create device: NAME_COLLISION");
         else
-            IDPS_PRINT("FAILED to create device\n");
+            IDPS_PRINT("FAILED to create device");
 
         return status; // Error code
     }
 
     // Create the symbolic link
-    IDPS_PRINT("Creating SymLink...\n");
+    IDPS_PRINT("Creating SymLink...");
     status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
     if (STATUS_OBJECT_NAME_COLLISION == status)
     {
@@ -134,13 +132,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     }
     if (!NT_SUCCESS(status))
     {
-        IDPS_PRINT("FAILED to create symlink!\n");
+        IDPS_PRINT("FAILED to create symlink!");
         IoDeleteDevice(deviceObject);
         return status;
     }
 
     // Initializing work context
-    IDPS_PRINT("Initializing work item...\n");
+    IDPS_PRINT("Initializing work item...");
     IoInitializeWorkItem(deviceObject, (PIO_WORKITEM)&workContext.WorkItem);
     workContext.queued = FALSE;
     workContext.ongoing = FALSE;
@@ -152,7 +150,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
         DriverObject->MajorFunction[i] = DriverPassThru;
     DriverObject->DriverUnload = DriverUnload;
 
-    IDPS_PRINT("Initializing WFP...\n");
+    IDPS_PRINT("Initializing WFP...");
 
     status = InitializeWfp();
     if (!NT_SUCCESS(status))
@@ -163,7 +161,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
         return status;
     }
 
-    IDPS_PRINT("Creation successful!\n");
+    IDPS_PRINT("Creation successful!");
 
     return STATUS_SUCCESS;
 }
@@ -171,13 +169,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
 VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
     driverUnloading = TRUE; // insuring no new work items queue while unloading the driver
-    IDPS_PRINT("Unloading driver...\n");
+    IDPS_PRINT("Unloading driver...");
     while(workContext.ongoing) {}
     IoUninitializeWorkItem((PIO_WORKITEM)&workContext.WorkItem);
     UnInitWfp();
     IoDeleteDevice(DriverObject->DeviceObject);
     IoDeleteSymbolicLink(&SYMLINK_NAME);
-    IDPS_PRINT("Driver unloaded successfully!\n");
+    IDPS_PRINT("Driver unloaded successfully!");
 }
 
 // Handling function
@@ -204,7 +202,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
         break;
 
     default:
-        IDPS_PRINT("Received invalid IOCTL code!\n");
+        IDPS_PRINT("Received invalid IOCTL code!");
         status = STATUS_INVALID_PARAMETER;
         break;
     }
@@ -230,12 +228,12 @@ NTSTATUS InitializeWfp()
         NT_SUCCESS(status = WfpAddSublayer()) &&
         NT_SUCCESS(status = WfpAddFilter()))
     {
-        IDPS_PRINT("Initialized WFP successfully\n");
+        IDPS_PRINT("Initialized WFP successfully");
         return STATUS_SUCCESS;
     }
 
-    IDPS_PRINT("Error initializing WFP!\n");
-    IDPS_PRINT2("Error code: %x", status);
+    IDPS_PRINT("Error initializing WFP!");
+    IDPS_PRINT("Error code: %x", status);
     UnInitWfp();
     return status;
 }
@@ -247,7 +245,7 @@ NTSTATUS WfpOpenEngine()
 
 NTSTATUS WfpRegisterCallout()
 {
-    IDPS_PRINT("Registering callout...\n");
+    IDPS_PRINT("Registering callout...");
 
     // Creating template for 2 callouts
     FWPS_CALLOUT callout = { 0 };
@@ -263,7 +261,7 @@ NTSTATUS WfpRegisterCallout()
 
 NTSTATUS WfpAddCallout()
 {
-    IDPS_PRINT("Adding callout...\n");
+    IDPS_PRINT("Adding callout...");
 
     // Creating template for 2 callouts
     FWPM_CALLOUT callout = { 0 };
@@ -279,7 +277,7 @@ NTSTATUS WfpAddCallout()
 
 NTSTATUS WfpAddSublayer()
 {
-    IDPS_PRINT("Adding sublayer...\n");
+    IDPS_PRINT("Adding sublayer...");
 
     // Creating template for 2 subLayers
     FWPM_SUBLAYER sublayer = { 0 };
@@ -294,7 +292,7 @@ NTSTATUS WfpAddSublayer()
 
 NTSTATUS WfpAddFilter()
 {
-    IDPS_PRINT("Adding filter...\n");
+    IDPS_PRINT("Adding filter...");
 
     // Creating template for the filter
     FWPM_FILTER filter = { 0 };
@@ -414,7 +412,7 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
     // Check if file opened correctly
     if (!NT_SUCCESS(status))
     {
-        IDPS_PRINT2("Failed to open file: %x", status);
+        IDPS_PRINT("Failed to open file: %x", status);
         return;
     }
 
@@ -432,12 +430,12 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
     // Check if pointer is set correctly
     if (!NT_SUCCESS(status))
     {
-        IDPS_PRINT2("Failed to set file pointer: %x", status);
+        IDPS_PRINT("Failed to set file pointer: %x", status);
         goto closeFile;
     }
 
     // Write data to the file
-    IDPS_PRINT2("Writing %u bytes to file", bufferSize);
+    IDPS_PRINT("Writing %u bytes to file", bufferSize);
     status = ZwWriteFile(
         fileHandle,
         NULL,
@@ -640,8 +638,8 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
     // Printing the packet data
     USHORT i;
     for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
-        IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
-    IDPS_PRINT3("%.*s", workContext.layerDataLength - i, workContext.layerData + i);
+        IDPS_PRINT("%.*s", 64, workContext.layerData + i);
+    IDPS_PRINT("%.*s", workContext.layerDataLength - i, workContext.layerData + i);
 
     // Writing the packet data to the file
     writeToFile(&packetFilePath, workContext.layerData, workContext.layerDataLength);
@@ -735,7 +733,7 @@ void truncPacketFile()
 
     if (!NT_SUCCESS(status))
     {
-        IDPS_PRINT2("TruncateFile: Failed to open file (0x%08X)\n", status);
+        IDPS_PRINT("TruncateFile: Failed to open file (0x%08X)", status);
         return;
     }
 
@@ -747,7 +745,7 @@ void truncPacketFile()
         FileEndOfFileInformation);
 
     if (!NT_SUCCESS(status))
-        IDPS_PRINT2("TruncateFile: Failed to truncate file (0x%08X)\n", status);
+        IDPS_PRINT("TruncateFile: Failed to truncate file (0x%08X)", status);
 
     ZwClose(fileHandle);
 }
