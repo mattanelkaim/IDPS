@@ -66,9 +66,6 @@ HANDLE engineHandle = NULL;
 UINT32 EthernetRegCalloutId;
 UINT32 EthernetAddCalloutId;
 UINT64 EthernetFilterId = 0;
-UINT64 IpFilterId = 0;
-UINT32 IpRegCalloutId; // USELESS??
-UINT32 IpAddCalloutId; // USELESS??
 
 // Function declarations
 VOID DriverUnload(PDRIVER_OBJECT DriverObject);
@@ -339,15 +336,11 @@ VOID UnInitWfp()
         return;
 
     delFilter(EthernetFilterId);
-    delFilter(IpFilterId);
     FwpmSubLayerDeleteByKey(engineHandle, &ETHERNET_SUBLAYER_GUID);
-    FwpmSubLayerDeleteByKey(engineHandle, &IP_SUBLAYER_GUID);
 
     delCallout(EthernetAddCalloutId);
-    delCallout(IpAddCalloutId);
 
     unregCallout(EthernetRegCalloutId);
-    unregCallout(IpRegCalloutId);
 
     FwpmEngineClose(engineHandle);
     engineHandle = NULL;
