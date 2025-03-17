@@ -1,9 +1,10 @@
 ﻿// do NOT change order of includationing
 #include "LayerHandles.h"
 #include <ntifs.h>
-#include <ntddk.h>
 #include <fwpsk.h>
-#include <fwpmk.h>
+#include <fwpvi.h>
+#include <ntddk.h>
+#include <fwpmtypes.h>
 #define INITGUID
 #include <guiddef.h>
 #include <fwpmu.h>
@@ -11,39 +12,34 @@
 
 // Helper Definitions
 #define __IGNORE [[maybe_unused]]
-#define SIGNATURE "##-IDPS_SNIFFER-##: "
-#define IDPS_PRINT(x) KdPrint((SIGNATURE x)) // x is a literal string
-#define IDPS_PRINT2(x1, x2) KdPrint((SIGNATURE x1, x2)) // x1 is a literal string, x2 is a string (char*)
-#define IDPS_PRINT3(x1, x2, x3) KdPrint((SIGNATURE x1, x2, x3)) // x1 is a literal string, x2 is the buffer length, x3 is the char buffer
-#define IDPS_PRINT4(x1, x2, x3, x4) KdPrint((SIGNATURE x1, x2, x3, x4)) // 4 parameters
+// General function to variadically print with a signature
+#define IDPS_PRINT(...) DbgPrint("##-IDPS_SNIFFER-##: " __VA_ARGS__)
 
-#define CALLOUT_DISPLAY_NAME L"EstablishedCalloutName"
-#define SUBLAYER_DISPLAY_NAME L"EstablishedSublayerName"
-
+// Blacklists definitions
 #define MAX_BLACKLIST_SIZE 1024U
 typedef struct ipList
 {
-    UINT32 ips[MAX_BLACKLIST_SIZE]; // 4KB buffer to store the IP blacklist
+    UINT32 ips[MAX_BLACKLIST_SIZE];
     UINT8 listLength;
 } ipList;
-
 typedef struct macList
 {
-    DL_EUI48 macs[MAX_BLACKLIST_SIZE]; // 6KB buffer to store the IP blacklist
+    DL_EUI48 macs[MAX_BLACKLIST_SIZE];
     UINT8 listLength;
 } macList;
 
-// Initializing the blacklists
+// Initialize the blacklists
 ipList ipBlacklist = { 0 };
 macList macBlacklist = { 0 };
 
-// work item to operate at IRQL passive level
+// Work item to operate at IRQL passive level
 typedef struct _WORK_CONTEXT
 {
-    char WorkItem[128]; // A 128 byte buffer to replace _IO_WORKITEM (128 is based purely on hope and prayer)
+    char WorkItem[128]; // 128 byte buffer to replace _IO_WORKITEM (128 is based purely on hope and prayer)
     BOOL queued;
     BOOL ongoing;
     BOOL held;
+    BOOL truncFile;
     BYTE layerData[65536]; // 64KB buffer to store the layer data
     USHORT layerDataLength;
 } WORK_CONTEXT, *PWORK_CONTEXT;
@@ -56,25 +52,20 @@ DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9,
 DEFINE_GUID(ETHERNET_SUBLAYER_GUID, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
 DEFINE_GUID(IP_CALLOUT_GUID, 0x13579bdf, 0x2468, 0xace0, 0x13, 0x57, 0x9b, 0xdf, 0x24, 0x68, 0xac, 0xe0);
 DEFINE_GUID(IP_SUBLAYER_GUID, 0xabcdef12, 0x3456, 0x7890, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90);
+#define CALLOUT_DISPLAY_NAME L"EstablishedCalloutName"
+#define SUBLAYER_DISPLAY_NAME L"EstablishedSublayerName"
 
-// These cannot be const nor constexpr!
+// These cannot be const!
 UNICODE_STRING DEVICE_NAME = RTL_CONSTANT_STRING(L"\\Device\\IDPS Sniffer Device");
 UNICODE_STRING SYMLINK_NAME = RTL_CONSTANT_STRING(L"\\??\\SnifferDeviceLink");
+UNICODE_STRING packetFilePath = RTL_CONSTANT_STRING(PACKET_FILE_PATH);
 
+// Global variables
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
 UINT32 EthernetRegCalloutId;
 UINT32 EthernetAddCalloutId;
 UINT64 EthernetFilterId = 0;
-UINT32 IpRegCalloutId;
-UINT32 IpAddCalloutId;
-UINT64 IpFilterId = 0;
-HANDLE packetMutex = NULL;
-HANDLE workMutex = NULL;
-KERNEL_OBJECTS kernelMutexObjects = { NULL, NULL, NULL, NULL };
-
-UNICODE_STRING packetMutexPath;
-UNICODE_STRING packetFilePath;
 
 // Function declarations
 VOID DriverUnload(PDRIVER_OBJECT DriverObject);
@@ -91,8 +82,6 @@ VOID FlowDeleteCallback(UINT16 layerId, UINT32 calloutId, UINT64 flowContext);
 VOID UnInitWfp();
 void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, ULONG bufferSize);
 void TryQueueWorkItem(const PVOID layerData);
-NTSTATUS InitFileNames();
-VOID UnInitMutexes();
 IO_WORKITEM_ROUTINE WorkItemRoutine;
 void copyLayerData(const PVOID layerData);
 void addIpRuleToBlacklist(const PUINT32 ip);
@@ -100,49 +89,43 @@ void addMacRuleToBlacklist(const PDL_EUI48 mac);
 BOOL isIpInBlacklist(UINT32 ip);
 BOOL isMacInBlacklist(const DL_EUI48 mac);
 BOOL doesPassFirewall(const PVOID layerData);
+void truncPacketFile();
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
 {
-    IDPS_PRINT("Entry!\n");
-    NTSTATUS status; // Re-used to check each API function
-
     // Create the device
-    IDPS_PRINT("Creating Device...\n");
-    status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
+    IDPS_PRINT("Creating Device...");
+    NTSTATUS status = IoCreateDevice(DriverObject, 0, &DEVICE_NAME, FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &deviceObject);
     if (!NT_SUCCESS(status))
     {
-        // Print error with status code
-        if (status == STATUS_OBJECT_NAME_COLLISION)
-            IDPS_PRINT("FAILED to create device: NAME_COLLISION\n");
-        else
-            IDPS_PRINT("FAILED to create device\n");
-
+        IDPS_PRINT("FAILED to create device");
         return status; // Error code
     }
 
     // Create the symbolic link
-    IDPS_PRINT("Creating SymLink...\n");
+    IDPS_PRINT("Creating SymLink...");
     status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
-    if (STATUS_OBJECT_NAME_COLLISION == status)
+    if (status == STATUS_OBJECT_NAME_COLLISION)
     {
-        // replacing the existing symlink
+        // Replace existing symlink & update status
         IoDeleteSymbolicLink(&SYMLINK_NAME);
         status = IoCreateSymbolicLink(&SYMLINK_NAME, &DEVICE_NAME);
     }
     if (!NT_SUCCESS(status))
     {
-        IDPS_PRINT("FAILED to create symlink!\n");
+        IDPS_PRINT("FAILED to create symlink!");
         IoDeleteDevice(deviceObject);
         return status;
     }
 
-    // Initializing work context
-    IDPS_PRINT("Initializing work item...\n");
+    // Initialize work context
+    IDPS_PRINT("Initializing work item...");
     IoInitializeWorkItem(deviceObject, (PIO_WORKITEM)&workContext.WorkItem);
+    workContext.held = FALSE;
     workContext.queued = FALSE;
     workContext.ongoing = FALSE;
-    workContext.held = FALSE;
+    workContext.truncFile = FALSE;
     workContext.layerDataLength = 0;
 
     // Bind functions to handling function
@@ -150,117 +133,67 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
         DriverObject->MajorFunction[i] = DriverPassThru;
     DriverObject->DriverUnload = DriverUnload;
 
-    IDPS_PRINT("Creation successful!\n");
+    IDPS_PRINT("Initializing WFP...");
 
+    status = InitializeWfp();
+    if (!NT_SUCCESS(status))
+    {
+        // InitializeWfp() already prints err and calls UnInitWfp()
+        IoDeleteDevice(deviceObject);
+        IoDeleteSymbolicLink(&SYMLINK_NAME);
+        return status;
+    }
+
+    IDPS_PRINT("Creation successful!");
     return STATUS_SUCCESS;
 }
 
 VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
-    driverUnloading = TRUE; // insuring no new work items queue while unloading the driver
-    IDPS_PRINT("Unloading driver...\n");
+    // Ensure no new work items queue while unloading the driver
+    driverUnloading = TRUE;
+    IDPS_PRINT("Unloading driver...");
     while(workContext.ongoing) {}
+
+    // Uninitialize stuff
     IoUninitializeWorkItem((PIO_WORKITEM)&workContext.WorkItem);
     UnInitWfp();
     IoDeleteDevice(DriverObject->DeviceObject);
     IoDeleteSymbolicLink(&SYMLINK_NAME);
-    IDPS_PRINT("Driver unloaded successfully!\n");
+
+    IDPS_PRINT("Driver unloaded successfully!");
 }
 
 // Handling function
 NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
 {
     const PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
-    NTSTATUS status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS; // Assume success
 
-    // Match request and handle properly
-    switch (irpSp->MajorFunction)
+    if (irpSp->MajorFunction != IRP_MJ_DEVICE_CONTROL)
+        goto completeIrp;
+
+    switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
     {
-    case IRP_MJ_CREATE:
-        IDPS_PRINT("Create request!\n");
+    case IOCTL_SEND_IP_RULE:
+        addIpRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
         break;
-    case IRP_MJ_CLOSE:
-        IDPS_PRINT("Close request!\n");
+
+    case IOCTL_SEND_MAC_RULE:
+        addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
         break;
-    case IRP_MJ_READ:
-        IDPS_PRINT("Read request!\n");
+
+    case IOCTL_TRUNCATE_FILE:
+        workContext.truncFile = TRUE;
         break;
-    case IRP_MJ_DEVICE_CONTROL:
-        if (IOCTL_SEND_IP_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
-        {
-            addIpRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
-            break;
-        }
-        else if (IOCTL_SEND_MAC_RULE == irpSp->Parameters.DeviceIoControl.IoControlCode)
-        {
-            addMacRuleToBlacklist(Irp->AssociatedIrp.SystemBuffer);
-            break;
-        }
-        else if (IOCTL_SEND_HANDLES != irpSp->Parameters.DeviceIoControl.IoControlCode)
-        {
-            IDPS_PRINT("Received invalid IOCTL code!\n");
-            status = STATUS_INVALID_PARAMETER;
-            break;
-        }
 
-        IDPS_PRINT("Received handles!\n");
-        if (IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.InputBufferLength < sizeof(IOCTL_HANDLES))
-        {
-            IDPS_PRINT("Received invalid IOCTL struct");
-            status = STATUS_INVALID_PARAMETER;
-            break;
-        }
-
-        /*#################################
-        ### MUTEX CODE, LEAVE FOR NOW #####
-        #################################*/
-        
-        //CLIENT_ID clientId;
-        //PEPROCESS sourceProcessHandle;
-        //OBJECT_ATTRIBUTES objAttrs;
-        //PHANDLE userHandle = NULL;  // Pointer to the user-provided structure
-
-        //// Get the input buffer from the IRP
-        //userHandle = &(((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->mutex);
-
-        //clientId.UniqueProcess = (HANDLE)((PIOCTL_HANDLES)Irp->AssociatedIrp.SystemBuffer)->pid;  // PID of the source process
-        //clientId.UniqueThread = 0;
-
-        //InitializeObjectAttributes(&objAttrs, NULL, 0, NULL, NULL);
-
-        //status = ZwOpenProcess( &sourceProcessHandle, PROCESS_DUP_HANDLE, &objAttrs, &clientId);
-        //if (!NT_SUCCESS(status))
-        //{
-        //    IDPS_PRINT("ZwOpenProcess failed!");
-        //    break;
-        //}
-        //IDPS_PRINT("Opened parent process successfully");
-
-        //status = ZwDuplicateObject(sourceProcessHandle, userHandle, NtCurrentProcess(), packetMutex, SYNCHRONIZE, 0, 0);
-        //if (!NT_SUCCESS(status))
-        //{
-        //    IDPS_PRINT2("Error duplicating mutex handle: %X", status);
-        //    break;
-        //}
-
-        //IDPS_PRINT("Successfully duplicated handles");
-
-        IDPS_PRINT("Initializing WFP...\n");
-
-        status = InitializeWfp();
-        if (!NT_SUCCESS(status))
-        {
-            // InitializeWfp() already prints err and calls UnInitWfp()
-            IoDeleteDevice(deviceObject);
-            IoDeleteSymbolicLink(&SYMLINK_NAME);
-            return status;
-        }
-
-        break;
     default:
+        IDPS_PRINT("Received invalid IOCTL code!");
+        status = STATUS_INVALID_PARAMETER;
         break;
     }
 
+completeIrp:
     Irp->IoStatus.Information = 0;
     Irp->IoStatus.Status = status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
@@ -274,19 +207,17 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
 NTSTATUS InitializeWfp()
 {
     NTSTATUS status;
-    if (NT_SUCCESS(status = InitFileNames()) &&
-        NT_SUCCESS(status = WfpOpenEngine()) &&
+    if (NT_SUCCESS(status = WfpOpenEngine()) &&
         NT_SUCCESS(status = WfpRegisterCallout()) &&
         NT_SUCCESS(status = WfpAddCallout()) &&
         NT_SUCCESS(status = WfpAddSublayer()) &&
         NT_SUCCESS(status = WfpAddFilter()))
     {
-        IDPS_PRINT("Initialized WFP successfully\n");
+        IDPS_PRINT("Initialized WFP successfully");
         return STATUS_SUCCESS;
     }
 
-    IDPS_PRINT("Error initializing WFP!\n");
-    IDPS_PRINT2("Error code: %x", status);
+    IDPS_PRINT("Error initializing WFP! (%x)", status);
     UnInitWfp();
     return status;
 }
@@ -298,9 +229,9 @@ NTSTATUS WfpOpenEngine()
 
 NTSTATUS WfpRegisterCallout()
 {
-    IDPS_PRINT("Registering callout...\n");
+    IDPS_PRINT("Registering callout...");
 
-    // Creating template for 2 callouts
+    // Create template for 2 callouts
     FWPS_CALLOUT callout = { 0 };
     callout.flags = 0;
     callout.notifyFn = NotifyCallback;
@@ -314,9 +245,9 @@ NTSTATUS WfpRegisterCallout()
 
 NTSTATUS WfpAddCallout()
 {
-    IDPS_PRINT("Adding callout...\n");
+    IDPS_PRINT("Adding callout...");
 
-    // Creating template for 2 callouts
+    // Create template for 2 callouts
     FWPM_CALLOUT callout = { 0 };
     callout.flags = 0;
     callout.displayData.name = CALLOUT_DISPLAY_NAME;
@@ -330,9 +261,9 @@ NTSTATUS WfpAddCallout()
 
 NTSTATUS WfpAddSublayer()
 {
-    IDPS_PRINT("Adding sublayer...\n");
+    IDPS_PRINT("Adding sublayer...");
 
-    // Creating template for 2 subLayers
+    // Create template for 2 subLayers
     FWPM_SUBLAYER sublayer = { 0 };
     sublayer.displayData.name = SUBLAYER_DISPLAY_NAME;
     sublayer.displayData.description = SUBLAYER_DISPLAY_NAME;
@@ -345,15 +276,15 @@ NTSTATUS WfpAddSublayer()
 
 NTSTATUS WfpAddFilter()
 {
-    IDPS_PRINT("Adding filter...\n");
+    IDPS_PRINT("Adding filter...");
 
-    // Creating template for the filter
+    // Create template for the filter
     FWPM_FILTER filter = { 0 };
     filter.displayData.name = SUBLAYER_DISPLAY_NAME;
     filter.displayData.description = SUBLAYER_DISPLAY_NAME;
     filter.weight.type = FWP_EMPTY;
-    filter.numFilterConditions = 0; // no condition in order to receive all protocols
-    filter.filterCondition = NULL; // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    filter.numFilterConditions = 0; // No condition in order to receive all protocols
+    filter.filterCondition = NULL; //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     filter.action.type = FWP_ACTION_CALLOUT_TERMINATING;
 
     // Add filter for sniffing
@@ -369,35 +300,32 @@ VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
 
     if (!layerData || !classifyOut)
     {
-        IDPS_PRINT("Layer data or classifyOut is NULL");
+        IDPS_PRINT("layerData or classifyOut is NULL");
         return;
     }
 
     memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
 
-    // Checking if the packet should be blocked
+    // Check if the packet should be blocked
     if (!doesPassFirewall(layerData))
     {
         classifyOut->actionType = FWP_ACTION_BLOCK;
         return;
     }
     classifyOut->actionType = FWP_ACTION_PERMIT;
-        
-    IDPS_PRINT("queueing work item");
+
     TryQueueWorkItem(layerData);
 }
 
-// Boilerplate function without any use for now
+// Boilerplate function without any use
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterKey, FWPS_FILTER* filter)
 {
     return STATUS_SUCCESS;
 }
 
-// Boilerplate function without any use for now
+// Boilerplate function without any use
 VOID FlowDeleteCallback(UINT16 layerId, UINT32 calloutId, UINT64 flowContext)
-{
-    // Noting here!
-}
+{}
 
 VOID UnInitWfp()
 {
@@ -408,20 +336,14 @@ VOID UnInitWfp()
         return;
 
     delFilter(EthernetFilterId);
-    delFilter(IpFilterId);
     FwpmSubLayerDeleteByKey(engineHandle, &ETHERNET_SUBLAYER_GUID);
-    FwpmSubLayerDeleteByKey(engineHandle, &IP_SUBLAYER_GUID);
 
     delCallout(EthernetAddCalloutId);
-    delCallout(IpAddCalloutId);
 
     unregCallout(EthernetRegCalloutId);
-    unregCallout(IpRegCalloutId);
 
     FwpmEngineClose(engineHandle);
     engineHandle = NULL;
-
-    UnInitMutexes();
 }
 
 void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG bufferSize)
@@ -434,7 +356,6 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
     }
 
     // Initialize the OBJECT_ATTRIBUTES structure
-    IDPS_PRINT("Initializing file attributes");
     OBJECT_ATTRIBUTES objAttributes;
     InitializeObjectAttributes(
         &objAttributes,
@@ -443,7 +364,7 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
         NULL,
         NULL
     );
-    
+
     // Open or create the file
     IDPS_PRINT("Creating file handle");
     HANDLE fileHandle = NULL;
@@ -465,7 +386,7 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
     // Check if file opened correctly
     if (!NT_SUCCESS(status))
     {
-        IDPS_PRINT2("Failed to open file: %x", status);
+        IDPS_PRINT("Failed to open file: %x", status);
         return;
     }
 
@@ -483,12 +404,12 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
     // Check if pointer is set correctly
     if (!NT_SUCCESS(status))
     {
-        IDPS_PRINT2("Failed to set file pointer: %x", status);
+        IDPS_PRINT("Failed to set file pointer: %x", status);
         goto closeFile;
     }
 
     // Write data to the file
-    IDPS_PRINT2("Writing %u bytes to file", bufferSize);
+    IDPS_PRINT("Writing %u bytes to file", bufferSize);
     status = ZwWriteFile(
         fileHandle,
         NULL,
@@ -505,7 +426,7 @@ void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, const ULONG
         IDPS_PRINT("Failed to write to file.");
 
 closeFile:
-    // Closing the file handle
+    // Close the file handle
     IDPS_PRINT("Closing file handle");
     ZwClose(fileHandle);
 }
@@ -514,7 +435,7 @@ void TryQueueWorkItem(const PVOID layerData)
 {
     if (!workContext.ongoing)
     {
-        // Making sure that the work item isn't released before the data is copied
+        // Ensure that the work item isn't released before the data is copied
         workContext.held = TRUE; // Custom mutex
         copyLayerData(layerData);
         workContext.held = FALSE;
@@ -538,21 +459,6 @@ void TryQueueWorkItem(const PVOID layerData)
     IDPS_PRINT("Work item queued successfully!");
 }
 
-NTSTATUS InitFileNames()
-{
-    IDPS_PRINT("Initializing file names...");
-
-    RtlInitUnicodeString(&packetFilePath, PACKET_FILE_PATH);
-    RtlInitUnicodeString(&packetMutexPath, PACKET_MUTEX_PATH);
-
-    return STATUS_SUCCESS;
-}
-
-VOID UnInitMutexes()
-{
-    ZwClose(packetMutex);
-}
-
 void copyLayerData(const PVOID layerData)
 {
     if (!layerData) // Theoretically impossible
@@ -561,40 +467,39 @@ void copyLayerData(const PVOID layerData)
         return;
     }
 
-    const NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
-    NET_BUFFER* nb = nbl->FirstNetBuffer;
+    NET_BUFFER* nb = ((NET_BUFFER_LIST*)layerData)->FirstNetBuffer;
     SIZE_T totalCopied = 0;
     ULONG64 timestamp = 0;
 
     while (nb)
     {
-        // Getting the current packet data buffer length
+        // Get the current packet data buffer length
         USHORT dataLength = (USHORT)nb->DataLength;
 
-        // Extracting the packet data buffer
+        // Extract the packet data buffer
         UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
         if (!packetData)
         {
-            IDPS_PRINT("could not read packet data from net buffer");
+            IDPS_PRINT("Could not read packet data from net buffer");
             return;
         }
 
-        // Writing the packet size as a 2-byte value
-		dataLength += sizeof(timestamp); // Adding timestamp size
+        // Write the packet size as a 2-byte value
+        dataLength += sizeof(timestamp); // Add timestamp size
         memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(dataLength));
         totalCopied += sizeof(dataLength);
 
-        // Writing current timestamp as an 8-byte value
+        // Write current timestamp as an 8-byte value
         timestamp = KeQueryUnbiasedInterruptTime();
         memcpy(workContext.layerData + totalCopied, &timestamp, sizeof(timestamp));
         totalCopied += sizeof(timestamp);
 
-        // Writing the actual packet data
-		dataLength -= sizeof(timestamp); // Removing timestamp size
+        // Write the actual packet data
+        dataLength -= sizeof(timestamp); // Remove timestamp size
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
         totalCopied += dataLength;
 
-        // Advancing to next NET-BUFFER
+        // Advance to next NET-BUFFER
         nb = nb->Next;
     }
 
@@ -623,17 +528,17 @@ void addIpRuleToBlacklist(const PUINT32 ip)
 
 void addMacRuleToBlacklist(const PDL_EUI48 mac)
 {
-    // Handle edge-case of null IP
+    // Handle edge-case of null MAC
     if (!mac)
     {
         IDPS_PRINT("addRuleToBlacklist received null IP");
         return;
     }
 
-    // Handle edge-case of full blacklisted IPs
+    // Handle edge-case of full blacklisted MACs
     if (macBlacklist.listLength == MAX_BLACKLIST_SIZE)
     {
-        IDPS_PRINT("IP blacklist is full");
+        IDPS_PRINT("MAC blacklist is full");
         return;
     }
 
@@ -670,7 +575,7 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
 
     PWORK_CONTEXT context = Context; // For convenience
     context->ongoing = TRUE;
-    while (context->held) {} // Waiting for the work item to be released
+    while (context->held) {} // Waite for the work item to be released
 
     // If the driver unloaded while the work item was still queued
     if (driverUnloading || !context->layerData)
@@ -680,20 +585,17 @@ VOID WorkItemRoutine(__IGNORE PDEVICE_OBJECT DeviceObject, PVOID Context)
         return;
     }
 
-    IDPS_PRINT("Started work item routine!");
+    if (context->truncFile)
+    {
+        truncPacketFile();
+        context->truncFile = FALSE;
+    }
 
-	// Printing the packet data
-    USHORT i;
-    for (i = 0; i + 64 < workContext.layerDataLength; i += 64)
-        IDPS_PRINT3("%.*s", 64, workContext.layerData + i);
-    IDPS_PRINT3("%.*s", workContext.layerDataLength - i, workContext.layerData + i);
-
-    // Writing the packet data to the file
+    // Write the packet data to the file
     writeToFile(&packetFilePath, workContext.layerData, workContext.layerDataLength);
 
     context->queued = FALSE;
     context->ongoing = FALSE;
-    IDPS_PRINT("Finished work item routine");
 }
 
 BOOL doesPassFirewall(const PVOID layerData)
@@ -708,7 +610,7 @@ BOOL doesPassFirewall(const PVOID layerData)
     NET_BUFFER* nb = ((NET_BUFFER_LIST*)layerData)->FirstNetBuffer;
 
     const ULONG dataLength = nb->DataLength;
-    const UCHAR* packetData = (UCHAR*)NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
+    const UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
 
     if (!packetData)
     {
@@ -716,24 +618,24 @@ BOOL doesPassFirewall(const PVOID layerData)
         return FALSE;
     }
 
-    // Checking if the packet is an IP packet
+    // Check if the packet is an IP packet
     if (dataLength < sizeof(ETHERNET_HEADER))
     {
         IDPS_PRINT("Packet is too short to be an IP packet");
         return TRUE;
     }
 
-    // Extracting the Ethernet header
+    // Extract the Ethernet header
     const ETHERNET_HEADER* ethHeader = (ETHERNET_HEADER*)packetData;
 
     // Check if the packet is an IPv4 packet (EtherType == 0x0800)
-    if (ethHeader->Type != 0x0008) // 0x0008 is RtlUshortByteSwap(0x0800)
+    if (ethHeader->Type != 0x0008) // 0x0800 in Little Endian
     {
         IDPS_PRINT("Packet is not an IPv4 packet");
         return TRUE;
     }
 
-    // Extracting the IPv4 header
+    // Extract the IPv4 header
     const IPV4_HEADER* ipHeader = (IPV4_HEADER*)(packetData + sizeof(ETHERNET_HEADER));
 
     // Check if the source IP is in the blacklist
@@ -751,4 +653,54 @@ BOOL doesPassFirewall(const PVOID layerData)
     }
 
     return TRUE;
+}
+
+void truncPacketFile()
+{
+    OBJECT_ATTRIBUTES objAttrs;
+    IO_STATUS_BLOCK ioStatus;
+    HANDLE fileHandle = NULL;
+    NTSTATUS status;
+
+    InitializeObjectAttributes(
+        &objAttrs,
+        &packetFilePath,
+        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+        NULL,
+        NULL
+    );
+
+    status = ZwCreateFile(
+        &fileHandle,
+        GENERIC_WRITE | SYNCHRONIZE,
+        &objAttrs,
+        &ioStatus,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ,
+        FILE_OPEN,
+        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL,
+        0
+    );
+
+    if (!NT_SUCCESS(status))
+    {
+        IDPS_PRINT("TruncateFile: Failed to open file (0x%08X)", status);
+        return;
+    }
+
+    FILE_END_OF_FILE_INFORMATION eofInfo = { 0 };
+    status = ZwSetInformationFile(
+        fileHandle,
+        &ioStatus,
+        &eofInfo,
+        sizeof(eofInfo),
+        FileEndOfFileInformation
+    );
+
+    if (!NT_SUCCESS(status))
+        IDPS_PRINT("TruncateFile: Failed to truncate file (0x%08X)", status);
+
+    ZwClose(fileHandle);
 }

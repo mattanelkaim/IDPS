@@ -11,10 +11,10 @@
 #include <WS2tcpip.h>
 #include <IPTypes.h>
 
-constexpr std::string_view INTERFACE_NAME1 = "Intel(R) Wi-Fi 6 AX201 160MHz";
-constexpr std::string_view INTERFACE_NAME2 = "Realtek PCIe GbE Family Controller";
-constexpr std::string_view INTERFACE_NAME3 = "Intel(R) PRO/1000 MT Desktop Adapter";
-constexpr std::string_view INTERFACE_NAME4 = "Microsoft Kernel Debug Network Adapter";
+constexpr std::string_view INTERFACE_NAME_LAP = "Intel(R) Wi-Fi 6 AX201 160MHz";
+constexpr std::string_view INTERFACE_NAME_PC = "Realtek PCIe GbE Family Controller";
+constexpr std::string_view INTERFACE_NAME_VM = "Intel(R) PRO/1000 MT Desktop Adapter";
+constexpr std::string_view INTERFACE_NAME_DBG = "Microsoft Kernel Debug Network Adapter";
 
 enum ProtocolCode_32 : uint32_t
 {
@@ -74,11 +74,16 @@ public:
         return std::string(buffer);
     }
 
-    // Define an implicit conversion to represent in an integer value
-    constexpr operator uint64_t() const noexcept
+    //// Define an implicit conversion to represent in an integer value
+    //constexpr operator uint64_t() const noexcept
+    //{
+    //    // This MUST be C-style cast because reinterpret_cast isn't constexpr
+    //    return *(const uint64_t*)bytes & 0x0000FFFFFFFFFFFF;
+    //}
+
+    bool operator==(const mac& other) const noexcept
     {
-        // This MUST be C-style cast because reinterpret_cast isn't constexpr
-        return *(const uint64_t*)bytes & 0x0000FFFFFFFFFFFF;
+        return !memcmp(bytes, other.bytes, sizeof(bytes));
     }
 };
 

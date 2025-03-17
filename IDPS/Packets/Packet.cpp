@@ -104,7 +104,7 @@ void Packet::parseApplication(std::span<const uint8_t> rawData, const size_t& of
 bool Packet::isArpReplyPacket() const noexcept
 {
     return this->networkProtocol == ARP &&
-           static_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
+       static_cast<ArpHeader*>(this->networkHeader)->opcode == REPLY;
 }
 
 bool Packet::isIPv4Packet() const noexcept
@@ -128,10 +128,42 @@ bool Packet::isDnsPacket() const noexcept
            this->transportHeader->dstPort == DNSHeader::DEFAULT_PORT;
 }
 
+
 Packet::~Packet() noexcept
 {
-    delete linkHeader;
-    delete networkHeader;
-    delete transportHeader;
-    delete applicationData;
+    // Layer parents don't have a virtual destructor, so we must call the specific destructors
+    // **IMPORTANT** deleting the layers from the uppermost (application) to the lowermost (link) layer
+    
+    // Delete APPLICATION layer
+    delete static_cast<DNSMessage*>(applicationData);
+
+    // Delete TRANSPORT layer
+    switch (transportProtocol)
+    {
+    case TCP:
+        delete static_cast<TCPHeader*>(transportHeader);
+        break;
+    case UDP:
+        delete static_cast<UDPHeader*>(transportHeader);
+        break;
+    default:
+        break;
+    }
+
+    // Delete NETWORK layer
+    switch (networkProtocol)
+    {
+    case IPV4:
+        delete static_cast<IPv4Header*>(networkHeader);
+        break;
+    case ARP:
+        delete static_cast<ArpHeader*>(networkHeader);
+        break;
+    default:
+        break;
+    }
+
+    // Delete LINK layer
+    if (linkHeader)
+        delete static_cast<EthernetHeader*>(linkHeader);
 }

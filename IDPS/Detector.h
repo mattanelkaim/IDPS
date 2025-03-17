@@ -20,7 +20,7 @@ private:
 public:
     // Singleton methods
     ~Detector() noexcept = default;
-    static Detector& getInstance() noexcept;
+    static Detector& getInstance();
     Detector(const Detector& other) = delete;
     void operator=(const Detector& other) = delete;
 

@@ -14,7 +14,7 @@ private:
 public:
     // Singleton methods
     ~DriverCommunicator() noexcept;
-    static DriverCommunicator& getInstance() noexcept;
+    static DriverCommunicator& getInstance();
     DriverCommunicator(const DriverCommunicator& other) = delete;
     void operator=(const DriverCommunicator& other) = delete;
 

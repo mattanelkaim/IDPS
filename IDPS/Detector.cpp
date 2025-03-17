@@ -5,11 +5,11 @@
 Detector::Detector()
 {
     IP_ADDR_STRING localIP;
-    if (!Sender::GetLocalIpAddress(INTERFACE_NAME2.data(), &localIP))
+    if (!Sender::GetLocalIpAddress(INTERFACE_NAME_VM.data(), &localIP))
         throw std::exception("Failed to get local IP address!\n");
 
     m_arpTable = ArpTable(&localIP, "ARP.csv");
-    m_arpTable.updateTable(); // TODO ENABLE IN PRODUCTION
+    //m_arpTable.updateTable(); // TODO ENABLE IN PRODUCTION
 }
 
 
@@ -53,7 +53,7 @@ bool Detector::isDoS(const Packet& ipPacket) noexcept
 // SINGLETON METHODS
 
 
-Detector& Detector::getInstance() noexcept
+Detector& Detector::getInstance()
 {
     static Detector instance;
     return instance;
