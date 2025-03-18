@@ -2,9 +2,13 @@
 
 #include "../Helper.h"
 #include "Layers.h"
+#include <iostream>
 #include <span>
 
 using Timestamp = uint64_t; // Amount of 100-nanosecond intervals since last system startup
+
+constexpr bool DEBUG = true;
+#define DBG_COUT(out) if constexpr (DEBUG) { std::cout << out; }
 
 class Packet
 {
@@ -31,8 +35,18 @@ public:
 
 private:
     static constexpr size_t MIN_PACKET_SIZE = sizeof(Timestamp) + sizeof(LoopbackHeader);
-    void parseLink(std::span<const uint8_t> rawData, size_t& offset, auto headerCtor);
-    bool parseNetwork(auto headerCtor);
-    void parseTransport(auto headerCtor);
-    void parseApplication(std::span<const uint8_t> rawData, const size_t& offset, auto headerCtor);
+
+    void parseLink(std::span<const uint8_t> rawData, size_t& offset) noexcept(!DEBUG);
+    bool parseNetwork(std::span<const uint8_t> rawData, size_t& offset);
+    void parseTransport(std::span<const uint8_t> rawData, size_t& offset);
+    void parseApplication(std::span<const uint8_t> rawData, size_t offset) noexcept(!DEBUG); // No need for reference (last layer)
+
+    template <typename T>
+    static T* headerCtor(std::span<const uint8_t> rawData, size_t& offset) noexcept(!DEBUG)
+    {
+        T* header = new T(rawData.subspan(offset, sizeof(T)));
+        offset += sizeof(T); // By reference
+        DBG_COUT("\033[0m:\n" << *header << '\n'); // Prints a prefix and the header
+        return header;
+    };
 };

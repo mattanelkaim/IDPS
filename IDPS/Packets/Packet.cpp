@@ -1,6 +1,5 @@
 #include "../IDPSExceptions.hpp"
 #include "Packet.h"
-#include <iostream>
 
 
 Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp)
@@ -11,28 +10,20 @@ Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp)
     if (hasTimestamp) [[likely]]
     {
         this->timestamp = *reinterpret_cast<const Timestamp*>(rawData.data());
-        std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
+        DBG_COUT("\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n');
     }
 
     // An initial offset depending on timestamp
     size_t offset = hasTimestamp ? sizeof(timestamp) : 0;
 
-    // Captures offset & rawData by ref. Then it's called using headerCtor.operator()<T>()
-    auto headerCtor = [&]<typename T>() -> T* {
-        T* header = new T(rawData.subspan(offset, sizeof(T)));
-        offset += sizeof(T); // By reference
-        std::cout << "\033[0m:\n" << *header << '\n'; // Prints a prefix and the header
-        return header;
-    };
-
     // Parse the packet layers
-    this->parseLink(rawData, offset, headerCtor);
-    if (!this->parseNetwork(headerCtor)) [[unlikely]] return; // May return early if ARP packet
-    this->parseTransport(headerCtor);
-    this->parseApplication(rawData, offset, headerCtor);
+    this->parseLink(rawData, offset);
+    if (!this->parseNetwork(rawData, offset)) [[unlikely]] return; // May return early if ARP packet
+    this->parseTransport(rawData, offset);
+    this->parseApplication(rawData, offset);
 }
 
-void Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset, auto headerCtor)
+void Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset) noexcept(!DEBUG)
 {
     // Try to parse link layer as loopback
     const LoopbackHeader tempHeader(rawData.subspan(offset, sizeof(LoopbackHeader)));
@@ -40,8 +31,8 @@ void Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset, auto he
     // Try to parse the link layer
     if (tempHeader.loopbackType != NULL_IPV4) [[likely]]
     {
-        std::cout << "\n\033[41mEthernet";
-        auto ethernetHeader = headerCtor.operator()<EthernetHeader>();
+        DBG_COUT("\n\033[41mEthernet");
+        auto ethernetHeader = headerCtor<EthernetHeader>(rawData, offset);
         this->linkHeader = ethernetHeader;
         this->networkProtocol = ethernetHeader->etherType;
     }
@@ -49,26 +40,26 @@ void Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset, auto he
     {
         this->networkProtocol = IPV4; // Assume IPv4 when loopback
         offset += sizeof(LoopbackHeader);
-        std::cout << "\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n';
+        DBG_COUT("\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n');
     }
 }
 
-bool Packet::parseNetwork(auto headerCtor)
+bool Packet::parseNetwork(std::span<const uint8_t> rawData, size_t& offset)
 {
     switch (this->networkProtocol)
     {
     case IPV4:
     {
-        std::cout << "\033[42mIPv4";
-        auto ipv4Header = headerCtor.operator()<IPv4Header>();
+        DBG_COUT("\033[42mIPv4");
+        auto ipv4Header = headerCtor<IPv4Header>(rawData, offset);
         this->networkHeader = ipv4Header;
         this->transportProtocol = ipv4Header->protocol;
         return true;
     }
 
     case ARP:
-        std::cout << "\033[42mARP";
-        this->networkHeader = headerCtor.operator()<ArpHeader>();
+        DBG_COUT("\033[42mARP");
+        this->networkHeader = headerCtor<ArpHeader>(rawData, offset);
         this->transportProtocol = NONE;
         return false; // Done parsing - no transport layer!
 
@@ -77,18 +68,18 @@ bool Packet::parseNetwork(auto headerCtor)
     }
 }
 
-void Packet::parseTransport(auto headerCtor)
+void Packet::parseTransport(std::span<const uint8_t> rawData, size_t& offset)
 {
     switch (this->transportProtocol)
     {
     case TCP:
-        std::cout << "\033[43mTCP";
-        this->transportHeader = headerCtor.operator()<TCPHeader>();
+        DBG_COUT("\033[43mTCP");
+        this->transportHeader = headerCtor<TCPHeader>(rawData, offset);
         break;
 
     case UDP:
-        std::cout << "\033[43mUDP";
-        this->transportHeader = headerCtor.operator()<UDPHeader>();
+        DBG_COUT("\033[43mUDP");
+        this->transportHeader = headerCtor<UDPHeader>(rawData, offset);
         break;
 
     default:
@@ -96,12 +87,12 @@ void Packet::parseTransport(auto headerCtor)
     }
 }
 
-void Packet::parseApplication(std::span<const uint8_t> rawData, const size_t& offset, auto headerCtor)
+void Packet::parseApplication(std::span<const uint8_t> rawData, size_t offset) noexcept(!DEBUG)
 {
     if (this->isDnsPacket())
     {
         this->applicationData = new DNSMessage(rawData.subspan(offset));
-        std::cout << "\033[44mDNS (header)\033[0m:\n" << static_cast<DNSMessage*>(applicationData)->header << '\n';
+        DBG_COUT("\033[44mDNS (header)\033[0m:\n" << static_cast<DNSMessage*>(applicationData)->header << '\n');
     }
 }
 
