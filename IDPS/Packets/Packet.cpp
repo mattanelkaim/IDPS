@@ -3,11 +3,16 @@
 #include <iostream>
 
 
-Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp) :
-    timestamp(hasTimestamp ? *reinterpret_cast<const Timestamp*>(rawData.data()) : 0) // Set timestamp based on flag
+Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp)
 {
+    if (rawData.size() < MIN_PACKET_SIZE)
+        throw MinorException("Invalid packet received");
+
     if (hasTimestamp) [[likely]]
+    {
+        this->timestamp = *reinterpret_cast<const Timestamp*>(rawData.data());
         std::cout << "\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n';
+    }
 
     // An initial offset depending on timestamp
     size_t offset = hasTimestamp ? sizeof(timestamp) : 0;

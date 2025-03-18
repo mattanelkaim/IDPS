@@ -30,6 +30,7 @@ public:
     bool isDnsPacket() const noexcept;
 
 private:
+    static constexpr size_t MIN_PACKET_SIZE = sizeof(Timestamp) + sizeof(LoopbackHeader);
     void parseLink(std::span<const uint8_t> rawData, size_t& offset, auto headerCtor);
     bool parseNetwork(auto headerCtor);
     void parseTransport(auto headerCtor);
