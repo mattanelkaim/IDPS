@@ -4,6 +4,7 @@
 #include "Packets/Layers.h"
 #include "Packets/Packet.h"
 #include <inaddr.h>
+#include <string>
 #include <vector>
 #include <winhttp.h> // HINTERNET
 
@@ -24,7 +25,7 @@ namespace Sender
     std::vector<uint8_t> constructDNSPayload(const DNSMessage& message);
 
     static std::vector<DNSRecord> extractDNSRecordsFromJson(std::string_view dohResponse, std::string_view section = "Answer");
-};
+}; // namespace Sender
 
 
 // Simple RAII wrapper for WinHTTP handles

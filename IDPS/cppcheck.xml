@@ -3,4 +3,10 @@
   <suppress>
     <id>missingIncludeSystem</id>
   </suppress>
+  <suppress>
+    <id>missingInclude</id>
+  </suppress>
+  <suppress>
+    <id>unusedFunction</id>
+  </suppress>
 </suppressions>

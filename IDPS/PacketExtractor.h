@@ -20,7 +20,7 @@ private:
     HANDLE m_hFile;
 
     // Main private methods
-    PacketExtractor(std::exception_ptr& outException);
+    explicit PacketExtractor(std::exception_ptr& outException);
     void threadRoutine();
 
     // Helper methods

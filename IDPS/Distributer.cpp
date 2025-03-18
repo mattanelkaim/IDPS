@@ -4,6 +4,7 @@
 #include "IDPSExceptions.hpp"
 #include "PacketExtractor.h"
 #include <iostream>
+#include <vector>
 
 void Distributer::run() const
 {

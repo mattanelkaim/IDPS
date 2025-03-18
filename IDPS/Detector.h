@@ -3,6 +3,7 @@
 #include "ArpTable.h"
 #include "Packets/Packet.h"
 #include <unordered_map>
+#include <utility> // std::pair
 
 constexpr auto DOS_THRESHOLD = 100; // packets per second from a single source
 constexpr auto ONE_SECOND = 10'000'000; // in 100-nanosecond intervals

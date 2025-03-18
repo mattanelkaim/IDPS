@@ -12,15 +12,15 @@ PacketExtractor::PacketExtractor(std::exception_ptr& outException) :
 
 void PacketExtractor::threadRoutine()
 {
-    uint8_t packetCounter = 0;
-    uint16_t packetSize = 0;
-    std::vector<uint8_t> rawPacket;
-
     // Opening the packet file
     this->openPacketFile();
 
     try
     {
+        uint8_t packetCounter = 0;
+        uint16_t packetSize = 0;
+        std::vector<uint8_t> rawPacket;
+
         while (true)
         {
             // Truncating the file every MAX_PACKET_COUNT'th packet read

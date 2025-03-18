@@ -251,16 +251,6 @@ DNSMessage::DNSMessage(std::span<const uint8_t> rawData) :
     additionalRecords = parseRecords(rawData, offset, header.additionalCount);
 }
 
-constexpr in_addr DNSMessage::getResolvedIP() const noexcept
-{
-    for (const DNSRecord& record : answers)
-    {
-        if (record.type == 1) // Type A (IPv4 address)
-            return *reinterpret_cast<const in_addr*>(record.data.data()); // Data is stored and aligned as an in_addr
-    }
-    return {0}; // Invalid IP
-}
-
 constexpr std::string DNSMessage::parseDomainName(std::span<const uint8_t> rawData, size_t& offset)
 {
     std::string domainName;

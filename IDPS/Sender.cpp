@@ -1,12 +1,14 @@
-// Do NOT sort these includes
 #include "json.hpp"
 #include "Sender.h"
-#include <iphlpapi.h>
-#include <IcmpAPI.h>
+#include <iostream>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
-#include <iostream>
+#include <utility> // std::move
+
+// Do NOT sort these includes
+#include <iphlpapi.h>
+#include <IcmpAPI.h>
 
 using json = nlohmann::json;
 

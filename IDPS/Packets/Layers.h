@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iosfwd> // std::ostream
 #include <span>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -137,7 +138,6 @@ struct DNSHeader
     uint16_t additionalCount;
 
 public:
-    DNSHeader() noexcept = default;
     explicit DNSHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
     static constexpr uint16_t DEFAULT_PORT = 53;
@@ -173,7 +173,6 @@ public:
     std::vector<DNSRecord> additionalRecords;
 
     explicit DNSMessage(std::span<const uint8_t> rawData);
-    constexpr in_addr getResolvedIP() const noexcept;
     // TODO should be constexpr, but causes linker errors
     static std::vector<uint8_t> deserializeDomainName(std::span<const uint8_t> domain) noexcept;
 

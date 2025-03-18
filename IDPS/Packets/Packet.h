@@ -13,7 +13,7 @@ constexpr bool DEBUG = true;
 class Packet
 {
 public:
-    Packet(std::span<const uint8_t> rawData, bool hasTimestamp=true);
+    explicit Packet(std::span<const uint8_t> rawData, bool hasTimestamp=true);
     ~Packet() noexcept;
 
     ProtocolCode_16 networkProtocol;
