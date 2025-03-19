@@ -16,15 +16,16 @@ public:
     explicit Packet(std::span<const uint8_t> rawData, bool hasTimestamp=true);
     ~Packet() noexcept;
 
-    ProtocolCode_16 networkProtocol;
-    ProtocolCode_8 transportProtocol;
-    Timestamp timestamp;
-
     // Parsed protocol layers
     LinkHeader* linkHeader = nullptr; // If nullptr then Null protocol (loopback)
     NetworkHeader* networkHeader = nullptr;
     TransportHeader* transportHeader = nullptr;
     ApplicationData* applicationData = nullptr;
+
+    // Other members
+    Timestamp timestamp;
+    ProtocolCode_16 networkProtocol;
+    ProtocolCode_8 transportProtocol;
 
     // Helper functions
     bool isArpReplyPacket() const noexcept;

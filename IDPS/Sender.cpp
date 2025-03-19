@@ -95,7 +95,7 @@ bool Sender::SendPing(in_addr target) noexcept
 
     // Reply buffer for exactly 1 echo reply, payload data, and 8 bytes for ICMP error message.
     constexpr DWORD replyBufSize = sizeof(ICMP_ECHO_REPLY) + payloadSize + 8;
-    ICMP_ECHO_REPLY replyBuffer[replyBufSize]{0};
+    ICMP_ECHO_REPLY replyBuffer[replyBufSize]{{0}};
 
     constexpr DWORD timeout = 30'000; // 30 seconds
 
@@ -211,13 +211,13 @@ void Sender::sendDNSResponse(const Packet& dnsQuery)
     sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
     clientAddr.sin_port = std::byteswap(dnsQuery.transportHeader->srcPort); // Send the response to the source port
     
-    // Send the response
-    int sendResult = sendto(sendSocket,
-                            response.data(),
-                            static_cast<int>(response.size()),
-                            0, // Reserve or some shit
-                            reinterpret_cast<const sockaddr*>(&clientAddr),
-                            sizeof(clientAddr));
+    // Send the response TODO: check return code
+    sendto(sendSocket,
+           response.data(),
+           static_cast<int>(response.size()),
+           0, // Reserve or some shit
+           reinterpret_cast<const sockaddr*>(&clientAddr),
+           sizeof(clientAddr));
 
     closesocket(sendSocket); // Not RAII because no exceptions can be thrown since socket creation
 }
@@ -245,8 +245,8 @@ std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
     {
         // Offset is 14-bits long, so we need to split it into 2 bytes
         const uint16_t current = nameOffsets.at(std::get<std::string>(record.name));
-        payload.push_back((current >> 12) | 0b11000000); // First 2 bits are set
-        payload.push_back(current & 0xFF);
+        payload.push_back((current >> 12) | 0b11000000u); // First 2 bits are set
+        payload.push_back(current & 0xFFu);
 
         Helper::insertWordToBytes(payload, record.type);
         Helper::insertWordToBytes(payload, record.recordClass);

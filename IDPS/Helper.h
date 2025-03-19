@@ -58,7 +58,7 @@ public:
     constexpr explicit mac(std::string_view macStr) noexcept
     {
         const char* currentByte = macStr.data();
-        for (int i = 0; i < sizeof(bytes); ++i)
+        for (uint8_t i = 0; i < sizeof(bytes); ++i)
         {
             // Using from_chars because it is constexpr
             std::from_chars(currentByte, currentByte + 2, bytes[i], 16); // Convert hex str to integer
@@ -156,7 +156,7 @@ namespace Helper
     {
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
-        addr.sin_port = byteswap(53i16); // DNS port
+        addr.sin_port = byteswap(53ui16); // DNS port
         addr.sin_addr.S_un.S_un_b = {127, 0, 0, 1}; // Localhost
 
         return addr;

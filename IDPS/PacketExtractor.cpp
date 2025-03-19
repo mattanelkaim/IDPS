@@ -75,7 +75,7 @@ void PacketExtractor::openPacketFile()
         throw FatalWinException("Failed to open packet file.", GetLastError());
 }
 
-void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes)
+void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes) const
 {
     DWORD bytesRead = 0;
     DWORD bytesLeft = numBytes;
@@ -89,12 +89,12 @@ void PacketExtractor::readFromFile(void* outBuffer, uint16_t numBytes)
     }
 }
 
-void PacketExtractor::truncatePacketFile()
+void PacketExtractor::truncatePacketFile() const
 {
     DriverCommunicator::getInstance().truncateFile();
 
     // Reseting the file pointer
-    if (!SetFilePointerEx(this->m_hFile, {0}, NULL, FILE_BEGIN))
+    if (!SetFilePointerEx(this->m_hFile, {{0}}, NULL, FILE_BEGIN))
         throw FatalWinException("Failed to set packet file pointer.", GetLastError());
 }
 

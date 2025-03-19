@@ -15,7 +15,7 @@ Detector::Detector()
 
 bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const noexcept
 {
-    const ArpHeader* arpHeader = reinterpret_cast<ArpHeader*>(arpPacket.networkHeader);
+    const ArpHeader* arpHeader = static_cast<ArpHeader*>(arpPacket.networkHeader);
 
     // TODO define behavior if MAC is not in table
     return arpHeader->senderMAC == m_arpTable.getMac(arpHeader->senderIP);
@@ -23,12 +23,12 @@ bool Detector::isArpReplyLikeTable(const Packet& arpPacket) const noexcept
 
 bool Detector::isTcpNullScan(const Packet& tcpPacket) noexcept
 {
-    return !reinterpret_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
+    return !static_cast<TCPHeader*>(tcpPacket.transportHeader)->flags; // return true if all flags are unset
 }
 
 bool Detector::isDoS(const Packet& ipPacket) noexcept
 {
-    const uint32_t srcIp = reinterpret_cast<IPv4Header*>(ipPacket.networkHeader)->srcIP.s_addr;
+    const uint32_t srcIp = static_cast<IPv4Header*>(ipPacket.networkHeader)->srcIP.s_addr;
 
     // Inserting IP if it is new (insert with counter=1)
     if (!m_dosMap.contains(srcIp))

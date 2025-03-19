@@ -6,7 +6,8 @@
 
 
 ArpTable::ArpTable(PIP_ADDR_STRING localAddress, std::string_view fileName) :
-    m_localAddress(localAddress), m_fileName(fileName)
+    m_fileName(fileName),
+    m_localAddress(localAddress)
 {
     const std::ifstream checkFile(fileName.data());
 

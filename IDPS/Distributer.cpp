@@ -32,7 +32,7 @@ void Distributer::run() const
 
             if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
-                srcMac = reinterpret_cast<EthernetHeader*>(packet.linkHeader)->srcMAC;
+                srcMac = static_cast<EthernetHeader*>(packet.linkHeader)->srcMAC;
                 std::cout << "ARP Spoofing attack Detected!!!\n";
                 std::cout << "Blocking MAC - " << srcMac.macToString() << '\n';
                 driverCommunicator.addMacToFirewall(srcMac);
@@ -42,7 +42,7 @@ void Distributer::run() const
             if (!packet.isIPv4Packet())
                 continue;
 
-            srcIp = reinterpret_cast<IPv4Header*>(packet.networkHeader)->srcIP;
+            srcIp = static_cast<IPv4Header*>(packet.networkHeader)->srcIP;
             if (detector.isDoS(packet))
             {
                 std::cout << "DoS attack Detected!!!\n";

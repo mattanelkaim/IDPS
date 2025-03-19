@@ -25,8 +25,8 @@ private:
 
     // Helper methods
     void openPacketFile();
-    void readFromFile(void* outBuffer, uint16_t numBytes);
-    void truncatePacketFile();
+    void readFromFile(void* outBuffer, uint16_t numBytes) const;
+    void truncatePacketFile() const;
 
 public:
     // Singleton methods
