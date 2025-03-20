@@ -21,7 +21,7 @@ namespace Sender
     bool SendPing(in_addr target) noexcept;
     std::vector<in_addr> mapLocalNetwork(const IP_ADDR_STRING& localIpData);
     std::string DoHQuery(std::string_view domain);
-    void sendDNSResponse(const Packet& response);
+    void sendDNSResponse(const Packet& dnsQuery);
     std::vector<uint8_t> constructDNSPayload(const DNSMessage& message);
 
     static std::vector<DNSRecord> extractDNSRecordsFromJson(std::string_view dohResponse, std::string_view section = "Answer");

@@ -182,7 +182,7 @@ void Sender::sendDNSResponse(const Packet& dnsQuery)
     const std::string dohResponse = DoHQuery(question);
 
     // Then write the response OVER the original DNS query
-    DNSMessage* responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
+    auto responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
     responseDNS->answers = extractDNSRecordsFromJson(dohResponse, "Answer");
     responseDNS->authorities = extractDNSRecordsFromJson(dohResponse, "Authority");
     responseDNS->additionalRecords = extractDNSRecordsFromJson(dohResponse, "Additional");
