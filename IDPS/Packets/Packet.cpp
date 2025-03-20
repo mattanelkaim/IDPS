@@ -17,31 +17,51 @@ Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp)
     size_t offset = hasTimestamp ? sizeof(timestamp) : 0;
 
     // Parse the packet layers
-    this->parseLink(rawData, offset);
-    if (!this->parseNetwork(rawData, offset)) [[unlikely]] return; // May return early if ARP packet
+    if (!this->parseLink(rawData, offset)) [[unlikely]]
+        throw MinorException("Detected useless IEEE 802.3");
+
+    // May return early if ARP packet
+    if (!this->parseNetwork(rawData, offset)) [[unlikely]] return;
+
     this->parseTransport(rawData, offset);
     this->parseApplication(rawData, offset);
 }
 
-void Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset) noexcept(!DEBUG)
+bool Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset)
 {
-    // Try to parse link layer as loopback
+    // First assume Loopback
     const LoopbackHeader tempHeader(rawData.subspan(offset, sizeof(LoopbackHeader)));
 
-    // Try to parse the link layer
-    if (tempHeader.loopbackType != NULL_IPV4) [[likely]]
-    {
-        DBG_COUT("\n\033[41mEthernet");
-        auto ethernetHeader = headerCtor<EthernetHeader>(rawData, offset);
-        this->linkHeader = ethernetHeader;
-        this->networkProtocol = ethernetHeader->etherType;
-    }
-    else // Loopback header
+    // Check if really Loopback
+    if (tempHeader.loopbackType == NULL_IPV4) [[unlikely]]
     {
         this->networkProtocol = IPV4; // Assume IPv4 when loopback
         offset += sizeof(LoopbackHeader);
         DBG_COUT("\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n');
+        return true;
     }
+
+    /* Else determine whether Ethernet II OR Ethernet 802.3
+       Based on EtherType. If <= 1500 then it's 802.3, else it's II.
+       See: https://wikipedia.org/wiki/EtherType#Overview */
+
+    // Both links headers have the same size!
+    if (rawData.size() - offset < sizeof(EthernetIIHeader))
+        throw MinorException("Unsupported link protocol");
+
+    // Assume Ethernet II and check EtherType
+    DBG_COUT("\n\033[41mEthernet");
+    auto* ethernetHeader = headerCtor<EthernetIIHeader>(rawData, offset);
+    if (ethernetHeader->etherType <= EthernetIIHeader::ETHERNET_PAYLOAD_MAX)
+    {
+        // SHIT! Detected IEEE 802.3, dropping useless packet
+        return false;
+    }
+
+    this->linkHeader = ethernetHeader;
+    this->networkProtocol = ethernetHeader->etherType;
+    
+    return true; // Parsed normally
 }
 
 bool Packet::parseNetwork(std::span<const uint8_t> rawData, size_t& offset)
@@ -51,7 +71,7 @@ bool Packet::parseNetwork(std::span<const uint8_t> rawData, size_t& offset)
     case IPV4:
     {
         DBG_COUT("\033[42mIPv4");
-        auto ipv4Header = headerCtor<IPv4Header>(rawData, offset);
+        auto* ipv4Header = headerCtor<IPv4Header>(rawData, offset);
         this->networkHeader = ipv4Header;
         this->transportProtocol = ipv4Header->protocol;
         return true;
@@ -161,5 +181,5 @@ Packet::~Packet() noexcept
 
     // Delete LINK layer
     if (linkHeader)
-        delete static_cast<EthernetHeader*>(linkHeader);
+        delete static_cast<EthernetIIHeader*>(linkHeader);
 }

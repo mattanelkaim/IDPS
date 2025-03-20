@@ -37,7 +37,7 @@ public:
 private:
     static constexpr size_t MIN_PACKET_SIZE = sizeof(Timestamp) + sizeof(LoopbackHeader);
 
-    void parseLink(std::span<const uint8_t> rawData, size_t& offset) noexcept(!DEBUG);
+    bool parseLink(std::span<const uint8_t> rawData, size_t& offset);
     bool parseNetwork(std::span<const uint8_t> rawData, size_t& offset);
     void parseTransport(std::span<const uint8_t> rawData, size_t& offset);
     void parseApplication(std::span<const uint8_t> rawData, size_t offset) noexcept(!DEBUG); // No need for reference (last layer)

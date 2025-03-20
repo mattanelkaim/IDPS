@@ -6,19 +6,19 @@
 // 4m=underline, 0m=reset ANSI
 #define FIELD(name) "\033[4m" name "\033[0m: "
 
-EthernetHeader::EthernetHeader(std::span<const uint8_t> rawData)
+EthernetIIHeader::EthernetIIHeader(std::span<const uint8_t> rawData)
 {
-    if (rawData.size() < sizeof(EthernetHeader)) [[unlikely]]
+    if (rawData.size() < sizeof(EthernetIIHeader)) [[unlikely]]
         throw MinorException("Invalid Ethernet header size");
 
     // Copy raw data into the struct
-    *this = *reinterpret_cast<const EthernetHeader*>(rawData.data());
+    *this = *reinterpret_cast<const EthernetIIHeader*>(rawData.data());
 
     // Convert to big endian if larger than a byte
     this->etherType = Helper::byteswap(this->etherType);
 }
 
-std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj)
+std::ostream& operator<<(std::ostream& os, const EthernetIIHeader& obj)
 {
     os << FIELD("Destination MAC") << obj.dstMAC.macToString() << '\n';
     os << FIELD("Source MAC") << obj.srcMAC.macToString() << '\n';

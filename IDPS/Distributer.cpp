@@ -32,7 +32,7 @@ void Distributer::run() const
 
             if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
-                srcMac = static_cast<EthernetHeader*>(packet.linkHeader)->srcMAC;
+                srcMac = static_cast<EthernetIIHeader*>(packet.linkHeader)->srcMAC;
                 std::cout << "ARP Spoofing attack Detected!!!\n";
                 std::cout << "Blocking MAC - " << srcMac.macToString() << '\n';
                 driverCommunicator.addMacToFirewall(srcMac);
