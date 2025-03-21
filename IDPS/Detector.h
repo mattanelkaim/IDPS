@@ -24,6 +24,8 @@ public:
     static Detector& getInstance();
     Detector(const Detector& other) = delete;
     void operator=(const Detector& other) = delete;
+    Detector(Detector&& other) = delete;
+    void operator=(Detector&& other) = delete;
 
     bool isArpReplyLikeTable(const Packet& arpPacket) const noexcept;
     static bool isTcpNullScan(const Packet& tcpPacket) noexcept;

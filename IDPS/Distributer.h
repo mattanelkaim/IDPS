@@ -11,6 +11,8 @@ public:
     static Distributer& getInstance() noexcept;
     Distributer(const Distributer& other) = delete;
     void operator=(const Distributer& other) = delete;
+    Distributer(Distributer&& other) = delete;
+    void operator=(Distributer&& other) = delete;
 
     // methods
     static void run();

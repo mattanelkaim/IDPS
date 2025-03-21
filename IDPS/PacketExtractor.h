@@ -34,8 +34,9 @@ public:
     static PacketExtractor& getInstance(std::exception_ptr& outException);
     PacketExtractor(const PacketExtractor& other) = delete;
     void operator=(const PacketExtractor& other) = delete;
+    PacketExtractor(PacketExtractor&& other) = delete;
+    void operator=(PacketExtractor&& other) = delete;
 
     // Methods
     std::vector<uint8_t> getPacket();
 };
-
