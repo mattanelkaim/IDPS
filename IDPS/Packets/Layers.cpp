@@ -20,10 +20,9 @@ EthernetIIHeader::EthernetIIHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const EthernetIIHeader& obj)
 {
-    os << FIELD("Destination MAC") << obj.dstMAC.macToString() << '\n';
-    os << FIELD("Source MAC") << obj.srcMAC.macToString() << '\n';
-    os << FIELD("Ethernet type") << "0x" << std::hex << obj.etherType << std::dec << '\n';
-    return os;
+    return os << FIELD("Destination MAC") << obj.dstMAC.macToString() << '\n'
+              << FIELD("Source MAC") << obj.srcMAC.macToString() << '\n'
+              << FIELD("Ethernet type") << "0x" << std::hex << obj.etherType << std::dec << '\n';
 }
 
 
@@ -39,8 +38,7 @@ LoopbackHeader::LoopbackHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj)
 {
-    os << FIELD("Loopback type") << "0x" << std::hex << obj.loopbackType << std::dec << '\n';
-    return os;
+    return os << FIELD("Loopback type") << "0x" << std::hex << obj.loopbackType << std::dec << '\n';
 }
 
 
@@ -63,21 +61,19 @@ IPv4Header::IPv4Header(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
 {
-    os << FIELD("Version") << static_cast<int>(obj.version) << '\n'; // High nibble
-    os << FIELD("Header length") << static_cast<int>(obj.headerLength) << '\n'; // Low nibble
-    os << FIELD("Type of service") << static_cast<int>(obj.typeOfService) << '\n';
-    os << FIELD("Total length") << obj.totalLength << '\n';
-    os << FIELD("Identification") << obj.identification << '\n';
-    os << FIELD("Flags") << static_cast<int>(obj.flags) << '\n'; // High 3 bits
-    os << FIELD("Fragment offset") << (obj.fragmentOffset) << '\n'; // Low 13 bits
-    os << FIELD("Time to live") << static_cast<int>(obj.ttl) << '\n';
-    os << FIELD("Protocol") << static_cast<int>(obj.protocol) << '\n';
-    os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
+    return os << FIELD("Version") << static_cast<int>(obj.version) << '\n' // High nibble
+              << FIELD("Header length") << static_cast<int>(obj.headerLength) << '\n' // Low nibble
+              << FIELD("Type of service") << static_cast<int>(obj.typeOfService) << '\n'
+              << FIELD("Total length") << obj.totalLength << '\n'
+              << FIELD("Identification") << obj.identification << '\n'
+              << FIELD("Flags") << static_cast<int>(obj.flags) << '\n' // High 3 bits
+              << FIELD("Fragment offset") << (obj.fragmentOffset) << '\n' // Low 13 bits
+              << FIELD("Time to live") << static_cast<int>(obj.ttl) << '\n'
+              << FIELD("Protocol") << static_cast<int>(obj.protocol) << '\n'
+              << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n'
     
-    os << FIELD("Source IP") << Helper::ipToStr(obj.srcIP) << '\n';
-    os << FIELD("Destination IP") << Helper::ipToStr(obj.dstIP) << '\n';
-    
-    return os;
+              << FIELD("Source IP") << Helper::ipToStr(obj.srcIP) << '\n'
+              << FIELD("Destination IP") << Helper::ipToStr(obj.dstIP) << '\n';
 }
 
 
@@ -99,19 +95,17 @@ ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
 {
-    os << FIELD("Hardware type") << "0x" << std::hex << obj.hardwareType << '\n';
-    os << FIELD("IP format type") << "0x" << obj.protocolType << std::dec << '\n';
-    os << FIELD("Hardware length") << static_cast<int>(obj.hardwareLength) << '\n';
-    os << FIELD("Protocol length") << static_cast<int>(obj.protocolLength) << '\n';
-    os << FIELD("Opcode") << "0x" << std::hex << obj.opcode << std::dec << '\n';
+    return os << FIELD("Hardware type") << "0x" << std::hex << obj.hardwareType << '\n'
+              << FIELD("IP format type") << "0x" << obj.protocolType << std::dec << '\n'
+              << FIELD("Hardware length") << static_cast<int>(obj.hardwareLength) << '\n'
+              << FIELD("Protocol length") << static_cast<int>(obj.protocolLength) << '\n'
+              << FIELD("Opcode") << "0x" << std::hex << obj.opcode << std::dec << '\n'
     
-    os << FIELD("Sender MAC") << obj.senderMAC.macToString() << '\n';
-    os << FIELD("Sender IP") << Helper::ipToStr(obj.senderIP) << '\n';
+              << FIELD("Sender MAC") << obj.senderMAC.macToString() << '\n'
+              << FIELD("Sender IP") << Helper::ipToStr(obj.senderIP) << '\n'
     
-    os << FIELD("Target MAC") << obj.targetMAC.macToString() << '\n';
-    os << FIELD("Target IP") << Helper::ipToStr(obj.targetIP) << '\n';
-    
-    return os;
+              << FIELD("Target MAC") << obj.targetMAC.macToString() << '\n'
+              << FIELD("Target IP") << Helper::ipToStr(obj.targetIP) << '\n';
 }
 
 
@@ -135,12 +129,12 @@ TCPHeader::TCPHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
 {
-    os << FIELD("Source port") << obj.srcPort << '\n';
-    os << FIELD("Destination port") << obj.dstPort << '\n';
-    os << FIELD("Sequence number") << obj.seqNumber << '\n';
-    os << FIELD("Acknowledgment Number") << obj.ackNumber << '\n';
-    os << FIELD("Data Offset") << static_cast<int>(obj.dataOffset) << '\n';
-    os << FIELD("Reserved") << static_cast<int>((obj.reserved & 0b1110) >> 1) << '\n'; // 3 high bits in lower nibble
+    os << FIELD("Source port") << obj.srcPort << '\n'
+       << FIELD("Destination port") << obj.dstPort << '\n'
+       << FIELD("Sequence number") << obj.seqNumber << '\n'
+       << FIELD("Acknowledgment Number") << obj.ackNumber << '\n'
+       << FIELD("Data Offset") << static_cast<int>(obj.dataOffset) << '\n'
+       << FIELD("Reserved") << ((obj.reserved & 0b1110) >> 1) << '\n'; // 3 high bits in lower nibble
 
     // Flags
     os << FIELD("Flags");
@@ -152,9 +146,9 @@ std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
     if (obj.flags & 0x20) os << "URG ";
     if (obj.reserved & 0x01) os << "Reserved "; // The 9th flag bit
 
-    os << '\n' << FIELD("Window size") << obj.windowSize << '\n';
-    os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
-    os << FIELD("Urgent pointer") << obj.urgentPointer << '\n';
+    os << '\n' << FIELD("Window size") << obj.windowSize << '\n'
+       << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n'
+       << FIELD("Urgent pointer") << obj.urgentPointer << '\n';
 
     return os;
 }
@@ -177,13 +171,10 @@ UDPHeader::UDPHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
 {
-    os << FIELD("Source port") << obj.srcPort << '\n';
-    os << FIELD("Destination port") << obj.dstPort << '\n';
-
-    os << FIELD("Length") << obj.length << '\n';
-    os << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
-    
-    return os;
+    return os << FIELD("Source port") << obj.srcPort << '\n'
+              << FIELD("Destination port") << obj.dstPort << '\n'
+              << FIELD("Length") << obj.length << '\n'
+              << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
 }
 
 
@@ -206,15 +197,13 @@ DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
 
 std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
 {
-    os << FIELD("Transaction ID") << "0x" << std::hex << obj.transactionID << '\n';
-    os << FIELD("Flags") << "0x" << obj.flags << std::dec << '\n';
+    return os << FIELD("Transaction ID") << "0x" << std::hex << obj.transactionID << '\n'
+              << FIELD("Flags") << "0x" << obj.flags << std::dec << '\n'
     
-    os << FIELD("Questions") << obj.questionCount << '\n';
-    os << FIELD("Answers") << obj.answerCount << '\n';
-    os << FIELD("Authority records") << obj.authorityCount << '\n';
-    os << FIELD("Additional records") << obj.additionalCount << '\n';
-    
-    return os;
+              << FIELD("Questions") << obj.questionCount << '\n'
+              << FIELD("Answers") << obj.answerCount << '\n'
+              << FIELD("Authority records") << obj.authorityCount << '\n'
+              << FIELD("Additional records") << obj.additionalCount << '\n';
 }
 
 

@@ -64,9 +64,13 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, size_t first = 0,
     std::cout << std::dec << '\n';
 }
 
-
+#include "Helper.h"
 int main()
 {
+    std::vector<uint8_t> ints{};
+    Helper::insertWordToBytes(ints, 0x1234);
+    Helper::insertDwordToBytes(ints, 0x56789011);
+
     try
     {
         WSAInitializer wsaInit;

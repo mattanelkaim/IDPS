@@ -52,12 +52,11 @@ mac ArpTable::getMac(in_addr ipAddr) const noexcept
 void ArpTable::readFileToTable()
 {
     std::ifstream tableFile(m_fileName);
-
-    if (!tableFile.is_open())
+    if (!tableFile)
         throw std::exception("Cannot open table file!");
 
     std::string ipStr, macStr;
-    std::getline(tableFile, ipStr); // Ignore the header
+    std::getline(tableFile, ipStr); // Skip CSV header
 
     // Each time read up to delimiter, then parse line
     while (std::getline(tableFile, ipStr, ','))

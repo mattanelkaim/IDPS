@@ -46,7 +46,7 @@ void PacketExtractor::threadRoutine()
         this->m_outException = std::current_exception();
         // Pushing dummy packet into the queue
         std::lock_guard lg(m_queueMutex);
-        this->m_packetQueue.push({});
+        this->m_packetQueue.emplace();
     }
 }
 

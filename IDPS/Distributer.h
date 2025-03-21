@@ -13,5 +13,5 @@ public:
     void operator=(const Distributer& other) = delete;
 
     // methods
-    void run() const;
+    static void run();
 };

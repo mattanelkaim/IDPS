@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <bit>
 #include <charconv>
 #include <concepts>
@@ -71,23 +72,14 @@ public:
         char buffer[18] = {0}; // 12 hex digits + 5 colons + 1 null terminator
         sprintf_s(buffer, "%02X:%02X:%02X:%02X:%02X:%02X",
                   bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
-        return std::string(buffer);
+        return {buffer};
     }
-
-    //// Define an implicit conversion to represent in an integer value
-    //constexpr operator uint64_t() const noexcept
-    //{
-    //    // This MUST be C-style cast because reinterpret_cast isn't constexpr
-    //    return *(const uint64_t*)bytes & 0x0000FFFFFFFFFFFF;
-    //}
 
     bool operator==(const mac& other) const noexcept
     {
         return !memcmp(bytes, other.bytes, sizeof(bytes));
     }
 };
-
-constexpr mac invalidMac("00:00:00:00:00:00");
 
 
 // For some reason, all functions MUST BE INLINE
@@ -124,7 +116,7 @@ namespace Helper
 
         char ipStr[INET_ADDRSTRLEN] = {0};
         inet_ntop(AF_INET, &ip, ipStr, INET_ADDRSTRLEN);
-        return std::string(ipStr);
+        return {ipStr};
     }
 
 
@@ -156,7 +148,7 @@ namespace Helper
     {
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
-        addr.sin_port = byteswap(53ui16); // DNS port
+        addr.sin_port = byteswap(53Ui16); // DNS port
         addr.sin_addr.S_un.S_un_b = {127, 0, 0, 1}; // Localhost
 
         return addr;
@@ -167,7 +159,7 @@ namespace Helper
     {
         vec.insert(vec.end(), {
             static_cast<uint8_t>(word >> 8),
-            static_cast<uint8_t>(word & 0xFF)
+            static_cast<uint8_t>(word)
         });
     }
 
@@ -175,9 +167,9 @@ namespace Helper
     {
         vec.insert(vec.end(), {
             static_cast<uint8_t>(dword >> 24),
-            static_cast<uint8_t>((dword >> 16) & 0xFF),
-            static_cast<uint8_t>((dword >> 8) & 0xFF),
-            static_cast<uint8_t>(dword & 0xFF)
+            static_cast<uint8_t>(dword >> 16),
+            static_cast<uint8_t>(dword >> 8),
+            static_cast<uint8_t>(dword)
         });
     }
 } // namespace Helper

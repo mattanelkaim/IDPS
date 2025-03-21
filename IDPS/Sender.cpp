@@ -116,16 +116,16 @@ bool Sender::SendPing(in_addr target) noexcept
 std::vector<in_addr> Sender::mapLocalNetwork(const IP_ADDR_STRING& localIpData)
 {
     const auto maxAddr = Helper::getBroadcastAddress<ULONG>(localIpData);
-    in_addr currAddr = std::bit_cast<in_addr>(Helper::getMinAddress(localIpData)); // Need to bit_cast because of union
+    auto currAddr = std::bit_cast<in_addr>(Helper::getMinAddress(localIpData)); // Need to bit_cast because of union
 
     std::vector<in_addr> onlineAddresses;
     std::vector<std::jthread> threads;
 
     for (; currAddr.s_addr < maxAddr; ++currAddr.s_addr)
     {
-        threads.push_back(std::jthread([&onlineAddresses, currAddr]() {
+        threads.emplace_back([&onlineAddresses, currAddr]() {
             if (SendPing(currAddr)) onlineAddresses.push_back(currAddr);
-        }));
+        });
     }
 
     return onlineAddresses;
@@ -182,7 +182,7 @@ void Sender::sendDNSResponse(const Packet& dnsQuery)
     const std::string dohResponse = DoHQuery(question);
 
     // Then write the response OVER the original DNS query
-    auto responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
+    auto* responseDNS = static_cast<DNSMessage*>(dnsQuery.applicationData);
     responseDNS->answers = extractDNSRecordsFromJson(dohResponse, "Answer");
     responseDNS->authorities = extractDNSRecordsFromJson(dohResponse, "Authority");
     responseDNS->additionalRecords = extractDNSRecordsFromJson(dohResponse, "Additional");
