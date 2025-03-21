@@ -10,7 +10,7 @@ Packet::Packet(std::span<const uint8_t> rawData, bool hasTimestamp)
     if (hasTimestamp) [[likely]]
     {
         this->timestamp = *reinterpret_cast<const Timestamp*>(rawData.data());
-        DBG_COUT("\033[48;5;57mTimestamp:\033[0m " << timestamp << '\n');
+        Helper::dbgPrintln("\033[48;5;57mTimestamp\033[0m: ", timestamp);
     }
 
     // An initial offset depending on timestamp
@@ -37,7 +37,7 @@ bool Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset)
     {
         this->networkProtocol = IPV4; // Assume IPv4 when loopback
         offset += sizeof(LoopbackHeader);
-        DBG_COUT("\n\033[41mLoopback:\033[0m\n" << tempHeader << '\n');
+        Helper::dbgPrintln("\n\033[41mLoopback\033[0m:\n", tempHeader);
         return true;
     }
 
@@ -50,7 +50,7 @@ bool Packet::parseLink(std::span<const uint8_t> rawData, size_t& offset)
         throw MinorException("Unsupported link protocol");
 
     // Assume Ethernet II and check EtherType
-    DBG_COUT("\n\033[41mEthernet");
+    Helper::dbgPrint("\n\033[41mEthernet");
     auto* ethernetHeader = headerCtor<EthernetIIHeader>(rawData, offset);
     if (ethernetHeader->etherType <= EthernetIIHeader::ETHERNET_PAYLOAD_MAX)
     {
@@ -70,7 +70,7 @@ bool Packet::parseNetwork(std::span<const uint8_t> rawData, size_t& offset)
     {
     case IPV4:
     {
-        DBG_COUT("\033[42mIPv4");
+        Helper::dbgPrint("\033[42mIPv4");
         auto* ipv4Header = headerCtor<IPv4Header>(rawData, offset);
         this->networkHeader = ipv4Header;
         this->transportProtocol = ipv4Header->protocol;
@@ -78,7 +78,7 @@ bool Packet::parseNetwork(std::span<const uint8_t> rawData, size_t& offset)
     }
 
     case ARP:
-        DBG_COUT("\033[42mARP");
+        Helper::dbgPrint("\033[42mARP");
         this->networkHeader = headerCtor<ArpHeader>(rawData, offset);
         this->transportProtocol = NONE;
         return false; // Done parsing - no transport layer!
@@ -93,12 +93,12 @@ void Packet::parseTransport(std::span<const uint8_t> rawData, size_t& offset)
     switch (this->transportProtocol)
     {
     case TCP:
-        DBG_COUT("\033[43mTCP");
+        Helper::dbgPrint("\033[43mTCP");
         this->transportHeader = headerCtor<TCPHeader>(rawData, offset);
         break;
 
     case UDP:
-        DBG_COUT("\033[43mUDP");
+        Helper::dbgPrint("\033[43mUDP");
         this->transportHeader = headerCtor<UDPHeader>(rawData, offset);
         break;
 
@@ -112,7 +112,7 @@ void Packet::parseApplication(std::span<const uint8_t> rawData, size_t offset) n
     if (this->isDnsPacket())
     {
         this->applicationData = new DNSMessage(rawData.subspan(offset));
-        DBG_COUT("\033[44mDNS (header)\033[0m:\n" << static_cast<DNSMessage*>(applicationData)->header << '\n');
+        Helper::dbgPrintln("\033[44mDNS (header)\033[0m:\n", static_cast<DNSMessage*>(applicationData)->header);
     }
 }
 

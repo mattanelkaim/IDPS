@@ -5,6 +5,7 @@
 #include <charconv>
 #include <concepts>
 #include <cstdint>
+#include <iostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,6 +17,9 @@ constexpr std::string_view INTERFACE_NAME_LAP = "Intel(R) Wi-Fi 6 AX201 160MHz";
 constexpr std::string_view INTERFACE_NAME_PC = "Realtek PCIe GbE Family Controller";
 constexpr std::string_view INTERFACE_NAME_VM = "Intel(R) PRO/1000 MT Desktop Adapter";
 constexpr std::string_view INTERFACE_NAME_DBG = "Microsoft Kernel Debug Network Adapter";
+
+// IMPORTANT MOSTLY FOR PRINTING
+constexpr bool DEBUG = true;
 
 enum ProtocolCode_32 : uint32_t
 {
@@ -80,6 +84,8 @@ public:
         return !memcmp(bytes, other.bytes, sizeof(bytes));
     }
 };
+
+constexpr mac invalidMac("00:00:00:00:00:00");
 
 
 // For some reason, all functions MUST BE INLINE
@@ -171,5 +177,21 @@ namespace Helper
             static_cast<uint8_t>(dword >> 8),
             static_cast<uint8_t>(dword)
         });
+    }
+
+
+    template <typename... Args>
+    inline void dbgPrint(Args&&... args)
+    {
+        if constexpr (DEBUG)
+            ((std::cout << std::forward<Args>(args)), ...);
+    }
+
+    // Convenience function
+    template <typename... Args>
+    inline void dbgPrintln(Args&&... args)
+    {
+        if constexpr (DEBUG)
+            dbgPrint(std::forward<Args>(args)..., '\n');
     }
 } // namespace Helper
