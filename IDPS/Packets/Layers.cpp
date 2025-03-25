@@ -236,8 +236,10 @@ DNSMessage::DNSMessage(std::span<const uint8_t> rawData) :
 
     // Parse Answers, Authorities, and Additional Records
     answers = parseRecords(rawData, offset, header.answerCount);
-    authorities = parseRecords(rawData, offset, header.authorityCount);
-    additionalRecords = parseRecords(rawData, offset, header.additionalCount);
+    /* NOTE - shouldn't receive any of these anyway, as we are the DNS server
+       AND they both have an unsupported parsing, for now */
+    // authorities = parseRecords(rawData, offset, header.authorityCount);
+    // additionalRecords = parseRecords(rawData, offset, header.additionalCount);
 }
 
 constexpr std::string DNSMessage::parseDomainName(std::span<const uint8_t> rawData, size_t& offset)
