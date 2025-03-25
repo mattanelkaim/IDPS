@@ -30,6 +30,7 @@ Checks: >
   -llvmlibc-implementation-in-namespace,
   -llvmlibc-restrict-system-libc-headers,
   -misc-include-cleaner,
+  -misc-use-internal-linkage,
   -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
   -readability-braces-around-statements,
