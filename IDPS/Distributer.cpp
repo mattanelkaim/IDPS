@@ -6,14 +6,14 @@
 #include <iostream>
 #include <vector>
 
-void Distributer::run() const
+void Distributer::run()
 {
     in_addr srcIp;
     mac srcMac;
     std::exception_ptr threadException;
     PacketExtractor& packetExtractor = PacketExtractor::getInstance(threadException);
-    Detector& detector = Detector::getInstance();
-    DriverCommunicator& driverCommunicator = DriverCommunicator::getInstance();
+    const Detector& detector = Detector::getInstance();
+    const DriverCommunicator& driverCommunicator = DriverCommunicator::getInstance();
 
     while (true)
     {
@@ -25,14 +25,14 @@ void Distributer::run() const
             if (threadException)
                 std::rethrow_exception(threadException);
 
-            Packet packet(rawPacketData);
+            const Packet packet(rawPacketData);
 
             if (!packet.linkHeader) // nullptr means Null protocol (loopback)
                 continue; // Ignore loopback packets
 
             if (packet.isArpReplyPacket() && detector.isArpReplyLikeTable(packet))
             {
-                srcMac = static_cast<EthernetHeader*>(packet.linkHeader)->srcMAC;
+                srcMac = static_cast<EthernetIIHeader*>(packet.linkHeader)->srcMAC;
                 std::cout << "ARP Spoofing attack Detected!!!\n";
                 std::cout << "Blocking MAC - " << srcMac.macToString() << '\n';
                 driverCommunicator.addMacToFirewall(srcMac);
@@ -43,14 +43,14 @@ void Distributer::run() const
                 continue;
 
             srcIp = static_cast<IPv4Header*>(packet.networkHeader)->srcIP;
-            if (detector.isDoS(packet))
-            {
-                std::cout << "DoS attack Detected!!!\n";
-                std::cout << "Blocking IP - " << Helper::ipToStr(srcIp) << '\n';
-                driverCommunicator.addIpToFirewall(srcIp.s_addr);
-            }
+            //if (detector.isDoS(packet))
+            //{
+            //    std::cout << "DoS attack Detected!!!\n";
+            //    std::cout << "Blocking IP - " << Helper::ipToStr(srcIp) << '\n';
+            //    driverCommunicator.addIpToFirewall(srcIp.s_addr);
+            //}
 
-            if (packet.isTcpPacket() && detector.isTcpNullScan(packet))
+            if (packet.isTcpPacket() && Detector::isTcpNullScan(packet))
             {
                 std::cout << "TCP Null Scan attack Detected!!!\n";
                 std::cout << "Blocking IP - " << Helper::ipToStr(srcIp) << '\n';
@@ -65,7 +65,7 @@ void Distributer::run() const
         }
         catch (const MinorException& e)
         {
-            std::cerr << e.what() << '\n';
+            std::cerr << "\033[1,9,31,43m*\033[0m " << e.what() << "\n\n";
         }
     }
 }

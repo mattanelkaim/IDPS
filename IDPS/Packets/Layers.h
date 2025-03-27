@@ -13,22 +13,21 @@
 struct LinkHeader
 {};
 
-struct EthernetHeader : LinkHeader
+struct EthernetIIHeader : LinkHeader
 {
     mac dstMAC;
     mac srcMAC;
     ProtocolCode_16 etherType; // Indicates the protocol (IPv4 | IPv6 | no ip i.e. ARP)
 
-public:
-    explicit EthernetHeader(std::span<const uint8_t> rawData);
-    friend std::ostream& operator<<(std::ostream& os, const EthernetHeader& obj);
+    explicit EthernetIIHeader(std::span<const uint8_t> rawData);
+    friend std::ostream& operator<<(std::ostream& os, const EthernetIIHeader& obj);
+    static constexpr uint16_t ETHERNET_PAYLOAD_MAX = 1500;
 };
 
 struct LoopbackHeader : LinkHeader
 {
     ProtocolCode_32 loopbackType;
 
-public:
     explicit LoopbackHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj);
 };
@@ -61,7 +60,6 @@ struct IPv4Header : NetworkHeader
     in_addr srcIP;
     in_addr dstIP;
 
-public:
     explicit IPv4Header(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const IPv4Header& obj);
 };
@@ -78,7 +76,6 @@ struct ArpHeader : NetworkHeader
     mac targetMAC;
     in_addr targetIP;
 
-public:
     explicit ArpHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const ArpHeader& obj);
 };
@@ -104,7 +101,6 @@ struct TCPHeader : public TransportHeader
     uint16_t checksum;
     uint16_t urgentPointer;
 
-public:
     explicit TCPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const TCPHeader& obj);
 };
@@ -116,7 +112,6 @@ struct UDPHeader : public TransportHeader
     uint16_t length;
     uint16_t checksum;
 
-public:
     explicit UDPHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const UDPHeader& obj);
 };
@@ -137,7 +132,6 @@ struct DNSHeader
     uint16_t authorityCount;
     uint16_t additionalCount;
 
-public:
     explicit DNSHeader(std::span<const uint8_t> rawData);
     friend std::ostream& operator<<(std::ostream& os, const DNSHeader& obj);
     static constexpr uint16_t DEFAULT_PORT = 53;
@@ -152,7 +146,6 @@ struct DNSRecord
     //uint16_t dataLength;
     std::vector<uint8_t> data;
 
-public:
     explicit constexpr DNSRecord(std::span<const uint8_t> rawData) noexcept;
     // TODO move to .cpp
     constexpr DNSRecord(const std::string& name, uint16_t type, uint32_t ttl, const std::string& dataStr) noexcept :

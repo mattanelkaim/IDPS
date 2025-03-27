@@ -50,8 +50,6 @@ BOOL driverUnloading = FALSE;
 // IOCTL code for user-mode communication
 DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
 DEFINE_GUID(ETHERNET_SUBLAYER_GUID, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
-DEFINE_GUID(IP_CALLOUT_GUID, 0x13579bdf, 0x2468, 0xace0, 0x13, 0x57, 0x9b, 0xdf, 0x24, 0x68, 0xac, 0xe0);
-DEFINE_GUID(IP_SUBLAYER_GUID, 0xabcdef12, 0x3456, 0x7890, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90);
 #define CALLOUT_DISPLAY_NAME L"EstablishedCalloutName"
 #define SUBLAYER_DISPLAY_NAME L"EstablishedSublayerName"
 
@@ -185,6 +183,7 @@ NTSTATUS DriverPassThru(__IGNORE PDEVICE_OBJECT DeviceObject, const PIRP Irp)
 
     case IOCTL_TRUNCATE_FILE:
         workContext.truncFile = TRUE;
+        while (workContext.truncFile) {}
         break;
 
     default:

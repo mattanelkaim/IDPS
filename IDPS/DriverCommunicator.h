@@ -17,6 +17,8 @@ public:
     static DriverCommunicator& getInstance();
     DriverCommunicator(const DriverCommunicator& other) = delete;
     void operator=(const DriverCommunicator& other) = delete;
+    DriverCommunicator(DriverCommunicator&& other) = delete;
+    void operator=(DriverCommunicator&& other) = delete;
 
     // methods
     void addIpToFirewall(uint32_t ip) const;
