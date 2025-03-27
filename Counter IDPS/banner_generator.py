@@ -131,8 +131,8 @@ def print_banner() -> None:
     logo = random.choice(LOGOS)
     line_length = len(logo.splitlines()[1])
     # Center the WELCOME_MSG
-    print(f"\n{" " * ((line_length - len(WELCOME_MSG)) // 2)}", end="")
+    print(f"\n{' ' * ((line_length - len(WELCOME_MSG)) // 2)}", end="")
     print(WELCOME_MSG)
     print(logo)
     print("DISCLAIMER: Use responsibly and ethically.\n")
-    print(f"{"═" * line_length}\n")
+    print(f"{'═' * line_length}\n")
