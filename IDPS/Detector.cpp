@@ -38,7 +38,7 @@ bool Detector::isDoS(const Packet& ipPacket) noexcept
     }
 
     // 100 packets per second from a single source is considered a DoS attack
-    if ((ipPacket.timestamp - m_dosMap[srcIp].first) > ONE_SECOND)
+    else if ((ipPacket.timestamp - m_dosMap[srcIp].first) > ONE_SECOND)
     {
         // Reset counter
         m_dosMap[srcIp] = { ipPacket.timestamp, 1 };
