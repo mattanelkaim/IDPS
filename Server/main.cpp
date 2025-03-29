@@ -1,7 +1,17 @@
-#define _CRT_SECURE_NO_WARNINGS
-#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
 
 int main() {
-    system("shell");
+    int fd = open("example.txt", O_CREAT | O_WRONLY, 0644);
+    if (fd == -1) {
+        perror("Error creating file");
+        return 1;
+    }
+
+    write(fd, "Hello, Linux!\n", 14); // Write to the file
+    close(fd); // Close the file
+
+    printf("File created successfully.\n");
     return 0;
 }
