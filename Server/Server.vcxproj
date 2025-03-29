@@ -75,15 +75,31 @@
   <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetExt>.elf</TargetExt>
+  </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="Handlers\DBHandler.cpp">
+      <CppLanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">c++20</CppLanguageStandard>
+    </ClCompile>
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Handlers\DBHandler.h" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>\\wsl.localhost\Ubuntu\usr\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CppLanguageStandard>gnu++20</CppLanguageStandard>
+      <CLanguageStandard>gnu11</CLanguageStandard>
     </ClCompile>
+    <Link>
+      <LibraryDependencies>%(LibraryDependencies)</LibraryDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Link>
+      <AdditionalDependencies>/usr/lib/x86_64-linux-gnu/libsqlite3.so;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

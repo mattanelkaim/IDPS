@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../sqlite/sqlite3.h"
+#include <sqlite3.h>
 #include <string_view>
+#include <stdint.h>
 
 enum attack_type : uint8_t
 {
