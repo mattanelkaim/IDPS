@@ -143,7 +143,6 @@
     <ClInclude Include="Detector.h" />
     <ClInclude Include="Distributer.h" />
     <ClInclude Include="DriverCommunicator.h" />
-    <ClInclude Include="Handlers\DBHandler.h" />
     <ClInclude Include="Helper.h" />
     <ClInclude Include="IDPSExceptions.hpp" />
     <ClInclude Include="json.hpp" />
@@ -159,7 +158,6 @@
     <ClCompile Include="Detector.cpp" />
     <ClCompile Include="Distributer.cpp" />
     <ClCompile Include="DriverCommunicator.cpp" />
-    <ClCompile Include="Handlers\DBHandler.cpp" />
     <ClCompile Include="Sender.cpp" />
     <ClCompile Include="PacketExtractor.cpp" />
     <ClCompile Include="Packets\Layers.cpp" />
