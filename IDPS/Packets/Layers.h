@@ -168,9 +168,9 @@ public:
     explicit DNSMessage(std::span<const uint8_t> rawData);
     // TODO should be constexpr, but causes linker errors
     static std::vector<uint8_t> deserializeDomainName(std::span<const uint8_t> domain) noexcept;
+    constexpr static std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
 
 private:
-    constexpr static std::string parseDomainName(std::span<const uint8_t> rawData, size_t& offset);
     constexpr static std::vector<DNSRecord> parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept;
 };
 

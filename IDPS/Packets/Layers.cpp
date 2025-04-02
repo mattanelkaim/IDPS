@@ -2,6 +2,7 @@
 #include "Layers.h"
 #include <ostream>
 #include <ranges>
+#include <variant>
 
 // 4m=underline, 0m=reset ANSI
 #define FIELD(name) "\033[4m" name "\033[0m: "
@@ -211,14 +212,31 @@ std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
 
 
 constexpr DNSRecord::DNSRecord(std::span<const uint8_t> rawData) noexcept :
-    name(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data()))),
-    type(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 2))),
-    recordClass(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 4))),
-    ttl(Helper::byteswap(*reinterpret_cast<const uint32_t*>(rawData.data() + 6)))
+    name(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data())))
 {
-    // Get the data length, then extract the data
-    const uint16_t dataLength = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
-    data.assign_range(rawData.subspan(12, dataLength));
+    if (std::get<uint16_t>(name) & 0xC000) // Check if the name is a pointer
+    {
+        type = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 2));
+        recordClass = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 4));
+        ttl = Helper::byteswap(*reinterpret_cast<const uint32_t*>(rawData.data() + 6));
+
+        // Get the data length, then extract the data
+        const uint16_t dataLength = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
+        data.assign_range(rawData.subspan(12, dataLength));
+    }
+    else // The name is a domain name
+    {
+        // Parse the domain name
+        size_t offset = 0;
+        name = DNSMessage::parseDomainName(rawData, offset);
+        // Extract the type, class, TTL, and data length
+        type = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + offset));
+        recordClass = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + offset + 2));
+        ttl = Helper::byteswap(*reinterpret_cast<const uint32_t*>(rawData.data() + offset + 4));
+        const uint16_t dataLength = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + offset + 8));
+        // Extract the data
+        data.assign_range(rawData.subspan(offset + 10, dataLength));
+    }
 }
 
 
@@ -236,7 +254,7 @@ DNSMessage::DNSMessage(std::span<const uint8_t> rawData) :
 
     // Parse Answers, Authorities, and Additional Records
     answers = parseRecords(rawData, offset, header.answerCount);
-    /* NOTE - shouldn't receive any of these anyway, as we are the DNS server
+    /* NOTE - shouldn't receive any of these anyway, as WE are the DNS server
        AND they both have an unsupported parsing, for now */
     // authorities = parseRecords(rawData, offset, header.authorityCount);
     // additionalRecords = parseRecords(rawData, offset, header.additionalCount);
@@ -291,7 +309,15 @@ constexpr std::vector<DNSRecord> DNSMessage::parseRecords(std::span<const uint8_
     {
         // Call DNSRecord ctor with a span of its record data
         records.emplace_back(rawData.subspan(offset));
-        offset += 12 + records.back().data.size(); // Skip the header and data part
+
+        /* If name is a pointer (uint16_t), then total fields have a constant length of 12.
+           However, if name holds a real domain, the name field isn't 2 bytes anymore (not a pointer),
+           its size should be the size of the domain. Butt! We parse it, which "costs" 2 bytes -
+           the null terminator AND the first label size hint (see parseDomainName() for more).
+           And of course we add the data size in both cases. */
+        offset += 12 + records.back().data.size();
+        if (std::holds_alternative<std::string>(records.back().name))
+            offset += std::get<std::string>(records.back().name).size();
     }
     return records;
 }
