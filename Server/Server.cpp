@@ -9,7 +9,9 @@ namespace ANSI {
     constexpr std::string_view GREEN = "\033[32;1m"; // Green and bold
     constexpr std::string_view BLUE = "\033[34;1m"; // Blue and bold
     constexpr std::string_view NORMAL = "\033[0m"; // Resets back to default
-    constexpr std::string_view BLINK = "\033[5m";
+    constexpr std::string_view BLINK = "\033[5m"; // Make the following characters blink
+    constexpr std::string_view UP = "\033[A"; // Move up a line
+    constexpr std::string_view DOWN = "\033[B"; // Move down a line
 }
 
 enum command
@@ -38,6 +40,7 @@ void Server::run()
     {
         std::cout << ANSI::BLINK << "> " << ANSI::NORMAL;
         std::cin >> userInput;
+        std::cout << ANSI::UP << "\r> " << userInput << ANSI::DOWN << '\r' << std::flush;
         cmd = hashCommands(userInput);
         switch (cmd)
         {
