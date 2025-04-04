@@ -83,9 +83,11 @@
       <CppLanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">c++20</CppLanguageStandard>
     </ClCompile>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Server.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Handlers\DBHandler.h" />
+    <ClInclude Include="Server.h" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
