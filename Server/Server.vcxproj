@@ -79,6 +79,7 @@
     <TargetExt>.elf</TargetExt>
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="Communicator.cpp" />
     <ClCompile Include="Handlers\DBHandler.cpp">
       <CppLanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">c++20</CppLanguageStandard>
     </ClCompile>
@@ -86,6 +87,7 @@
     <ClCompile Include="Server.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Communicator.h" />
     <ClInclude Include="Handlers\DBHandler.h" />
     <ClInclude Include="Server.h" />
   </ItemGroup>
