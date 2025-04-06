@@ -119,7 +119,7 @@ def commit_null_tcp_scan(target: str, ports: str = "", print_closed: bool = True
         for port in port_list:  # Scan first 1024 ports
             print(f"\r│ {port:<5}│ ....... │", end="")  # Displays in case port is taking time
 
-            to_send = IP(src=LOCAL_IP, dst=target) / TCP(dport=port, flags=0)
+            to_send = IP(src=LOCAL_IP, dst=target) / TCP(dport=port, flags=0, seq=12345, ack=0)
             # to_send.show()
             resp = sr1(to_send, verbose=0, timeout=1)
 
