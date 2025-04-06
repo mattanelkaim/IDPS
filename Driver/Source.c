@@ -20,6 +20,7 @@
 #define IDPS_PRINT
 #endif
 #define LOOPBACK_ADDR 0x7F000001 // 127.0.0.1
+UINT32 NULL_IPV4_HEADER = 2U;
 
 // Blacklists definitions
 #define MAX_BLACKLIST_SIZE 1024U
@@ -92,7 +93,7 @@ VOID UnInitWfp();
 void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, ULONG bufferSize);
 void TryQueueWorkItem(const PVOID layerData, BOOL loopback);
 IO_WORKITEM_ROUTINE WorkItemRoutine;
-void copyLayerData(const PVOID layerData);
+void copyLayerData(const PVOID layerData, BOOL loopback);
 void addIpRuleToBlacklist(const PUINT32 ip);
 void addMacRuleToBlacklist(const PDL_EUI48 mac);
 BOOL isIpInBlacklist(UINT32 ip);
@@ -135,6 +136,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     workContext.queued = FALSE;
     workContext.ongoing = FALSE;
     workContext.truncFile = FALSE;
+    workContext.loopbackReserved = FALSE;
     workContext.layerDataLength = 0;
 
     // Bind functions to handling function
@@ -290,7 +292,7 @@ NTSTATUS WfpAddCallout()
     loopbackCallout.displayData.description = L"Callout for outbound loopback traffic";
 
     loopbackCallout.calloutKey = LOOPBACK_CALLOUT_GUID;
-    loopbackCallout.applicableLayer = FWPM_LAYER_OUTBOUND_TRANSPORT_V4;  // Outbound transport layer (the callback will filter it to only save loopback packets)
+    loopbackCallout.applicableLayer = FWPM_LAYER_OUTBOUND_IPPACKET_V4;  // Outbound transport layer (the callback will filter it to only save loopback packets)
     return FwpmCalloutAdd(engineHandle, &loopbackCallout, NULL, &LoopbackAddCalloutId);
 }
 
@@ -363,10 +365,10 @@ NTSTATUS WfpAddFilter()
     loopbackFilter.filterCondition = NULL; // &condition;
     loopbackFilter.numFilterConditions = 0; // 1;
 
-    loopbackFilter.action.type = FWP_ACTION_CALLOUT_TERMINATING;
+    loopbackFilter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
     loopbackFilter.subLayerKey = LOOPBACK_SUBLAYER_GUID;
     loopbackFilter.action.calloutKey = LOOPBACK_CALLOUT_GUID;
-    loopbackFilter.layerKey = FWPM_LAYER_OUTBOUND_TRANSPORT_V4;  // Outbound transport layer
+    loopbackFilter.layerKey = FWPM_LAYER_OUTBOUND_IPPACKET_V4;  // Outbound network layer
     return FwpmFilterAdd(engineHandle, &loopbackFilter, NULL, &LoopbackFilterId);
 }
 
@@ -390,7 +392,7 @@ VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
     }
     classifyOut->actionType = FWP_ACTION_PERMIT;
 
-    TryQueueWorkItem(layerData, FALSE);
+    //TryQueueWorkItem(layerData, FALSE);
 }
 
 VOID LoopbackCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
@@ -404,10 +406,11 @@ VOID LoopbackCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGN
     memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
     classifyOut->actionType = FWP_ACTION_PERMIT;
 
-    if (LOOPBACK_ADDR != inFixedValues->incomingValue[FWPS_FIELD_OUTBOUND_TRANSPORT_V4_IP_REMOTE_ADDRESS].value.uint32)
+    if (LOOPBACK_ADDR != inFixedValues->incomingValue[FWPS_FIELD_OUTBOUND_IPPACKET_V4_IP_REMOTE_ADDRESS].value.uint32)
         return; // Ignoring non-loopback packets
 
     IDPS_PRINT_FORCE("Received outbound loopback packet...\n");
+    TryQueueWorkItem(layerData, TRUE);
 }
 
 // Boilerplate function without any use
@@ -535,11 +538,11 @@ void TryQueueWorkItem(const PVOID layerData, BOOL loopback)
         // Ensure that the work item isn't released before the data is copied
         while (workContext.held) {}
         workContext.held = TRUE; // Custom mutex
-        if (!workContext.loopbackReserved) // Ensuring loopback packets wont be overrided
-        {
-            workContext.loopbackReserved = loopback;
-            copyLayerData(layerData);
-        }
+        //if (!workContext.loopbackReserved) // Ensuring loopback packets wont be overrided
+        //{
+            //workContext.loopbackReserved = loopback;
+            copyLayerData(layerData, loopback);
+        //}
         workContext.held = FALSE;
     }
 
@@ -561,7 +564,7 @@ void TryQueueWorkItem(const PVOID layerData, BOOL loopback)
     IDPS_PRINT("Work item queued successfully!");
 }
 
-void copyLayerData(const PVOID layerData)
+void copyLayerData(const PVOID layerData, BOOL loopback)
 {
     if (!layerData) // Theoretically impossible
     {
@@ -586,6 +589,10 @@ void copyLayerData(const PVOID layerData)
             return;
         }
 
+        // Adding the Null Ethernet header ourselves
+        if (loopback)
+            dataLength += sizeof(NULL_IPV4_HEADER);
+
         // Write the packet size as a 2-byte value
         dataLength += sizeof(timestamp); // Add timestamp size
         memcpy(workContext.layerData + totalCopied, &dataLength, sizeof(dataLength));
@@ -598,6 +605,8 @@ void copyLayerData(const PVOID layerData)
 
         // Write the actual packet data
         dataLength -= sizeof(timestamp); // Remove timestamp size
+        memcpy(workContext.layerData + totalCopied, &NULL_IPV4_HEADER, sizeof(NULL_IPV4_HEADER));
+        totalCopied += sizeof(NULL_IPV4_HEADER);
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
         totalCopied += dataLength;
 
