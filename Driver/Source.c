@@ -1,4 +1,4 @@
-// do NOT change order of includationing
+﻿// do NOT change order of includationing
 #include "LayerHandles.h"
 #include <ntifs.h>
 #include <fwpsk.h>
@@ -13,14 +13,7 @@
 // Helper Definitions
 #define __IGNORE [[maybe_unused]]
 // General function to variadically print with a signature
-#define IDPS_PRINT_FORCE(...) DbgPrint("##-IDPS_SNIFFER-##: " __VA_ARGS__)
-#if 1
-#define IDPS_PRINT IDPS_PRINT_FORCE
-#else
-#define IDPS_PRINT
-#endif
-#define LOOPBACK_ADDR 0x7F000001 // 127.0.0.1
-UINT32 NULL_IPV4_HEADER = 2U;
+#define IDPS_PRINT(...) DbgPrint("##-IDPS_SNIFFER-##: " __VA_ARGS__)
 
 // Blacklists definitions
 #define MAX_BLACKLIST_SIZE 1024U
@@ -38,6 +31,7 @@ typedef struct macList
 // Initialize the blacklists
 ipList ipBlacklist = { 0 };
 macList macBlacklist = { 0 };
+UCHAR packetBuffer[65536] = { 0 };
 
 // Work item to operate at IRQL passive level
 typedef struct _WORK_CONTEXT
@@ -47,19 +41,18 @@ typedef struct _WORK_CONTEXT
     BOOL ongoing;
     BOOL held;
     BOOL truncFile;
-    BOOL loopbackReserved;
     BYTE layerData[65536]; // 64KB buffer to store the layer data
     USHORT layerDataLength;
-} WORK_CONTEXT, *PWORK_CONTEXT;
+} WORK_CONTEXT, * PWORK_CONTEXT;
 
 WORK_CONTEXT workContext = { 0 };
 BOOL driverUnloading = FALSE;
 
 // IOCTL code for user-mode communication
-DEFINE_GUID(ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
-DEFINE_GUID(ETHERNET_SUBLAYER_GUID, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
-DEFINE_GUID(LOOPBACK_CALLOUT_GUID, 0x91fba2db, 0x5c6d, 0x4b8a, 0x9f, 0x79, 0x92, 0x5c, 0xf9, 0x2e, 0x6d, 0x16);
-DEFINE_GUID(LOOPBACK_SUBLAYER_GUID, 0x3c7f5d49, 0x9b87, 0x4852, 0x9f, 0x87, 0xa6, 0x24, 0x4d, 0x32, 0x65, 0x4a);
+DEFINE_GUID(INBOUND_ETHERNET_CALLOUT_GUID, 0xd969fc67, 0x6fb2, 0x4504, 0x91, 0xce, 0xa9, 0x7c, 0x3c, 0x32, 0xad, 0x36);
+DEFINE_GUID(INBOUND_ETHERNET_SUBLAYER_GUID, 0x87654321, 0xabcd, 0x0987, 0x65, 0x43, 0x21, 0x09, 0x87, 0x65, 0x43, 0x21);
+DEFINE_GUID(OUTBOUND_ETHERNET_CALLOUT_GUID, 0x91fba2db, 0x5c6d, 0x4b8a, 0x9f, 0x79, 0x92, 0x5c, 0xf9, 0x2e, 0x6d, 0x16);
+DEFINE_GUID(OUTBOUND_ETHERNET_SUBLAYER_GUID, 0x3c7f5d49, 0x9b87, 0x4852, 0x9f, 0x87, 0xa6, 0x24, 0x4d, 0x32, 0x65, 0x4a);
 
 #define CALLOUT_DISPLAY_NAME L"EstablishedCalloutName"
 #define SUBLAYER_DISPLAY_NAME L"EstablishedSublayerName"
@@ -72,9 +65,9 @@ UNICODE_STRING packetFilePath = RTL_CONSTANT_STRING(PACKET_FILE_PATH);
 // Global variables
 PDEVICE_OBJECT deviceObject = NULL;
 HANDLE engineHandle = NULL;
-UINT32 EthernetRegCalloutId, LoopbackRegCalloutId;
-UINT32 EthernetAddCalloutId, LoopbackAddCalloutId;
-UINT64 EthernetFilterId = 0, LoopbackFilterId = 0;
+UINT32 InboundEthernetRegCalloutId, OutboundEthernetRegCalloutId;
+UINT32 InboundEthernetAddCalloutId, OutboundEthernetAddCalloutId;
+UINT64 InboundEthernetFilterId = 0, OutboundEthernetFilterId = 0;
 
 // Function declarations
 VOID DriverUnload(PDRIVER_OBJECT DriverObject);
@@ -85,21 +78,23 @@ NTSTATUS WfpRegisterCallout();
 NTSTATUS WfpAddCallout();
 NTSTATUS WfpAddSublayer();
 NTSTATUS WfpAddFilter();
-VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
-VOID LoopbackCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
+VOID InboundPacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
+VOID OutboundPacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut);
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterKey, FWPS_FILTER* filter);
 VOID FlowDeleteCallback(UINT16 layerId, UINT32 calloutId, UINT64 flowContext);
 VOID UnInitWfp();
 void writeToFile(const PUNICODE_STRING filePath, const PVOID buffer, ULONG bufferSize);
-void TryQueueWorkItem(const PVOID layerData, BOOL loopback);
+void TryQueueWorkItem(const PVOID layerData);
 IO_WORKITEM_ROUTINE WorkItemRoutine;
-void copyLayerData(const PVOID layerData, BOOL loopback);
+void copyLayerData(const PVOID layerData);
 void addIpRuleToBlacklist(const PUINT32 ip);
 void addMacRuleToBlacklist(const PDL_EUI48 mac);
 BOOL isIpInBlacklist(UINT32 ip);
 BOOL isMacInBlacklist(const DL_EUI48 mac);
 BOOL doesPassFirewall(const PVOID layerData);
 void truncPacketFile();
+BOOL isUdp(const PVOID layerData, const char* msg);
+NTSTATUS WritePacketsToBuffer(const PVOID layerData, UCHAR* buffer, SIZE_T* bytesWritten);
 
 // Entry point
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING RegistryPath)
@@ -136,7 +131,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, __IGNORE PUNICODE_STRING Regis
     workContext.queued = FALSE;
     workContext.ongoing = FALSE;
     workContext.truncFile = FALSE;
-    workContext.loopbackReserved = FALSE;
     workContext.layerDataLength = 0;
 
     // Bind functions to handling function
@@ -164,7 +158,7 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
     // Ensure no new work items queue while unloading the driver
     driverUnloading = TRUE;
     IDPS_PRINT("Unloading driver...");
-    while(workContext.ongoing) {}
+    while (workContext.ongoing) {}
 
     // Uninitialize stuff
     IoUninitializeWorkItem((PIO_WORKITEM)&workContext.WorkItem);
@@ -243,136 +237,117 @@ NTSTATUS WfpRegisterCallout()
 {
     IDPS_PRINT("Registering callout...");
 
-    // Create template for 2 callouts
-    FWPS_CALLOUT callout = { 0 };
-    callout.flags = 0;
-    callout.notifyFn = NotifyCallback;
-    callout.flowDeleteFn = FlowDeleteCallback;
+    FWPS_CALLOUT InboundCallout = { 0 };
+    InboundCallout.flags = 0;
+    InboundCallout.notifyFn = NotifyCallback;
+    InboundCallout.flowDeleteFn = FlowDeleteCallback;
 
     // Register callout for sniffing
-    callout.calloutKey = ETHERNET_CALLOUT_GUID;
-    callout.classifyFn = PacketCallback;
-    NTSTATUS status = FwpsCalloutRegister(deviceObject, &callout, &EthernetRegCalloutId);
+    InboundCallout.calloutKey = INBOUND_ETHERNET_CALLOUT_GUID;
+    InboundCallout.classifyFn = InboundPacketCallback;
+    NTSTATUS status = FwpsCalloutRegister(deviceObject, &InboundCallout, &InboundEthernetRegCalloutId);
     if (!NT_SUCCESS(status))
         return status;
 
-    // Register callout for outbound loopback packets
-    FWPS_CALLOUT loopbackCallout = { 0 };
-    loopbackCallout.flags = 0;
-    loopbackCallout.notifyFn = NotifyCallback;
-    loopbackCallout.flowDeleteFn = FlowDeleteCallback;
+    FWPS_CALLOUT OutboundCallout = { 0 };
+    OutboundCallout.flags = 0;
+    OutboundCallout.notifyFn = NotifyCallback;
+    OutboundCallout.flowDeleteFn = FlowDeleteCallback;
 
-    // Callout for outbound loopback traffic
-    loopbackCallout.calloutKey = LOOPBACK_CALLOUT_GUID;
-    loopbackCallout.classifyFn = LoopbackCallback;  // New callback for loopback
-    return FwpsCalloutRegister(deviceObject, &loopbackCallout, &LoopbackRegCalloutId);
+    // Register callout for sniffing
+    OutboundCallout.calloutKey = OUTBOUND_ETHERNET_CALLOUT_GUID;
+    OutboundCallout.classifyFn = OutboundPacketCallback;
+    return FwpsCalloutRegister(deviceObject, &OutboundCallout, &OutboundEthernetRegCalloutId);
 }
 
 NTSTATUS WfpAddCallout()
 {
     IDPS_PRINT("Adding callout...");
 
-    // Create template for 2 callouts
-    FWPM_CALLOUT callout = { 0 };
-    callout.flags = 0;
-    callout.displayData.name = CALLOUT_DISPLAY_NAME;
-    callout.displayData.description = CALLOUT_DISPLAY_NAME;
+    FWPM_CALLOUT InboundCallout = { 0 };
+    InboundCallout.flags = 0;
+    InboundCallout.displayData.name = CALLOUT_DISPLAY_NAME;
+    InboundCallout.displayData.description = CALLOUT_DISPLAY_NAME;
 
     // Add callout for sniffing and blocking
-    callout.calloutKey = ETHERNET_CALLOUT_GUID;
-    callout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet layer
-    NTSTATUS status = FwpmCalloutAdd(engineHandle, &callout, NULL, &EthernetAddCalloutId);
+    InboundCallout.calloutKey = INBOUND_ETHERNET_CALLOUT_GUID;
+    InboundCallout.applicableLayer = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet layer
+    NTSTATUS status = FwpmCalloutAdd(engineHandle, &InboundCallout, NULL, &InboundEthernetAddCalloutId);
     if (!NT_SUCCESS(status))
         return status;
 
-    // Add callout for outbound loopback traffic
-    FWPM_CALLOUT loopbackCallout = { 0 };
-    loopbackCallout.flags = 0;
-    loopbackCallout.displayData.name = L"Loopback Callout";
-    loopbackCallout.displayData.description = L"Callout for outbound loopback traffic";
+    FWPM_CALLOUT OutboundCallout = { 0 };
+    OutboundCallout.flags = 0;
+    OutboundCallout.displayData.name = CALLOUT_DISPLAY_NAME;
+    OutboundCallout.displayData.description = CALLOUT_DISPLAY_NAME;
 
-    loopbackCallout.calloutKey = LOOPBACK_CALLOUT_GUID;
-    loopbackCallout.applicableLayer = FWPM_LAYER_OUTBOUND_IPPACKET_V4;  // Outbound transport layer (the callback will filter it to only save loopback packets)
-    return FwpmCalloutAdd(engineHandle, &loopbackCallout, NULL, &LoopbackAddCalloutId);
+    // Add callout for sniffing and blocking
+    OutboundCallout.calloutKey = OUTBOUND_ETHERNET_CALLOUT_GUID;
+    OutboundCallout.applicableLayer = FWPM_LAYER_OUTBOUND_MAC_FRAME_NATIVE; // Ethernet layer
+    return FwpmCalloutAdd(engineHandle, &OutboundCallout, NULL, &OutboundEthernetAddCalloutId);
 }
 
 NTSTATUS WfpAddSublayer()
 {
     IDPS_PRINT("Adding sublayer...");
 
-    // Create template for 2 subLayers
-    FWPM_SUBLAYER sublayer = { 0 };
-    sublayer.displayData.name = SUBLAYER_DISPLAY_NAME;
-    sublayer.displayData.description = SUBLAYER_DISPLAY_NAME;
-    sublayer.weight = 65500; // Callback priority (between OS and NIC)
+    FWPM_SUBLAYER InboundSublayer = { 0 };
+    InboundSublayer.displayData.name = SUBLAYER_DISPLAY_NAME;
+    InboundSublayer.displayData.description = SUBLAYER_DISPLAY_NAME;
+    InboundSublayer.weight = 65500; // Callback priority (between OS and NIC)
 
-    // Add subLayer for sniffing
-    sublayer.subLayerKey = ETHERNET_SUBLAYER_GUID;
-    NTSTATUS status = FwpmSubLayerAdd(engineHandle, &sublayer, NULL);
+    // Add subLayer for sniffing inbound traffic
+    InboundSublayer.subLayerKey = INBOUND_ETHERNET_SUBLAYER_GUID;
+    NTSTATUS status = FwpmSubLayerAdd(engineHandle, &InboundSublayer, NULL);
     if (!NT_SUCCESS(status))
         return status;
 
-    // Add sublayer for outbound loopback traffic if needed
-    FWPM_SUBLAYER loopbackSublayer = { 0 };
-    loopbackSublayer.displayData.name = L"Loopback Sublayer";
-    loopbackSublayer.displayData.description = L"Sublayer for outbound loopback traffic";
-    loopbackSublayer.weight = 65500;  // Optional, can adjust based on priority
+    FWPM_SUBLAYER OutboundSublayer = { 0 };
+    OutboundSublayer.displayData.name = SUBLAYER_DISPLAY_NAME;
+    OutboundSublayer.displayData.description = SUBLAYER_DISPLAY_NAME;
+    OutboundSublayer.weight = 65500; // Callback priority (between OS and NIC)
 
-    loopbackSublayer.subLayerKey = LOOPBACK_SUBLAYER_GUID;
-    return FwpmSubLayerAdd(engineHandle, &loopbackSublayer, NULL);
+    // Add subLayer for sniffing outbound traffic
+    OutboundSublayer.subLayerKey = OUTBOUND_ETHERNET_SUBLAYER_GUID;
+    return FwpmSubLayerAdd(engineHandle, &OutboundSublayer, NULL);
 }
 
 NTSTATUS WfpAddFilter()
 {
     IDPS_PRINT("Adding filter...");
 
-    // Create template for the filter
-    FWPM_FILTER filter = { 0 };
-    filter.displayData.name = SUBLAYER_DISPLAY_NAME;
-    filter.displayData.description = SUBLAYER_DISPLAY_NAME;
-    filter.weight.type = FWP_EMPTY;
-    filter.numFilterConditions = 0; // No condition in order to receive all protocols
-    filter.filterCondition = NULL; //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    filter.action.type = FWP_ACTION_CALLOUT_TERMINATING;
+    FWPM_FILTER InboundFilter = { 0 };
+    InboundFilter.displayData.name = SUBLAYER_DISPLAY_NAME;
+    InboundFilter.displayData.description = SUBLAYER_DISPLAY_NAME;
+    InboundFilter.weight.type = FWP_EMPTY;
+    InboundFilter.numFilterConditions = 0; // No condition in order to receive all protocols
+    InboundFilter.filterCondition = NULL; //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    InboundFilter.action.type = FWP_ACTION_CALLOUT_TERMINATING;
 
     // Add filter for sniffing
-    filter.subLayerKey = ETHERNET_SUBLAYER_GUID;
-    filter.action.calloutKey = ETHERNET_CALLOUT_GUID;
-    filter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet layer
-    NTSTATUS status = FwpmFilterAdd(engineHandle, &filter, NULL, &EthernetFilterId);
+    InboundFilter.subLayerKey = INBOUND_ETHERNET_SUBLAYER_GUID;
+    InboundFilter.action.calloutKey = INBOUND_ETHERNET_CALLOUT_GUID;
+    InboundFilter.layerKey = FWPM_LAYER_INBOUND_MAC_FRAME_NATIVE; // Ethernet layer
+    NTSTATUS status = FwpmFilterAdd(engineHandle, &InboundFilter, NULL, &InboundEthernetFilterId);
     if (!NT_SUCCESS(status))
         return status;
 
-    // Add filter for outbound loopback packets
-    FWPM_FILTER loopbackFilter = { 0 };
-    loopbackFilter.displayData.name = L"Loopback Filter";
-    loopbackFilter.displayData.description = L"Filter for outbound loopback traffic";
-    loopbackFilter.weight.type = FWP_EMPTY;
-    loopbackFilter.numFilterConditions = 0;  // No condition for all loopback traffic
-    loopbackFilter.filterCondition = NULL;
+    FWPM_FILTER OutboundFilter = { 0 };
+    OutboundFilter.displayData.name = SUBLAYER_DISPLAY_NAME;
+    OutboundFilter.displayData.description = SUBLAYER_DISPLAY_NAME;
+    OutboundFilter.weight.type = FWP_EMPTY;
+    OutboundFilter.numFilterConditions = 0; // No condition in order to receive all protocols
+    OutboundFilter.filterCondition = NULL; //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    OutboundFilter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
 
-    // Add the condition to filter only packets sent to 127.0.0.1
-    FWP_V4_ADDR_AND_MASK loopbackV4 = { 0 };
-    loopbackV4.addr = 0x0100007F; // 127.0.0.1 in network byte order
-    loopbackV4.mask = 0xFFFFFFFF; // Exact match
-
-    FWPM_FILTER_CONDITION0 condition;
-    condition.fieldKey = FWPM_CONDITION_IP_REMOTE_ADDRESS;
-    condition.matchType = FWP_MATCH_EQUAL;
-    condition.conditionValue.type = FWP_V4_ADDR_MASK;
-    condition.conditionValue.v4AddrMask = &loopbackV4;
-
-    loopbackFilter.filterCondition = NULL; // &condition;
-    loopbackFilter.numFilterConditions = 0; // 1;
-
-    loopbackFilter.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
-    loopbackFilter.subLayerKey = LOOPBACK_SUBLAYER_GUID;
-    loopbackFilter.action.calloutKey = LOOPBACK_CALLOUT_GUID;
-    loopbackFilter.layerKey = FWPM_LAYER_OUTBOUND_IPPACKET_V4;  // Outbound network layer
-    return FwpmFilterAdd(engineHandle, &loopbackFilter, NULL, &LoopbackFilterId);
+    // Add filter for sniffing
+    OutboundFilter.subLayerKey = OUTBOUND_ETHERNET_SUBLAYER_GUID;
+    OutboundFilter.action.calloutKey = OUTBOUND_ETHERNET_CALLOUT_GUID;
+    OutboundFilter.layerKey = FWPM_LAYER_OUTBOUND_MAC_FRAME_NATIVE; // Ethernet layer
+    return FwpmFilterAdd(engineHandle, &OutboundFilter, NULL, &OutboundEthernetFilterId);
 }
 
-VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
+VOID InboundPacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
     IDPS_PRINT("Received inbound packet...");
 
@@ -385,18 +360,20 @@ VOID PacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNOR
     memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
 
     // Check if the packet should be blocked
-    if (!doesPassFirewall(layerData))
-    {
-        classifyOut->actionType = FWP_ACTION_BLOCK;
-        return;
-    }
-    classifyOut->actionType = FWP_ACTION_PERMIT;
+    //if (!doesPassFirewall(layerData))
+    //{
+    //    classifyOut->actionType = FWP_ACTION_BLOCK;
+    //    return;
+    //}
+    //classifyOut->actionType = FWP_ACTION_PERMIT;
 
-    //TryQueueWorkItem(layerData, FALSE);
+    //TryQueueWorkItem(layerData);
 }
 
-VOID LoopbackCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
+VOID OutboundPacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGNORE const FWPS_INCOMING_METADATA_VALUES0* inMetaValues, void* layerData, __IGNORE const void* context, __IGNORE const FWPS_FILTER* filter, __IGNORE UINT64 flowContext, FWPS_CLASSIFY_OUT* classifyOut)
 {
+    IDPS_PRINT("Received inbound packet...");
+
     if (!layerData || !classifyOut)
     {
         IDPS_PRINT("layerData or classifyOut is NULL");
@@ -406,11 +383,7 @@ VOID LoopbackCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, __IGN
     memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
     classifyOut->actionType = FWP_ACTION_PERMIT;
 
-    if (LOOPBACK_ADDR != inFixedValues->incomingValue[FWPS_FIELD_OUTBOUND_IPPACKET_V4_IP_REMOTE_ADDRESS].value.uint32)
-        return; // Ignoring non-loopback packets
-
-    IDPS_PRINT_FORCE("Received outbound loopback packet...\n");
-    TryQueueWorkItem(layerData, TRUE);
+    TryQueueWorkItem(layerData);
 }
 
 // Boilerplate function without any use
@@ -421,7 +394,8 @@ NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterKey, FW
 
 // Boilerplate function without any use
 VOID FlowDeleteCallback(UINT16 layerId, UINT32 calloutId, UINT64 flowContext)
-{}
+{
+}
 
 VOID UnInitWfp()
 {
@@ -431,16 +405,16 @@ VOID UnInitWfp()
     if (!engineHandle) // Nothing to uninitialize
         return;
 
-    delFilter(EthernetFilterId);
-    delFilter(LoopbackFilterId);
-    FwpmSubLayerDeleteByKey(engineHandle, &ETHERNET_SUBLAYER_GUID);
-    FwpmSubLayerDeleteByKey(engineHandle, &LOOPBACK_SUBLAYER_GUID);
+    delFilter(InboundEthernetFilterId);
+    delFilter(OutboundEthernetFilterId);
+    FwpmSubLayerDeleteByKey(engineHandle, &INBOUND_ETHERNET_SUBLAYER_GUID);
+    FwpmSubLayerDeleteByKey(engineHandle, &OUTBOUND_ETHERNET_SUBLAYER_GUID);
 
-    delCallout(EthernetAddCalloutId);
-    delCallout(LoopbackAddCalloutId);
+    delCallout(InboundEthernetAddCalloutId);
+    delCallout(OutboundEthernetAddCalloutId);
 
-    unregCallout(EthernetRegCalloutId);
-    unregCallout(LoopbackRegCalloutId);
+    unregCallout(InboundEthernetRegCalloutId);
+    unregCallout(OutboundEthernetRegCalloutId);
 
     FwpmEngineClose(engineHandle);
     engineHandle = NULL;
@@ -531,18 +505,16 @@ closeFile:
     ZwClose(fileHandle);
 }
 
-void TryQueueWorkItem(const PVOID layerData, BOOL loopback)
+void TryQueueWorkItem(const PVOID layerData)
 {
+    isUdp(layerData, "UDP ----- tryStart");
+
     if (!workContext.ongoing)
     {
         // Ensure that the work item isn't released before the data is copied
-        while (workContext.held) {}
         workContext.held = TRUE; // Custom mutex
-        //if (!workContext.loopbackReserved) // Ensuring loopback packets wont be overrided
-        //{
-            //workContext.loopbackReserved = loopback;
-            copyLayerData(layerData, loopback);
-        //}
+        if (isUdp(layerData, "UDP ----- ifQueue"))
+            copyLayerData(layerData);
         workContext.held = FALSE;
     }
 
@@ -564,8 +536,9 @@ void TryQueueWorkItem(const PVOID layerData, BOOL loopback)
     IDPS_PRINT("Work item queued successfully!");
 }
 
-void copyLayerData(const PVOID layerData, BOOL loopback)
+void copyLayerData(const PVOID layerData)
 {
+    isUdp(layerData, "UDP ---- copyStart");
     if (!layerData) // Theoretically impossible
     {
         IDPS_PRINT(__FUNCTION__ " received null pointer");
@@ -580,18 +553,15 @@ void copyLayerData(const PVOID layerData, BOOL loopback)
     {
         // Get the current packet data buffer length
         USHORT dataLength = (USHORT)nb->DataLength;
+        IDPS_PRINT("Data length: %u", dataLength);
 
         // Extract the packet data buffer
-        UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, NULL, 1, 0);
+        UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, packetBuffer, 1, 0);
         if (!packetData)
         {
             IDPS_PRINT("Could not read packet data from net buffer");
             return;
         }
-
-        // Adding the Null Ethernet header ourselves
-        if (loopback)
-            dataLength += sizeof(NULL_IPV4_HEADER);
 
         // Write the packet size as a 2-byte value
         dataLength += sizeof(timestamp); // Add timestamp size
@@ -605,8 +575,6 @@ void copyLayerData(const PVOID layerData, BOOL loopback)
 
         // Write the actual packet data
         dataLength -= sizeof(timestamp); // Remove timestamp size
-        memcpy(workContext.layerData + totalCopied, &NULL_IPV4_HEADER, sizeof(NULL_IPV4_HEADER));
-        totalCopied += sizeof(NULL_IPV4_HEADER);
         memcpy(workContext.layerData + totalCopied, packetData, dataLength);
         totalCopied += dataLength;
 
@@ -615,6 +583,7 @@ void copyLayerData(const PVOID layerData, BOOL loopback)
     }
 
     workContext.layerDataLength = (USHORT)totalCopied; // Store the actual copied size
+    isUdp(layerData, "UDP ---- copyEnd");
 }
 
 void addIpRuleToBlacklist(const PUINT32 ip)
@@ -749,6 +718,9 @@ BOOL doesPassFirewall(const PVOID layerData)
     // Extract the IPv4 header
     const IPV4_HEADER* ipHeader = (IPV4_HEADER*)(packetData + sizeof(ETHERNET_HEADER));
 
+    if (ipHeader->Protocol == 17)
+        IDPS_PRINT("UDP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
     // Check if the source IP is in the blacklist
     if (isIpInBlacklist(ipHeader->SourceAddress.s_addr))
     {
@@ -814,4 +786,116 @@ void truncPacketFile()
         IDPS_PRINT("TruncateFile: Failed to truncate file (0x%08X)", status);
 
     ZwClose(fileHandle);
+}
+
+BOOL isUdp(const PVOID layerData, const char* msg)
+{
+    IDPS_PRINT("Called isUDP");
+    if (!layerData) // Theoretically impossible
+    {
+        IDPS_PRINT("doesPassFirewall received null layerData");
+        return FALSE;
+    }
+
+    // This 1 sadly CANNOT be const :(
+    NET_BUFFER* nb = ((NET_BUFFER_LIST*)layerData)->FirstNetBuffer;
+
+    const ULONG dataLength = nb->DataLength;
+    IDPS_PRINT("Data length (isUDP): %u", dataLength);
+    SIZE_T bytesWritten = 0;
+    //WritePacketsToBuffer(layerData, packetBuffer, &bytesWritten);
+    //IDPS_PRINT("Bytes written: %ul", bytesWritten);
+    const UCHAR* packetData = NdisGetDataBuffer(nb, dataLength, packetBuffer, 1, 0);
+
+    if (!packetData)
+    {
+        IDPS_PRINT("Failed to retrieve packet data");
+        return FALSE;
+    }
+    IDPS_PRINT("Packet data is NOT null\n");
+
+    // Check if the packet is an IP packet
+    if (dataLength < sizeof(ETHERNET_HEADER))
+    {
+        IDPS_PRINT("Packet is too short to be an IP packet");
+        return FALSE;
+    }
+
+    // Extract the Ethernet header
+    const ETHERNET_HEADER* ethHeader = (ETHERNET_HEADER*)packetData;
+
+    // Check if the packet is an IPv4 packet (EtherType == 0x0800)
+    if (ethHeader->Type != 0x0008) // 0x0800 in Little Endian
+    {
+        IDPS_PRINT("Packet is not an IPv4 packet");
+        return FALSE;
+    }
+
+    // Extract the IPv4 header
+    const IPV4_HEADER* ipHeader = (IPV4_HEADER*)(packetData + sizeof(ETHERNET_HEADER));
+
+    if (ipHeader->Protocol == 17)
+        IDPS_PRINT("%s", msg);
+    return ipHeader->Protocol == 17;
+}
+
+NTSTATUS WritePacketsToBuffer(const PVOID layerData, UCHAR* buffer, SIZE_T* bytesWritten)
+{
+    if (!layerData || !buffer || !bytesWritten) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerData;
+    NET_BUFFER* nb = nbl->FirstNetBuffer;
+    SIZE_T offset = 0;
+    *bytesWritten = 0;
+
+    while (nb) {
+        PMDL currentMdl = nb->CurrentMdl;
+        ULONG mdlOffset = nb->CurrentMdlOffset;
+        ULONG remainingPacketData = NET_BUFFER_DATA_LENGTH(nb);
+        ULONG64 timestamp = KeQueryUnbiasedInterruptTime();
+
+        // Calculate required space: 2B length + 8B timestamp + packet data
+        SIZE_T requiredSpace = sizeof(USHORT) + sizeof(ULONG64) + remainingPacketData;
+
+        // Write packet length (including timestamp)
+        USHORT storedLength = (USHORT)(remainingPacketData + sizeof(timestamp));
+        RtlCopyMemory(buffer + offset, &storedLength, sizeof(storedLength));
+        offset += sizeof(storedLength);
+
+        // Write timestamp
+        RtlCopyMemory(buffer + offset, &timestamp, sizeof(timestamp));
+        offset += sizeof(timestamp);
+
+        // Manual MDL parsing to copy packet data
+        while (remainingPacketData > 0 && currentMdl) {
+            ULONG mdlByteCount = MmGetMdlByteCount(currentMdl) - mdlOffset;
+            ULONG bytesToCopy = min(remainingPacketData, mdlByteCount);
+
+            if (bytesToCopy == 0) {
+                break;
+            }
+
+            PVOID mappedAddress = MmGetSystemAddressForMdlSafe(currentMdl, NormalPagePriority);
+            if (!mappedAddress) {
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+
+            RtlCopyMemory(
+                buffer + offset,
+                (PUCHAR)mappedAddress + mdlOffset,
+                bytesToCopy);
+
+            offset += bytesToCopy;
+            remainingPacketData -= bytesToCopy;
+            currentMdl = currentMdl->Next;
+            mdlOffset = 0; // Only first MDL has offset
+        }
+
+        nb = nb->Next;
+    }
+
+    *bytesWritten = offset;
+    return STATUS_SUCCESS;
 }
