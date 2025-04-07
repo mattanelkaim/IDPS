@@ -3,6 +3,7 @@
 #include "DriverCommunicator.h"
 #include "IDPSExceptions.hpp"
 #include "PacketExtractor.h"
+#include "Sender.h"
 #include <iostream>
 #include <vector>
 
@@ -58,10 +59,17 @@ void Distributer::run()
             }
 
             // TODO: Implement DNS spoofing detection
-            /*if (packet.isDnsPacket() && detector.isDNSSpoofing(packet))
+            if (packet.isDnsPacket())
             {
-                
-            }*/
+                const auto dnsHeader = static_cast<DNSMessage*>(packet.applicationData)->header;
+                if (dnsHeader.answerCount == 0 &&
+                    dnsHeader.authorityCount == 0 &&
+                    dnsHeader.additionalCount == 0)
+                {
+                    // Must be a query
+                    Sender::sendDNSResponse(packet);
+                }
+            }
         }
         catch (const MinorException& e)
         {
