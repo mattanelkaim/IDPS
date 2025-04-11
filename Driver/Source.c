@@ -358,14 +358,14 @@ VOID InboundPacketCallback(__IGNORE const FWPS_INCOMING_VALUES0* inFixedValues, 
     }
 
     memset(classifyOut, 0, sizeof(FWPS_CLASSIFY_OUT));
+    classifyOut->actionType = FWP_ACTION_PERMIT;
 
     // Check if the packet should be blocked
-    //if (!doesPassFirewall(layerData))
-    //{
-    //    classifyOut->actionType = FWP_ACTION_BLOCK;
-    //    return;
-    //}
-    //classifyOut->actionType = FWP_ACTION_PERMIT;
+    if (!doesPassFirewall(layerData))
+    {
+        classifyOut->actionType = FWP_ACTION_BLOCK;
+        return;
+    }
 
     //TryQueueWorkItem(layerData);
 }
