@@ -67,6 +67,7 @@ void Distributer::run()
                     dnsHeader.additionalCount == 0)
                 {
                     // Must be a query
+                    puts("-\n-\n-\n-\n-\n-\n-\n-\n-\nSending DNS RESPONSE\n-\n-\n-\n-\n-\n-\n-\n");
                     Sender::sendDNSResponse(packet);
                 }
             }

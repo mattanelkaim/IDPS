@@ -33,6 +33,6 @@ void DriverCommunicator::addMacToFirewall(mac macAddr) const
 
 void DriverCommunicator::truncateFile() const
 {
-    if (!DeviceIoControl(m_deviceHandle, IOCTL_TRUNCATE_FILE, NULL, 0, NULL, 0, NULL, NULL))
-        throw FatalWinException("Failed to truncate file.", GetLastError());
+    //if (!DeviceIoControl(m_deviceHandle, IOCTL_TRUNCATE_FILE, NULL, 0, NULL, 0, NULL, NULL))
+    //    throw FatalWinException("Failed to truncate file.", GetLastError());
 }

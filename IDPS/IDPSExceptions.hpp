@@ -20,3 +20,9 @@ class MinorException : public std::runtime_error
 public:
     explicit MinorException(const char* message) : std::runtime_error(message) {}
 };
+
+class MinorWinException : public MinorException
+{
+public:
+    explicit MinorWinException(const char* message, uint32_t code) : MinorException(std::format("({}) - {}", code, message).c_str()) {}
+};

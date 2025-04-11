@@ -17,6 +17,7 @@ constexpr std::string_view INTERFACE_NAME_LAP = "Intel(R) Wi-Fi 6 AX201 160MHz";
 constexpr std::string_view INTERFACE_NAME_PC = "Realtek PCIe GbE Family Controller";
 constexpr std::string_view INTERFACE_NAME_VM = "Intel(R) PRO/1000 MT Desktop Adapter";
 constexpr std::string_view INTERFACE_NAME_DBG = "Microsoft Kernel Debug Network Adapter";
+constexpr std::string_view INTERFACE_NAME_WIFI = "Qualcomm Atheros QCA9377 Wireless Network Adapter";
 
 // IMPORTANT MOSTLY FOR PRINTING
 constexpr bool DEBUG = true;

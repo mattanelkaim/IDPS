@@ -66,6 +66,9 @@ static void printHexBuffer(const std::vector<uint8_t>& buffer, size_t first = 0,
 
 int main()
 {
+    //forwardToPython(44, "1.1.1.1", 0x0001, {1, 2, 3, 4});
+    //return 0;
+
     try
     {
         WSAInitializer wsaInit;

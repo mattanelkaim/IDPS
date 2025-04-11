@@ -26,7 +26,7 @@ void PacketExtractor::threadRoutine()
             // Truncating the file every MAX_PACKET_COUNT'th packet read
             if (packetCounter == MAX_PACKET_COUNT)
             {
-                this->truncatePacketFile();
+                //this->truncatePacketFile();
                 packetCounter = 0;
             }
 

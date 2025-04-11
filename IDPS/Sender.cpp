@@ -5,11 +5,15 @@
 #include <thread>
 #include <unordered_map>
 #include <utility> // std::move
+#include <fstream>
+#include <format>
+#include "IDPSExceptions.hpp"
 
 // Do NOT sort these includes
 #include <iphlpapi.h>
 #include <IcmpAPI.h>
 
+static int DNSResponsesCounter = 0;
 using json = nlohmann::json;
 
 
@@ -152,11 +156,11 @@ std::string Sender::DoHQuery(std::string_view domain)
     constexpr std::wstring_view acceptHeader = L"Accept: application/dns-json\r\n";
     constexpr ULONG headerSize = static_cast<ULONG>(acceptHeader.size()); // To avoid conversion warnings
     if (!WinHttpSendRequest(request, acceptHeader.data(), headerSize, NULL, NULL, 0, 0))
-        throw std::runtime_error("WinHttpSendRequest failed!");
+        throw MinorWinException("WinHttpSendRequest failed!", GetLastError());
 
     // Wait for the response
     if (!WinHttpReceiveResponse(request, NULL))
-        throw std::runtime_error("WinHttpReceiveResponse failed!");
+        throw MinorWinException("WinHttpReceiveResponse failed!", GetLastError());
 
     // Read the response data (in loop in edge-case of large responses)
     std::string response;
@@ -167,12 +171,32 @@ std::string Sender::DoHQuery(std::string_view domain)
         std::vector<char> buffer(bytesAvailable);
         DWORD bytesRead = 0;
         if (!WinHttpReadData(request, buffer.data(), bytesAvailable, &bytesRead))
-            throw std::runtime_error("WinHttpReadData failed!");
+            throw MinorWinException("WinHttpReadData failed!", GetLastError());
 
         response.append(buffer.data(), bytesRead);
     }
 
     return response;
+}
+
+void forwardToPython(int srcPort, const std::string& dstIP, int transactionID, const std::vector<uint8_t>& buffer, std::string_view resolved) {
+    const std::string dataFile = std::format("data{}.bin", DNSResponsesCounter++);
+    puts(dataFile.c_str());
+
+    // Write binary data
+    std::ofstream dataOut(dataFile.data(), std::ios::binary);
+    dataOut.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+    dataOut.close();
+
+    // Call Python script with file paths
+    const std::string command = std::format("python3 spoofer2.py {} {} {} {} {}",
+                                            srcPort, dstIP, transactionID, resolved, dataFile);
+
+    puts(command.c_str());
+	const int result = std::system(command.c_str());
+	if (result != 0) {
+		std::cerr << "Python script failed!\n";
+	}
 }
 
 void Sender::sendDNSResponse(const Packet& dnsQuery)
@@ -191,7 +215,7 @@ void Sender::sendDNSResponse(const Packet& dnsQuery)
 
     // Construct the response header (swap all bytes back to little endian)
     DNSHeader& header = responseDNS->header; // For convenience
-    header.transactionID = Helper::byteswap(header.transactionID);
+    //header.transactionID = Helper::byteswap(header.transactionID);
     header.flags = Helper::byteswap(0x8180Ui16); // Set the flags to indicate a response
     header.questionCount = Helper::byteswap(header.questionCount);
     header.answerCount = Helper::byteswap(static_cast<uint16_t>(responseDNS->answers.size()));
@@ -199,27 +223,34 @@ void Sender::sendDNSResponse(const Packet& dnsQuery)
     header.additionalCount = Helper::byteswap(static_cast<uint16_t>(responseDNS->additionalRecords.size()));
 
     // Insert the header and payload to the response buffer
-    std::vector<char> response(std::from_range, std::span{reinterpret_cast<char*>(&responseDNS->header), sizeof(responseDNS->header)});
+    std::vector<uint8_t> response(std::from_range, std::span{reinterpret_cast<uint8_t*>(&responseDNS->header), sizeof(responseDNS->header)});
     response.append_range(constructDNSPayload(*responseDNS));
 
+    std::string resolved;
+    if (header.answerCount != 0)
+        resolved = std::string(std::from_range, responseDNS->answers.back().data);
+    else
+        resolved = "0.0.0.0"; // Default in case of authority / additional
 
-    // Open a socket to send the response (and bind it to port 53)
-    SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    constexpr sockaddr_in socketAddr = Helper::getLocalhostDnsAddr();
-    bind(sendSocket, reinterpret_cast<const sockaddr*>(&socketAddr), sizeof(socketAddr));
+    forwardToPython(dnsQuery.transportHeader->srcPort, "1.1.1.1", header.transactionID, response, resolved);
 
-    sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
-    clientAddr.sin_port = std::byteswap(dnsQuery.transportHeader->srcPort); // Send the response to the source port
-    
-    // Send the response TODO: check return code
-    sendto(sendSocket,
-           response.data(),
-           static_cast<int>(response.size()),
-           0, // Reserve or some shit
-           reinterpret_cast<const sockaddr*>(&clientAddr),
-           sizeof(clientAddr));
+    //// Open a socket to send the response (and bind it to port 53)
+    //SOCKET sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    //constexpr sockaddr_in socketAddr = Helper::getLocalhostDnsAddr();
+    //bind(sendSocket, reinterpret_cast<const sockaddr*>(&socketAddr), sizeof(socketAddr));
 
-    closesocket(sendSocket); // Not RAII because no exceptions can be thrown since socket creation
+    //sockaddr_in clientAddr = Helper::getLocalhostDnsAddr();
+    //clientAddr.sin_port = std::byteswap(dnsQuery.transportHeader->srcPort); // Send the response to the source port
+    //
+    //// Send the response TODO: check return code
+    //sendto(sendSocket,
+    //       response.data(),
+    //       static_cast<int>(response.size()),
+    //       0, // Reserve or some shit
+    //       reinterpret_cast<const sockaddr*>(&clientAddr),
+    //       sizeof(clientAddr));
+
+    //closesocket(sendSocket); // Not RAII because no exceptions can be thrown since socket creation
 }
 
 std::vector<uint8_t> Sender::constructDNSPayload(const DNSMessage& message)
