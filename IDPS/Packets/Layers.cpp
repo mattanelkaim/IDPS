@@ -1,0 +1,323 @@
+#include "../IDPSExceptions.hpp"
+#include "Layers.h"
+#include <ostream>
+#include <ranges>
+#include <variant>
+
+// 4m=underline, 0m=reset ANSI
+#define FIELD(name) "\033[4m" name "\033[0m: "
+
+EthernetIIHeader::EthernetIIHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(EthernetIIHeader)) [[unlikely]]
+        throw MinorException("Invalid Ethernet header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const EthernetIIHeader*>(rawData.data());
+
+    // Convert to big endian if larger than a byte
+    this->etherType = Helper::byteswap(this->etherType);
+}
+
+std::ostream& operator<<(std::ostream& os, const EthernetIIHeader& obj)
+{
+    return os << FIELD("Destination MAC") << obj.dstMAC.macToString() << '\n'
+              << FIELD("Source MAC") << obj.srcMAC.macToString() << '\n'
+              << FIELD("Ethernet type") << "0x" << std::hex << obj.etherType << std::dec << '\n';
+}
+
+
+LoopbackHeader::LoopbackHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(LoopbackHeader)) [[unlikely]]
+        throw std::runtime_error("Invalid Loopback header size");
+
+    // Convert to big endian if larger than a byte
+    this->loopbackType = static_cast<ProtocolCode_32>(*rawData.data());
+}
+
+
+std::ostream& operator<<(std::ostream& os, const LoopbackHeader& obj)
+{
+    return os << FIELD("Loopback type") << "0x" << std::hex << obj.loopbackType << std::dec << '\n';
+}
+
+
+IPv4Header::IPv4Header(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(IPv4Header)) [[unlikely]]
+        throw MinorException("Invalid IPv4 header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const IPv4Header*>(rawData.data());
+
+    // Convert to big endian if larger than a byte
+    this->totalLength = Helper::byteswap(this->totalLength);
+    this->identification = Helper::byteswap(this->identification);
+    this->flagsAndFragmentOffset = Helper::byteswap(this->flagsAndFragmentOffset);
+    this->checksum = Helper::byteswap(this->checksum);
+    this->srcIP.s_addr = Helper::byteswap(this->srcIP.s_addr);
+    this->dstIP.s_addr = Helper::byteswap(this->dstIP.s_addr);
+}
+
+std::ostream& operator<<(std::ostream& os, const IPv4Header& obj)
+{
+    return os << FIELD("Version") << static_cast<int>(obj.version) << '\n' // High nibble
+              << FIELD("Header length") << static_cast<int>(obj.headerLength) << '\n' // Low nibble
+              << FIELD("Type of service") << static_cast<int>(obj.typeOfService) << '\n'
+              << FIELD("Total length") << obj.totalLength << '\n'
+              << FIELD("Identification") << obj.identification << '\n'
+              << FIELD("Flags") << static_cast<int>(obj.flags) << '\n' // High 3 bits
+              << FIELD("Fragment offset") << (obj.fragmentOffset) << '\n' // Low 13 bits
+              << FIELD("Time to live") << static_cast<int>(obj.ttl) << '\n'
+              << FIELD("Protocol") << static_cast<int>(obj.protocol) << '\n'
+              << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n'
+    
+              << FIELD("Source IP") << Helper::ipToStr(obj.srcIP) << '\n'
+              << FIELD("Destination IP") << Helper::ipToStr(obj.dstIP) << '\n';
+}
+
+
+ArpHeader::ArpHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(ArpHeader)) [[unlikely]]
+        throw MinorException("Invalid ARP header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const ArpHeader*>(rawData.data());
+
+    // Convert to big endian if larger than a byte
+    this->hardwareType = Helper::byteswap(this->hardwareType);
+    this->protocolType = Helper::byteswap(this->protocolType);
+    this->opcode = Helper::byteswap(this->opcode);
+    this->senderIP.s_addr = Helper::byteswap(this->senderIP.s_addr);
+    this->targetIP.s_addr = Helper::byteswap(this->targetIP.s_addr);
+}
+
+std::ostream& operator<<(std::ostream& os, const ArpHeader& obj)
+{
+    return os << FIELD("Hardware type") << "0x" << std::hex << obj.hardwareType << '\n'
+              << FIELD("IP format type") << "0x" << obj.protocolType << std::dec << '\n'
+              << FIELD("Hardware length") << static_cast<int>(obj.hardwareLength) << '\n'
+              << FIELD("Protocol length") << static_cast<int>(obj.protocolLength) << '\n'
+              << FIELD("Opcode") << "0x" << std::hex << obj.opcode << std::dec << '\n'
+    
+              << FIELD("Sender MAC") << obj.senderMAC.macToString() << '\n'
+              << FIELD("Sender IP") << Helper::ipToStr(obj.senderIP) << '\n'
+    
+              << FIELD("Target MAC") << obj.targetMAC.macToString() << '\n'
+              << FIELD("Target IP") << Helper::ipToStr(obj.targetIP) << '\n';
+}
+
+
+TCPHeader::TCPHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(TCPHeader)) [[unlikely]]
+        throw MinorException("Invalid TCP header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const TCPHeader*>(rawData.data());
+
+    // Convert to big endian if larger than a byte
+    this->srcPort = Helper::byteswap(this->srcPort);
+    this->dstPort = Helper::byteswap(this->dstPort);
+    this->checksum = Helper::byteswap(this->checksum);
+    this->seqNumber = Helper::byteswap(this->seqNumber);
+    this->ackNumber = Helper::byteswap(this->ackNumber);
+    this->windowSize = Helper::byteswap(this->windowSize);
+    this->urgentPointer = Helper::byteswap(this->urgentPointer);
+}
+
+std::ostream& operator<<(std::ostream& os, const TCPHeader& obj)
+{
+    os << FIELD("Source port") << obj.srcPort << '\n'
+       << FIELD("Destination port") << obj.dstPort << '\n'
+       << FIELD("Sequence number") << obj.seqNumber << '\n'
+       << FIELD("Acknowledgment Number") << obj.ackNumber << '\n'
+       << FIELD("Data Offset") << static_cast<int>(obj.dataOffset) << '\n'
+       << FIELD("Reserved") << ((obj.reserved & 0b1110) >> 1) << '\n'; // 3 high bits in lower nibble
+
+    // Flags
+    os << FIELD("Flags");
+    if (obj.flags & 0x01) os << "FIN ";
+    if (obj.flags & 0x02) os << "SYN ";
+    if (obj.flags & 0x04) os << "RST ";
+    if (obj.flags & 0x08) os << "PSH ";
+    if (obj.flags & 0x10) os << "ACK ";
+    if (obj.flags & 0x20) os << "URG ";
+    if (obj.reserved & 0x01) os << "Reserved "; // The 9th flag bit
+
+    os << '\n' << FIELD("Window size") << obj.windowSize << '\n'
+       << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n'
+       << FIELD("Urgent pointer") << obj.urgentPointer << '\n';
+
+    return os;
+}
+
+
+UDPHeader::UDPHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(UDPHeader)) [[unlikely]]
+        throw MinorException("Invalid UDP header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const UDPHeader*>(rawData.data());
+
+    // Convert to big endian if larger than a byte
+    this->srcPort = Helper::byteswap(this->srcPort);
+    this->dstPort = Helper::byteswap(this->dstPort);
+    this->length = Helper::byteswap(this->length);
+    this->checksum = Helper::byteswap(this->checksum);
+}
+
+std::ostream& operator<<(std::ostream& os, const UDPHeader& obj)
+{
+    return os << FIELD("Source port") << obj.srcPort << '\n'
+              << FIELD("Destination port") << obj.dstPort << '\n'
+              << FIELD("Length") << obj.length << '\n'
+              << FIELD("Checksum") << "0x" << std::hex << obj.checksum << std::dec << '\n';
+}
+
+
+DNSHeader::DNSHeader(std::span<const uint8_t> rawData)
+{
+    if (rawData.size() < sizeof(DNSHeader)) [[unlikely]]
+        throw MinorException("Invalid DNS header size");
+
+    // Copy raw data into the struct
+    *this = *reinterpret_cast<const DNSHeader*>(rawData.data());
+
+    // Convert to big endian if larger than a byte
+    this->transactionID = Helper::byteswap(this->transactionID);
+    this->flags = Helper::byteswap(this->flags);
+    this->questionCount = Helper::byteswap(this->questionCount);
+    this->answerCount = Helper::byteswap(this->answerCount);
+    this->authorityCount = Helper::byteswap(this->authorityCount);
+    this->additionalCount = Helper::byteswap(this->additionalCount);
+}
+
+std::ostream& operator<<(std::ostream& os, const DNSHeader& obj)
+{
+    return os << FIELD("Transaction ID") << "0x" << std::hex << obj.transactionID << '\n'
+              << FIELD("Flags") << "0x" << obj.flags << std::dec << '\n'
+    
+              << FIELD("Questions") << obj.questionCount << '\n'
+              << FIELD("Answers") << obj.answerCount << '\n'
+              << FIELD("Authority records") << obj.authorityCount << '\n'
+              << FIELD("Additional records") << obj.additionalCount << '\n';
+}
+
+
+// HELPER FUNCTIONS
+
+
+constexpr DNSRecord::DNSRecord(std::span<const uint8_t> rawData) noexcept :
+    name(Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data())))
+{
+    if (std::get<uint16_t>(name) & 0xC000) // Check if the name is a pointer
+    {
+        type = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 2));
+        recordClass = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 4));
+        ttl = Helper::byteswap(*reinterpret_cast<const uint32_t*>(rawData.data() + 6));
+
+        // Get the data length, then extract the data
+        const uint16_t dataLength = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + 10));
+        data.assign_range(rawData.subspan(12, dataLength));
+    }
+    else // The name is a domain name
+    {
+        // Parse the domain name
+        size_t offset = 0;
+        name = DNSMessage::parseDomainName(rawData, offset);
+        // Extract the type, class, TTL, and data length
+        type = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + offset));
+        recordClass = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + offset + 2));
+        ttl = Helper::byteswap(*reinterpret_cast<const uint32_t*>(rawData.data() + offset + 4));
+        const uint16_t dataLength = Helper::byteswap(*reinterpret_cast<const uint16_t*>(rawData.data() + offset + 8));
+        // Extract the data
+        data.assign_range(rawData.subspan(offset + 10, dataLength));
+    }
+}
+
+
+DNSMessage::DNSMessage(std::span<const uint8_t> rawData) :
+    header(rawData)
+{
+    size_t offset = sizeof(DNSHeader);
+
+    // Parse Questions
+    for (int i = 0; i < header.questionCount; ++i)
+    {
+        questions.push_back(parseDomainName(rawData, offset));
+        offset += 4;  // Skip type and class
+    }
+
+    // Parse Answers, Authorities, and Additional Records
+    answers = parseRecords(rawData, offset, header.answerCount);
+    /* NOTE - shouldn't receive any of these anyway, as WE are the DNS server
+       AND they both have an unsupported parsing, for now */
+    // authorities = parseRecords(rawData, offset, header.authorityCount);
+    // additionalRecords = parseRecords(rawData, offset, header.additionalCount);
+}
+
+constexpr std::string DNSMessage::parseDomainName(std::span<const uint8_t> rawData, size_t& offset)
+{
+    std::string domainName;
+
+    // Append each label to the domain name, separated by dots
+    while (rawData[offset] != 0) // Loop until null terminator
+    {
+        // Extract label length (1 byte) and increment to the label itself
+        const uint8_t labelLength = rawData[offset++];
+
+        // Append the label with a '.'
+        domainName.append_range(rawData.subspan(offset, labelLength));
+        domainName += ".";
+
+        offset += labelLength;
+    }
+
+    ++offset; // Skip the null terminator
+    domainName.pop_back(); // Remove the trailing dot
+    return domainName;
+}
+
+std::vector<uint8_t> DNSMessage::deserializeDomainName(std::span<const uint8_t> domain) noexcept
+{
+    std::vector<uint8_t> rawData;
+    rawData.reserve(domain.size() + 2); // Reserve enough space for the domain name and null terminator
+
+    for (auto label : std::views::split(domain, '.'))
+    {
+        if (!label) continue; // Skip empty labels (some domains end with a dot)
+
+        // Insert label length
+        rawData.push_back(static_cast<uint8_t>(label.size()));
+
+        // Append the label bytes
+        rawData.append_range(label);
+    }
+    
+    rawData.push_back(0); // Null terminator
+    return rawData;
+}
+
+constexpr std::vector<DNSRecord> DNSMessage::parseRecords(std::span<const uint8_t> rawData, size_t& offset, uint16_t count) noexcept
+{
+    std::vector<DNSRecord> records;
+    for (int i = 0; i < count; ++i)
+    {
+        // Call DNSRecord ctor with a span of its record data
+        records.emplace_back(rawData.subspan(offset));
+
+        /* If name is a pointer (uint16_t), then total fields have a constant length of 12.
+           However, if name holds a real domain, the name field isn't 2 bytes anymore (not a pointer),
+           its size should be the size of the domain. Butt! We parse it, which "costs" 2 bytes -
+           the null terminator AND the first label size hint (see parseDomainName() for more).
+           And of course we add the data size in both cases. */
+        offset += 12 + records.back().data.size();
+        if (std::holds_alternative<std::string>(records.back().name))
+            offset += std::get<std::string>(records.back().name).size();
+    }
+    return records;
+}

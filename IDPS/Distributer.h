@@ -1,0 +1,19 @@
+#pragma once
+
+class Distributer final
+{
+private:
+    Distributer() noexcept = default;
+
+public:
+    // Singleton methods
+    ~Distributer() noexcept = default;
+    static Distributer& getInstance() noexcept;
+    Distributer(const Distributer& other) = delete;
+    void operator=(const Distributer& other) = delete;
+    Distributer(Distributer&& other) = delete;
+    void operator=(Distributer&& other) = delete;
+
+    // methods
+    static void run();
+};

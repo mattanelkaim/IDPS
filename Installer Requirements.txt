@@ -1,0 +1,25 @@
+-------------------------
+         Execution
+-------------------------
+
+redistributables
+
+bcdedit /debug on
+Driver Certificate: bcdedit /set testsigning on
+(RESTART required)
+enable colors console: reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f
+
+-------------------------
+      Development
+-------------------------
+
+VS2022
+sdk
+wdk (&VS components):
+MSVC v143 - VS 2022 C++ ARM64/ARM64EC Spectre-mitigated libs (Latest)
+MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)
+C++ ATL for latest v143 build tools with Spectre Mitigations (ARM64/ARM64EC)
+C++ ATL for latest v143 build tools with Spectre Mitigations (x86 & x64)
+C++ MFC for latest v143 build tools with Spectre Mitigations (ARM64/ARM64EC)
+C++ MFC for latest v143 build tools with Spectre Mitigations (x86 & x64)
+Windows Driver Kit

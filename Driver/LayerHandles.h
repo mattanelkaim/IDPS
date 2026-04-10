@@ -1,0 +1,22 @@
+#pragma once
+
+// Check if compiling for kernel mode
+#ifdef _KERNEL_MODE
+
+#define BASE_FILE_DIRECTORY L"\\??\\C:\\IDPS_shared_files\\"
+
+#else // !_KERNEL_MODE
+
+#define BASE_FILE_DIRECTORY L"C:\\IDPS_shared_files\\"
+
+#include <windows.h> // For user-mode applications
+#include <winioctl.h>
+
+#endif // !_KERNEL_MODE
+
+#define PACKET_FILE_PATH (BASE_FILE_DIRECTORY L"packetFlow.bin")
+
+#define IOCTL_SEND_HANDLES CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_SEND_IP_RULE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_SEND_MAC_RULE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_TRUNCATE_FILE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_ANY_ACCESS)
